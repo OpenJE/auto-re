@@ -11,10 +11,19 @@
 		devShells."x86_64-linux".default = let
 		in pkgs.mkShell {
 			buildInputs = with pkgs; [
-				cargo rustc rustfmt clippy rust-analyzer
+				cargo
+				rustc
+				rustfmt
+				clippy
+				rust-analyzer
+				clang
+				clang-tools
 			];
 
-			env.RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
+    env = {
+      LIBCLANG_PATH = "${pkgs.clang}/lib";
+    };
+    env.RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
 		};
 	};
 }
