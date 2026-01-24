@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [lib]
-name = "auto-re"
+name = "auto_re"
 path = "src/lib.rs"
 
 [[bin]]
@@ -12,9 +12,11 @@ name = "auto-re"
 path = "src/main.rs"
 
 [dependencies]
-thiserror = "2.0.18"
-async-openai = "0.32.3"
-idalib = "0.7"
+thiserror    = "2.0.18"
+idalib       = "0.7.2"  # https://docs.rs/idalib/
+gdbstub      = "0.7.8"  # https://docs.rs/gdbstub/
+llama_cpp    = "0.3.2"  # https://docs.rs/llama_cpp/
+#async-openai = "0.32.3" # https://docs.rs/async-openai/
 
 [build-dependencies]
 idalib-build = "0.7"
