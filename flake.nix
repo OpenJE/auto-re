@@ -17,13 +17,11 @@
 				clippy
 				rust-analyzer
 				clang
-				clang-tools
+				libclang
+				rustPlatform.bindgenHook
 			];
 
-    env = {
-      LIBCLANG_PATH = "${pkgs.clang}/lib";
-    };
-    env.RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
+			env.RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
 		};
 	};
 }

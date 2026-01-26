@@ -1,7 +1,12 @@
-use auto_re::Result;
-use idalib::IDB;
+use auto_re::{
+	AutoRE,
+	AutoREResult,
+};
 
-fn main() -> Result<()> {
-	let idb = IDB::open("/path/to/binary")?;
+fn main() -> AutoREResult<()> {
+	let mut terminal = ratatui::init();
+	let mut autore = AutoRE::new();
+	autore.run( &mut terminal )?;
+	ratatui::restore();
 	Ok(())
 }
