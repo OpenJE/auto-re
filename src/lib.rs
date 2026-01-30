@@ -1,3 +1,4 @@
+mod event;
 mod engine;
 mod store;
 mod tui;
@@ -36,9 +37,8 @@ use idalib::{
 	IDAError,
 };
 
-use tui::{
-	state::State as TuiState,
-};
+use event::Event;
+use tui::Tui;
 
 #[derive( Error, Debug )]
 pub enum AutoREError {
@@ -52,7 +52,7 @@ pub type AutoREResult<T> = Result<T, AutoREError>;
 
 pub struct AutoRE {
 	exit: bool,
-	tui_state: TuiState,
+	tui: Option<Tui>,
 	idb: Option<IDB>,
 }
 
@@ -60,23 +60,20 @@ impl AutoRE {
 	pub fn new() -> AutoRE {
 		AutoRE {
 			exit: false,
-			tui_state: TuiState::Blank,
+			tui: Some( Tui::new() ),
 			idb: None,
 		}
 	}
 
-	pub fn run( &mut self, terminal: &mut DefaultTerminal ) -> AutoREResult<()> {
+	pub async fn run( &mut self ) -> AutoREResult<()> {
 		self.idb = match IDB::open( "../openvb/F3.exe.i64" ) {
 			Ok( idb ) => Some( idb ),
 			Err( error ) => return Err( AutoREError::IdaError( error ) ),
 		};
 
-		while !self.exit {
+		loop {
 			terminal.draw( |frame| self.render( frame ) )?;
-			match event::read()? {
-				Event::Key( key_event ) => self.handle_key_event( key_event )?,
-				_ => {}
-			}
+			self.handle_crossterm_events().await?;
 		}
 
 		Ok(())
@@ -102,6 +99,13 @@ impl AutoRE {
 
 			frame.area()
 		);
+	}
+
+	async fn handle_crossterm_events( &mut self ) -> io::Result<()> {
+		match event::read()? {
+			Event::Key( key_event ) => self.handle_key_event( key_event )?,
+			_ => {}
+		}
 	}
 
 	fn handle_key_event( &mut self, key_event: KeyEvent ) -> io::Result<()> {

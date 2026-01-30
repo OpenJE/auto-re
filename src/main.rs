@@ -4,9 +4,8 @@ use auto_re::{
 };
 
 fn main() -> AutoREResult<()> {
-	let mut terminal = ratatui::init();
-	let mut autore = AutoRE::new();
-	autore.run( &mut terminal )?;
-	ratatui::restore();
-	Ok(())
+	smol::block_on( async {
+		AutoRE::new().run().await?;
+		Ok(())
+	})
 }
