@@ -1,52 +1,31 @@
-// Experimental TUI module — remote code, needs migration to spec-aligned architecture.
-// This module is behind the `tui` feature and is not part of the M1 plan.
-
 pub mod state;
 
 use std::io;
+use std::time::Duration;
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
-use ratatui::{
-	Frame,
-	widgets::{Block, Paragraph},
-};
+use ratatui::widgets::{Block, Paragraph};
 
-use crate::event::Event as AppEvent;
 use crate::tui::state::State;
 
-#[derive(Debug, thiserror::Error)]
-pub enum TuiError {
-	#[error("io error: {0}")]
-	StdIoError(#[from] io::Error),
-}
-
-pub type TuiResult<T> = std::result::Result<T, TuiError>;
-
+/// TUI application state. Terminal is managed separately in `run_tui`
+/// so the borrow checker stays happy during `ratatui::Terminal::draw`.
 pub struct Tui {
-	terminal: ratatui::DefaultTerminal,
 	_state: State,
 }
 
 impl Tui {
+	#[must_use]
 	pub fn new() -> Self {
 		Self {
-			terminal: ratatui::init(),
 			_state: State::Blank,
 		}
-	}
-
-	fn render(&self, frame: &mut Frame) {
-		frame.render_widget(
-			Paragraph::new("auto-re TUI (experimental)")
-				.block(Block::bordered().title("auto-re")),
-			frame.area(),
-		);
 	}
 
 	fn handle_key_event(&mut self, key_event: KeyEvent) -> io::Result<bool> {
 		match key_event.kind {
 			KeyEventKind::Press => match key_event.code {
-				KeyCode::Char('q') => Ok(true), // signal exit
+				KeyCode::Char('q') => Ok(true),
 				_ => Ok(false),
 			},
 			_ => Ok(false),
@@ -54,33 +33,33 @@ impl Tui {
 	}
 }
 
-impl Drop for Tui {
-	fn drop(&mut self) {
-		ratatui::restore();
-	}
-}
-
 /// Entry point for the TUI, called from main when the `tui` feature is enabled.
+/// Renders a simple bordered paragraph and exits on `q`.
 pub async fn run_tui() -> crate::Result<()> {
-	let mut tui = Tui::new();
+	let mut terminal = ratatui::init();
+	let mut app = Tui::new();
 
 	loop {
-		tui.terminal
-			.draw(|frame| tui.render(frame))
-			.map_err(|e| crate::Error::Io(e))?;
+		terminal
+			.draw(|frame| {
+				frame.render_widget(
+					Paragraph::new("auto-re TUI — press q to quit")
+						.block(Block::bordered().title("auto-re")),
+					frame.area(),
+				);
+			})
+			.map_err(crate::Error::Io)?;
 
-		match event::read().map_err(|e| crate::Error::Io(e))? {
-			Event::Key(key_event) => {
-				if tui
-					.handle_key_event(key_event)
-					.map_err(|e| crate::Error::Io(e))?
-				{
+		// Poll with 100 ms timeout so tokio can run other tasks.
+		if event::poll(Duration::from_millis(100)).map_err(crate::Error::Io)? {
+			if let Event::Key(key_event) = event::read().map_err(crate::Error::Io)? {
+				if app.handle_key_event(key_event)? {
 					break;
 				}
 			}
-			_ => {}
 		}
 	}
 
+	ratatui::restore();
 	Ok(())
 }

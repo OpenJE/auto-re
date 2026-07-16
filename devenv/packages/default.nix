@@ -13,5 +13,6 @@ in {
 
   packages = [
     cargo-mcp
+    pkgs.cmake
   ];
 }

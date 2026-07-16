@@ -1,13 +1,14 @@
-// Remote TUI modules — feature-gated behind `tui`.
-// These are experimental/incomplete and require crossterm + ratatui + smol.
+// TUI modules — decoupled from IDA; compiled when `tui` feature is enabled.
 #[cfg(feature = "tui")]
 mod event;
 #[cfg(feature = "tui")]
+pub mod tui;
+
+// IDA-dependent modules — gated behind `ida` feature (engine.rs imports `idax`).
+#[cfg(feature = "ida")]
 mod engine;
-#[cfg(feature = "tui")]
+#[cfg(feature = "ida")]
 mod store;
-#[cfg(feature = "tui")]
-mod tui;
 
 // ---------------------------------------------------------------------------
 // Core error type (spec-aligned)
@@ -41,4 +42,53 @@ pub enum Error {
 	Ida(#[from] idax::Error),
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+// ---------------------------------------------------------------------------
+// Unit tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn error_enum_database_display() {
+		let err = Error::Database("connection failed".into());
+		assert_eq!(err.to_string(), "database error: connection failed");
+	}
+
+	#[test]
+	fn error_enum_configuration_display() {
+		let err = Error::Configuration("missing key".into());
+		assert_eq!(err.to_string(), "configuration error: missing key");
+	}
+
+	#[test]
+	fn error_enum_io_from_std() {
+		let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+		let err: Error = io_err.into();
+		assert!(err.to_string().contains("io error:"));
+	}
+
+	#[test]
+	fn result_alias_default_error() {
+		// Verify that Result<T> defaults to Error
+		let ok_val: Result<i32> = Ok(42);
+		assert_eq!(ok_val.unwrap(), 42);
+	}
+
+	#[test]
+	fn result_alias_explicit_type() {
+		let err_val: Result<i32, Error> = Err(Error::Validation("bad input".into()));
+		assert!(err_val.is_err());
+	}
+
+	#[cfg(feature = "tui")]
+	#[test]
+	fn tui_compiles() {
+		// Verify the run_tui symbol exists.
+		// This test passes at compile time; actual TUI is tested via smoke test.
+		let _sig: fn() -> crate::tui::Tui = crate::tui::Tui::new;
+	}
+}

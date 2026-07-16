@@ -122,8 +122,47 @@ To build with `ida` feature: add `cmake` to the dev shell (already in `flake.nix
 
 ### Revised M1 todo priorities
 
-- **Todo 2 (Error enum):** Already done in this merge — spec-aligned `Error` enum with all required variants.
+- **Todo 2 (Error enum):** Already done in this merge — spec-aligned `Error` enum with all required variants. BUT the feature-gating was wrong: `tui` implied `ida`. Fixed in Todo 2 implementation.
 - **Todo 3 (IDA adapter):** Should target `idax` API instead of `idalib`. The adapter wraps `idax::database`, `idax::function`, `idax::decompiler` into the spec's `AnalysisBackend` trait.
 - **Todo 4 (SQLite + migrations):** Unchanged — `rusqlite` + `refinery` are in place.
 - **Todo 5 (Campaign engine):** Unchanged — build on `petgraph`, not the remote `RETaskGraph`.
+
+## Todo 2 — Error enum, Result alias, and TUI scaffolding decoupled from IDA
+
+### What changed
+
+- **`Cargo.toml`**: `default = []` → `default = ["tui"]`. `tui` feature no longer implies `ida` or depends on `smol`. The `smol` dependency was removed entirely.
+- **`src/lib.rs`**: `Error` enum already existed from the merge (spec-aligned with 7 variants + `#[cfg(feature = "ida")] Ida`). Added `pub type Result<T, E = Error>`. Added 6 unit tests: `error_enum_database_display`, `error_enum_configuration_display`, `error_enum_io_from_std`, `result_alias_default_error`, `result_alias_explicit_type`, `tui_compiles`.
+- **`src/tui.rs`**: Rewrote to separate terminal from app state (avoids ratatui borrow-checker conflict). Uses `crossterm::event::poll(Duration::from_millis(100))` for non-blocking event polling compatible with tokio. No `smol`, no `TuiError`/`TuiResult` — uses `crate::Error` throughout.
+- **`src/main.rs`**: Replaced `smol::block_on` with `#[tokio::main] async fn main() -> auto_re::Result<()>`. On `tui` feature, calls `auto_re::tui::run_tui().await`. On headless, prints placeholder.
+- **`devenv/packages/default.nix`**: Added `pkgs.cmake`.
+- **`engine.rs`/`store.rs`**: Gated behind `#[cfg(feature = "ida")]` instead of `#[cfg(feature = "tui")]` since they import `idax`.
+
+### Architectural decisions
+
+1. **Module gating**: `mod event;` and `pub mod tui;` are behind `#[cfg(feature = "tui")]`. The task said "remove guards" but `--no-default-features` compilation requires them because the modules import optional `crossterm`/`ratatui`. The essential architectural change (TUI not implying IDA) is already achieved.
+
+2. **Terminal management**: The `Tui` struct holds only application state (`State::Blank`). The `ratatui::DefaultTerminal` is managed locally in `run_tui()` to avoid the classic `tui.terminal.draw(|frame| tui.render(frame))` borrow conflict. This is the standard ratatui pattern for scaffolding.
+
+3. **Event polling**: Uses `crossterm::event::poll(100ms)` instead of blocking `read()` so the TUI event loop cooperates with tokio's single-threaded runtime. The 100ms render tick also lays groundwork for Todo 17's real-time dashboard updates.
+
+4. **No custom TUI error type**: The remote `TuiError`/`TuiResult` were removed. All TUI errors are `crate::Error::Io(std::io::Error)` via `?` operator.
+
+### Verification results
+
+| Command | Result |
+|---------|--------|
+| `cargo build` (default features = tui) | ✅ Passes |
+| `cargo build --no-default-features` | ✅ Passes |
+| `cargo test` | ✅ 6/6 pass |
+| `cargo test error_enum` | ✅ 3/3 pass |
+| `cargo test tui_compiles` | ✅ 1/1 pass |
+| TUI smoke (tmux + q) | ✅ Renders "auto-re TUI — press q to quit", exits cleanly on `q` |
+| `lsp_diagnostics` on changed files | ✅ Clean — no errors/warnings on lib, tui, main |
+
+### Notable issues
+
+- **`event.rs` dead-code warnings**: Expected until Todo 17 builds the full dashboard. The `Event` enum and its constructors are unused in scaffolding.
+- **`cmake` in devenv**: Added for `idax-sys` build when `--features ida` is used. Not required for default build.
+- **`devenv` shell wrapping**: When running in `devenv`, the shell wrapper adds ~900ms of startup overhead. TUI works correctly after initialization.
 
