@@ -1,13 +1,13 @@
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-	#[cfg(feature = "ida")]
-	{
-		let (_, ida_path, idalib_path) = idalib_build::idalib_install_paths_with(false);
-		if !ida_path.exists() || !idalib_path.exists() {
-			println!("cargo::warning=IDA installation not found.");
-			idalib_build::configure_idasdk_linkage();
-		} else {
-			idalib_build::configure_linkage()?;
-		}
-	}
-	Ok(())
+fn main() {
+	// idax handles its own build (C++ wrapper compilation, IDA SDK discovery,
+	// and linkage) via its idax-sys dependency. No build script logic is needed
+	// in the consumer crate.
+	//
+	// When the `ida` feature is disabled, idax is not compiled at all.
+	// When enabled, idax-sys automatically:
+	//   1. Locates the IDA installation ($IDADIR or standard paths)
+	//   2. Compiles the C++ idax wrapper library
+	//   3. Links against the IDA SDK
+	//
+	// If IDA is not found, idax-sys will print a cargo warning.
 }

@@ -18,6 +18,8 @@
 				rust-analyzer
 				clang
 				clang-tools
+				libclang
+				rustPlatform.bindgenHook
 			];
 
     env = {
