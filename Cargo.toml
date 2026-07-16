@@ -11,12 +11,35 @@ path = "src/lib.rs"
 name = "auto-re"
 path = "src/main.rs"
 
+[features]
+default = []
+ida    = ["dep:idalib", "dep:idalib-build"]
+gdb    = ["dep:gdbstub"]
+llama  = ["dep:llama_cpp"]
+
 [dependencies]
-thiserror    = "2.0.18"
-idalib       = "0.7.2"  # https://docs.rs/idalib/
-gdbstub      = "0.7.8"  # https://docs.rs/gdbstub/
-llama_cpp    = "0.3.2"  # https://docs.rs/llama_cpp/
-#async-openai = "0.32.3" # https://docs.rs/async-openai/
+thiserror           = "2.0.18"
+idalib              = { version = "0.7.2", optional = true }
+gdbstub             = { version = "0.7.8", optional = true }
+llama_cpp           = { version = "0.3.2", optional = true }
+#async-openai       = "0.32.3" # https://docs.rs/async-openai/
+tokio               = { version = "1", features = ["full"] }
+tokio-util          = "0.7"
+async-trait         = "0.1"
+rusqlite            = { version = "0.37", features = ["bundled"] }
+refinery            = { version = "0.9", features = ["rusqlite-bundled"] }
+serde               = { version = "1", features = ["derive"] }
+serde_json          = "1"
+toml                = "0.9"
+clap                = { version = "4", features = ["derive"] }
+uuid                = { version = "1", features = ["v4", "serde"] }
+time                = { version = "0.3", features = ["serde"] }
+blake3              = "1"
+tracing             = "0.1"
+tracing-subscriber  = { version = "0.3", features = ["env-filter", "json"] }
+schemars            = "1"
+jsonschema          = "0.33"
+petgraph            = "0.8"
 
 [build-dependencies]
-idalib-build = "0.7"
+idalib-build = { version = "0.7", optional = true }
