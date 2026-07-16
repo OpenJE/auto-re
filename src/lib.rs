@@ -45,6 +45,24 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 // ---------------------------------------------------------------------------
+// Typed IDs and domain primitives (always compiled, feature-independent)
+// ---------------------------------------------------------------------------
+
+pub mod ids;
+pub mod domain;
+
+// Re-export frequently used types at crate root so callers can write
+// `use crate::TaskId` or `use crate::Confidence` without naming the module.
+pub use domain::{
+    Address, AddressSpace, Confidence, ContentHash, Provenance, SymbolName,
+};
+pub use ids::{
+    BinaryId, BinaryRevisionId, CampaignId, ClaimId, EvidenceId, FunctionId,
+    ImplementationTargetId, ModuleId, ProjectId, TaskId, TransactionId,
+    ValidationRunId, WorkerRunId,
+};
+
+// ---------------------------------------------------------------------------
 // Unit tests
 // ---------------------------------------------------------------------------
 

@@ -166,3 +166,54 @@ To build with `ida` feature: add `cmake` to the dev shell (already in `flake.nix
 - **`cmake` in devenv**: Added for `idax-sys` build when `--features ida` is used. Not required for default build.
 - **`devenv` shell wrapping**: When running in `devenv`, the shell wrapper adds ~900ms of startup overhead. TUI works correctly after initialization.
 
+## Todo 3 — Typed ID macro and domain primitives
+
+### What was created
+
+- **`src/ids.rs`** (68 lines pure code): `define_id!` macro that emits a `#[repr(transparent)]` newtype over `uuid::Uuid` with `Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize`, plus `new()`, `from_uuid()`, `as_uuid()`, `Default`, and `Display`. Generates all 13 spec §8 identifiers: `ProjectId`, `BinaryId`, `BinaryRevisionId`, `ModuleId`, `FunctionId`, `TaskId`, `ClaimId`, `EvidenceId`, `CampaignId`, `WorkerRunId`, `TransactionId`, `ImplementationTargetId`, `ValidationRunId`.
+
+- **`src/domain/mod.rs`** (180 lines pure code): Six domain primitives:
+  - `Address { space: AddressSpace, value: u128 }` — memory address with space qualification. `Serialize`/`Deserialize` via derives (AddressSpace has its own custom serde impl so it composes automatically).
+  - `AddressSpace` — enum with `Virtual`, `RelativeVirtual`, `FileOffset`, `Physical`, `Custom(String)`. Custom `Serialize` via `collect_str(self)` (Display) and custom `Deserialize` via visitor parsing the round-tripped string format.
+  - `ContentHash(String)` — BLAKE3 content hash with `from_bytes()`. `#[serde(transparent)]` serializes as a bare string.
+  - `SymbolName(String)` — symbolic name with `new()`. `#[serde(transparent)]` serializes as a bare string.
+  - `Provenance` — enum with 9 variants including `Agent { worker_run_id: WorkerRunId }`. Custom serde via `collect_str`/visitor; `Agent(worker_run_id: WorkerRunId)` serializes as `"Agent(<uuid>)"`.
+  - `Confidence(f32)` — validated range [0.0, 1.0]. `new()` returns `Err(crate::Error::Validation(...))` on out-of-range. Custom `Deserialize` validates during deserialization. `#[serde(transparent)]` serializes as bare float.
+
+- **`src/lib.rs`**: Added `pub mod ids;` and `pub mod domain;` with re-exports at crate root (`pub use ids::{...}`, `pub use domain::{...}`) so callers can write `use crate::TaskId` or `use crate::ids::*`.
+
+### Key decisions
+
+1. **`define_id!` is a macro, not a proc-macro**: A `macro_rules!` macro is sufficient — no need for a separate proc-macro crate. The macro accepts `($name, $doc)` and generates the struct, impl block, `Default`, and `Display`.
+
+2. **`from_uuid()` + `as_uuid()` API**: Added for interop (deserialization of `Provenance::Agent` needs to reconstruct a `WorkerRunId` from a parsed UUID, and `as_uuid()` is needed for ID comparison across types in tests).
+
+3. **`AddressSpace` serde uses `collect_str`**: Rather than maintaining a parallel serialization format, `AddressSpace` implements `Display` and uses `serializer.collect_str(self)` to produce the same string that `Display` outputs. The `Deserialize` visitor parses that format back.
+
+4. **`Provenance::Agent` serializes as `"Agent(<uuid>)"`**: The `WorkerRunId` inner UUID is extracted via `Display` during serialization and parsed from the string during deserialization. This avoids complex nested JSON while preserving round-trip fidelity.
+
+5. **`Confidence` has custom `Deserialize` but derived `Serialize`**: The derive with `#[serde(transparent)]` produces a bare f32 serialization. The manual `Deserialize` reads the f32 then validates, producing a serde `invalid_value` error on out-of-range.
+
+6. **`Address` removes `Copy`**: Because `AddressSpace` has a `Custom(String)` variant (`String` is not `Copy`), `Address` cannot derive `Copy`. `Clone` is sufficient.
+
+### Verification results
+
+| Command | Result |
+|---------|--------|
+| `cargo build` (default features) | ✅ |
+| `cargo build --no-default-features` | ✅ |
+| `cargo test` | ✅ 35/35 pass |
+| `cargo test ids_serialize_and_roundtrip` | ✅ 1/1 |
+| `cargo test confidence_rejects_out_of_range` | ✅ 1/1 |
+| `cargo test ids_are_not_interchangeable` | ✅ 1/1 |
+| `cargo test address_spaces` | ✅ 3/3 |
+| `cargo test content_hash` | ✅ 5/5 |
+| `lsp_diagnostics src/ids.rs` | ✅ Clean |
+| `lsp_diagnostics src/domain/mod.rs` | ✅ Clean |
+| `lsp_diagnostics src/lib.rs` | ✅ Only inactive-code hints for `#[cfg(feature = "ida")]` |
+
+### Notable issues
+
+- **`Address` cannot be `Copy`** because `AddressSpace` contains `Custom(String)`. The derive was attempted initially but failed at compile time. Fixed by removing `Copy` from `Address`'s derive list.
+- **Total LOC**: `src/ids.rs` = 68 pure LOC (within limit). `src/domain/mod.rs` = 180 pure LOC (within limit). No files over 200 LOC.
+
