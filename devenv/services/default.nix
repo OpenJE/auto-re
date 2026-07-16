@@ -1,0 +1,3 @@
+# ./modules/services/default.nix
+
+{ ... }: {}

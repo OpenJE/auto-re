@@ -1,0 +1,3 @@
+# ./modules/environment/default.nix
+
+{ ... }: {}

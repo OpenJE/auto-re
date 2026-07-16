@@ -1,0 +1,3 @@
+# ./modules/scripts/default.nix
+
+{ ... }: {}

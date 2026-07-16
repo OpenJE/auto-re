@@ -1,0 +1,3 @@
+# ./modules/processes/default.nix
+
+{ ... }: {}

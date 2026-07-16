@@ -1,0 +1,13 @@
+# ./devenv.yaml
+
+# yaml-language-server: $schema=https://devenv.sh/devenv.schema.json
+
+inputs:
+  nixpkgs:
+    url: github:cachix/devenv-nixpkgs/rolling
+  nixpkgs-unstable:
+    url: github:nixos/nixpkgs/nixos-unstable
+  codegraph:
+    url: github:Shenmarukai/codegraph/103223adf0718cf1932fbc29b580daf1de0bb5f0
+  opencode:
+    url: github:nixos/nixpkgs/5c1ae64122ad43f24ce1b1a8139e2f459dc791dd
