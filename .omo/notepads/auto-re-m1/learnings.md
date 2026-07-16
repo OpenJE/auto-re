@@ -217,3 +217,51 @@ To build with `ida` feature: add `cmake` to the dev shell (already in `flake.nix
 - **`Address` cannot be `Copy`** because `AddressSpace` contains `Custom(String)`. The derive was attempted initially but failed at compile time. Fixed by removing `Copy` from `Address`'s derive list.
 - **Total LOC**: `src/ids.rs` = 68 pure LOC (within limit). `src/domain/mod.rs` = 180 pure LOC (within limit). No files over 200 LOC.
 
+## Todo 4 — Domain entities: Function, Campaign, Task, Claim, Evidence
+
+### What was created
+
+Five core domain entity files under `src/domain/`:
+
+| File | Production LOC | Description |
+|------|---------------|-------------|
+| `src/domain/function.rs` | 56 | `Function` struct with 11 fields, constructor, lock/unlock/rename/bump methods |
+| `src/domain/campaign.rs` | 100 | `Campaign` struct + `CampaignState` enum (Pending/Active/Paused/Complete/Blocked) with start/pause/resume/complete/block/unblock transitions |
+| `src/domain/task/mod.rs` | 214 | `Task` struct, `TaskState` enum (9 variants), 10 transition methods with validation, ← extracted from monolithic `task.rs` |
+| `src/domain/task/kind.rs` | 27 | `TaskKind` enum — 24 variants covering inventory/analysis/decompilation/type-recovery/verification/reimplementation/campaign/reporting |
+| `src/domain/task/types.rs` | 48 | `TaskSubject`, `TaskPriority`, `RequiredCapabilities` |
+| `src/domain/claim.rs` | 154 | `Claim` struct, `ClaimState` (6 variants), `ClaimPredicate` (17 variants), `ClaimValue` (8 variants), transition methods + evidence management |
+| `src/domain/evidence.rs` | 111 | `Evidence` struct, `EvidenceKind` (18 variants), `EvidenceLocation`, `ArtifactId`, `EntityId` enum spanning 7 entity types |
+
+### Key decisions
+
+1. **`task.rs` split into a module directory**: The monolithic `task.rs` was 284 production LOC (over the 250 limit). Split into `task/mod.rs` (core Task + TaskState + transitions), `task/kind.rs` (TaskKind enum), and `task/types.rs` (TaskSubject/TaskPriority/RequiredCapabilities). Each file is now under 214 LOC.
+
+2. **`TaskKind::Custom(String)`**: Adding a `Custom` variant prevents `Copy` derive (String is not Copy). Removed `Copy` from TaskKind.
+
+3. **`RequiredCapabilities` doesn't derive `Hash`**: `HashSet<String>` within the struct doesn't implement `Hash`. Removed `Hash` derive; `Eq` and `PartialEq` remain.
+
+4. **`EntityId` is a flat enum over 7 ID types**: Not a recursive tree or trait-based approach. Simpler to match, serialize, and deserialize. Used in `Claim.subject`, `Evidence.entity`, and `TaskSubject::Entity(EntityId)`.
+
+5. **State validation uses `crate::Error::Validation`**: Every transition method returns `Ok(())` on success and `Err(crate::Error::Validation(...))` on invalid transition, matching the pattern established by `Confidence::new()`.
+
+6. **Evidence linking is idempotent**: `Claim::link_evidence()` checks for duplicates before pushing. `Claim::add_dependency()` also prevents self-dependencies and duplicates.
+
+### Verification results
+
+| Command | Result |
+|---------|--------|
+| `cargo build` (default features) | ✅ Passes |
+| `cargo build --no-default-features` | ✅ Passes |
+| `cargo test` | ✅ 81/81 pass |
+| `cargo test task_state_transitions` | ✅ 1/1 |
+| `cargo test claim_state_transitions` | ✅ 1/1 |
+| `cargo test task_dependencies` | ✅ 1/1 |
+| `cargo test claim_evidence_link` | ✅ 1/1 |
+| Domain purity (no adapter imports) | ✅ Clean |
+
+### Notable issues
+
+- **`Test name mismatch`**: The acceptance criteria expects `cargo test task_dependencies` and `cargo test claim_evidence_link`. The original test names used different word order (`task_multiple_dependencies`, `claim_link_evidence`). Renamed to match acceptance criteria exactly.
+- **`EvidenceId` and `FunctionId` import path**: In `claim.rs`, tests imported `EvidenceId` and `FunctionId` from `crate::domain` (re-export path) but the crate root re-exports hadn't picked them up yet. Fixed by importing from `crate::ids` directly in the test module.
+

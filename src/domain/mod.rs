@@ -272,6 +272,24 @@ impl<'de> serde::Deserialize<'de> for Confidence {
 }
 
 // ---------------------------------------------------------------------------
+// Entity modules
+// ---------------------------------------------------------------------------
+
+pub mod campaign;
+pub mod claim;
+pub mod evidence;
+pub mod function;
+pub mod task;
+
+// Re-export public types from sub-modules at domain level so callers can
+// write `use crate::domain::Function` instead of `use crate::domain::function::Function`.
+pub use campaign::{Campaign, CampaignState};
+pub use claim::{Claim, ClaimPredicate, ClaimState, ClaimValue};
+pub use evidence::{ArtifactId, EntityId, Evidence, EvidenceKind, EvidenceLocation};
+pub use function::Function;
+pub use task::{RequiredCapabilities, Task, TaskKind, TaskPriority, TaskState, TaskSubject};
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 

@@ -54,7 +54,10 @@ pub mod domain;
 // Re-export frequently used types at crate root so callers can write
 // `use crate::TaskId` or `use crate::Confidence` without naming the module.
 pub use domain::{
-    Address, AddressSpace, Confidence, ContentHash, Provenance, SymbolName,
+    Address, AddressSpace, ArtifactId, Campaign, CampaignState, Claim, ClaimPredicate,
+    ClaimState, ClaimValue, Confidence, ContentHash, EntityId, Evidence, EvidenceKind,
+    EvidenceLocation, Function, Provenance, RequiredCapabilities, SymbolName, Task,
+    TaskKind, TaskPriority, TaskState, TaskSubject,
 };
 pub use ids::{
     BinaryId, BinaryRevisionId, CampaignId, ClaimId, EvidenceId, FunctionId,
