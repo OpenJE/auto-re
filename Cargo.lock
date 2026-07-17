@@ -154,10 +154,6 @@ dependencies = [
 [[package]]
 name = "autore-cli"
 version = "0.1.0"
-dependencies = [
- "autore-stage1",
- "tokio",
-]
 
 [[package]]
 name = "autore-core"

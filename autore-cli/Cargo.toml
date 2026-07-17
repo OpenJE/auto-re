@@ -8,5 +8,3 @@ name = "auto-re"
 path = "src/main.rs"
 
 [dependencies]
-autore-stage1 = { path = "../autore-stage1" }
-tokio.workspace = true

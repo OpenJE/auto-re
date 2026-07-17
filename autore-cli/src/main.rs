@@ -1,4 +1,4 @@
-#[tokio::main]
-async fn main() -> autore_stage1::Result<()> {
-    autore_stage1::cli::run().await
+fn main() {
+    println!("auto-re Stage 0 placeholder binary.");
+    println!("Build autore-stage1 for the M1 campaign runner.");
 }

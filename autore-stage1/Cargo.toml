@@ -10,6 +10,10 @@ gdb = ["dep:gdbstub"]
 llama = ["dep:llama_cpp"]
 tui = ["dep:autore-tui", "dep:autore-events"]
 
+[[bin]]
+name = "auto-re"
+path = "src/main.rs"
+
 [dependencies]
 autore-core = { path = "../autore-core" }
 autore-schema = { path = "../autore-schema" }
