@@ -6,8 +6,8 @@
 
 use std::path::PathBuf;
 
-use crate::domain::{ContentHash, ExtensionData, MetadataMap, NamespacedId, SchemaVersion, StableEntityKey, Timestamp};
-use crate::ids::{ArtifactId, EntityId, NativeArtifactId, PackageId, ProjectId, ProviderId, ProviderRunId};
+use crate::domain::{ContentHash, ExtensionData, EvidenceValue, MetadataMap, NamespacedId, SchemaVersion, StableEntityKey, Timestamp};
+use crate::ids::{ArtifactId, EntityId, EvidenceRecordId, NativeArtifactId, PackageId, ProjectId, ProviderId, ProviderRunId};
 
 // ---------------------------------------------------------------------------
 // Project
@@ -444,6 +444,126 @@ pub static NATIVE_FORMAT_Z3_MODEL: std::sync::LazyLock<NamespacedId> =
 /// Native format: Raw LLM response text.
 pub static NATIVE_FORMAT_LLM_RAW_RESPONSE: std::sync::LazyLock<NamespacedId> =
     std::sync::LazyLock::new(|| NamespacedId::parse("llm.raw-response").unwrap());
+
+// ---------------------------------------------------------------------------
+// EvidenceLifecycleState
+// ---------------------------------------------------------------------------
+
+/// The lifecycle state of an evidence record.
+///
+/// Evidence records are immutable once inserted. Their lifecycle is tracked
+/// via append-only `EvidenceLifecycleEvent` records. The valid states are:
+/// - `Active`: the evidence is current and usable.
+/// - `Superseded`: newer evidence replaces this one.
+/// - `Invalidated`: the evidence was found to be incorrect.
+/// - `Unavailable`: the evidence source is no longer accessible.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum EvidenceLifecycleState {
+    Active,
+    Superseded,
+    Invalidated,
+    Unavailable,
+}
+
+impl std::fmt::Display for EvidenceLifecycleState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EvidenceLifecycleState::Active => write!(f, "Active"),
+            EvidenceLifecycleState::Superseded => write!(f, "Superseded"),
+            EvidenceLifecycleState::Invalidated => write!(f, "Invalidated"),
+            EvidenceLifecycleState::Unavailable => write!(f, "Unavailable"),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Assumption
+// ---------------------------------------------------------------------------
+
+/// An assumption underlying a piece of evidence.
+///
+/// Each assumption has a human-readable description and an optional reference
+/// to another evidence record that supports it.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Assumption {
+    pub description: String,
+    pub evidence: Option<EvidenceRecordId>,
+}
+
+// ---------------------------------------------------------------------------
+// EvidenceRecord
+// ---------------------------------------------------------------------------
+
+/// An immutable evidence record supporting or refuting observations about
+/// a semantic entity within a project.
+///
+/// Evidence records are append-only: once inserted, they are NEVER updated or
+/// deleted. Lifecycle changes (supersession, invalidation) are tracked via
+/// `EvidenceLifecycleEvent` records in a separate table.
+///
+/// The `value` field carries the actual observation (typed `EvidenceValue`),
+/// and `derivation` records how the evidence was produced. The `native_artifacts`
+/// field stores opaque references to `NativeArtifact` IDs (no FK — stored as
+/// a JSON array of UUID strings).
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct EvidenceRecord {
+    pub id: EvidenceRecordId,
+    pub project: ProjectId,
+    pub subject: EntityId,
+    pub predicate: NamespacedId,
+    pub value: EvidenceValue,
+    pub derivation: crate::domain::Derivation,
+    pub provider_run: Option<ProviderRunId>,
+    pub native_artifacts: Vec<NativeArtifactId>,
+    pub assumptions: Vec<Assumption>,
+    pub created_at: Timestamp,
+}
+
+// ---------------------------------------------------------------------------
+// EvidenceLifecycleEvent
+// ---------------------------------------------------------------------------
+
+/// An append-only event recording a lifecycle state change for an evidence
+/// record.
+///
+/// Events are never updated or deleted. The full lifecycle history of an
+/// evidence record is the ordered sequence of events for that evidence ID.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct EvidenceLifecycleEvent {
+    pub evidence: EvidenceRecordId,
+    pub timestamp: Timestamp,
+    pub state: EvidenceLifecycleState,
+    pub reason: Option<String>,
+    pub caused_by: Option<EvidenceRecordId>,
+}
+
+// ---------------------------------------------------------------------------
+// Evidence predicate constants
+// ---------------------------------------------------------------------------
+
+/// Evidence predicate: the name of a function.
+pub static EVIDENCE_PREDICATE_FUNCTION_NAME: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("evidence.predicate.function-name").unwrap());
+
+/// Evidence predicate: the signature of a function.
+pub static EVIDENCE_PREDICATE_FUNCTION_SIGNATURE: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("evidence.predicate.function-signature").unwrap());
+
+/// Evidence predicate: a call target reference.
+pub static EVIDENCE_PREDICATE_CALL_TARGET: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("evidence.predicate.call-target").unwrap());
+
+/// Evidence predicate: a string reference.
+pub static EVIDENCE_PREDICATE_STRING_REFERENCE: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("evidence.predicate.string-reference").unwrap());
+
+/// Evidence predicate: type information.
+pub static EVIDENCE_PREDICATE_TYPE_INFO: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("evidence.predicate.type-info").unwrap());
+
+/// Evidence predicate: control flow observation.
+pub static EVIDENCE_PREDICATE_CONTROL_FLOW: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("evidence.predicate.control-flow").unwrap());
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -951,5 +1071,105 @@ mod tests {
         assert_eq!(NATIVE_FORMAT_GDB_TRACE.to_string(), "gdb.trace");
         assert_eq!(NATIVE_FORMAT_Z3_MODEL.to_string(), "z3.model");
         assert_eq!(NATIVE_FORMAT_LLM_RAW_RESPONSE.to_string(), "llm.raw-response");
+    }
+
+    #[test]
+    fn evidence_lifecycle_state_display() {
+        assert_eq!(EvidenceLifecycleState::Active.to_string(), "Active");
+        assert_eq!(EvidenceLifecycleState::Superseded.to_string(), "Superseded");
+        assert_eq!(EvidenceLifecycleState::Invalidated.to_string(), "Invalidated");
+        assert_eq!(EvidenceLifecycleState::Unavailable.to_string(), "Unavailable");
+    }
+
+    #[test]
+    fn evidence_lifecycle_state_serialize_round_trip() {
+        for state in [
+            EvidenceLifecycleState::Active,
+            EvidenceLifecycleState::Superseded,
+            EvidenceLifecycleState::Invalidated,
+            EvidenceLifecycleState::Unavailable,
+        ] {
+            let json = serde_json::to_string(&state).unwrap();
+            let back: EvidenceLifecycleState = serde_json::from_str(&json).unwrap();
+            assert_eq!(state, back);
+        }
+    }
+
+    #[test]
+    fn assumption_round_trip_json() {
+        let a = Assumption {
+            description: "binary is stripped".to_string(),
+            evidence: Some(EvidenceRecordId::new()),
+        };
+        let json = serde_json::to_string(&a).unwrap();
+        let back: Assumption = serde_json::from_str(&json).unwrap();
+        assert_eq!(a, back);
+
+        let a_none = Assumption {
+            description: "manual assertion".to_string(),
+            evidence: None,
+        };
+        let json = serde_json::to_string(&a_none).unwrap();
+        let back: Assumption = serde_json::from_str(&json).unwrap();
+        assert_eq!(a_none, back);
+    }
+
+    #[test]
+    fn evidence_record_round_trip_json() {
+        use crate::domain::Derivation;
+        use crate::domain::values::DerivationMethod;
+
+        let rec = EvidenceRecord {
+            id: EvidenceRecordId::new(),
+            project: ProjectId::new(),
+            subject: EntityId::new(),
+            predicate: EVIDENCE_PREDICATE_FUNCTION_NAME.clone(),
+            value: EvidenceValue::String("main".to_string()),
+            derivation: Derivation::new(
+                DerivationMethod::DirectObservation,
+                NamespacedId::parse("core.observe").unwrap(),
+                vec![],
+                vec![],
+            ),
+            provider_run: None,
+            native_artifacts: vec![],
+            assumptions: vec![],
+            created_at: Timestamp::now(),
+        };
+        let json = serde_json::to_string_pretty(&rec).unwrap();
+        let back: EvidenceRecord = serde_json::from_str(&json).unwrap();
+        assert_eq!(rec.id, back.id);
+        assert_eq!(rec.project, back.project);
+        assert_eq!(rec.subject, back.subject);
+        assert_eq!(rec.predicate, back.predicate);
+        assert_eq!(rec.value, back.value);
+        assert_eq!(rec.derivation, back.derivation);
+    }
+
+    #[test]
+    fn evidence_lifecycle_event_round_trip_json() {
+        let ev = EvidenceLifecycleEvent {
+            evidence: EvidenceRecordId::new(),
+            timestamp: Timestamp::now(),
+            state: EvidenceLifecycleState::Superseded,
+            reason: Some("replaced by newer analysis".to_string()),
+            caused_by: Some(EvidenceRecordId::new()),
+        };
+        let json = serde_json::to_string_pretty(&ev).unwrap();
+        let back: EvidenceLifecycleEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(ev.evidence, back.evidence);
+        assert_eq!(ev.state, back.state);
+        assert_eq!(ev.reason, back.reason);
+        assert_eq!(ev.caused_by, back.caused_by);
+    }
+
+    #[test]
+    fn evidence_predicate_constants_registered() {
+        assert_eq!(EVIDENCE_PREDICATE_FUNCTION_NAME.to_string(), "evidence.predicate.function-name");
+        assert_eq!(EVIDENCE_PREDICATE_FUNCTION_SIGNATURE.to_string(), "evidence.predicate.function-signature");
+        assert_eq!(EVIDENCE_PREDICATE_CALL_TARGET.to_string(), "evidence.predicate.call-target");
+        assert_eq!(EVIDENCE_PREDICATE_STRING_REFERENCE.to_string(), "evidence.predicate.string-reference");
+        assert_eq!(EVIDENCE_PREDICATE_TYPE_INFO.to_string(), "evidence.predicate.type-info");
+        assert_eq!(EVIDENCE_PREDICATE_CONTROL_FLOW.to_string(), "evidence.predicate.control-flow");
     }
 }

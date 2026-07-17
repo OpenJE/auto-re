@@ -111,3 +111,14 @@
 - **`SqliteAliasStore` implements both `ProviderAliasStore` and `NativeArtifactStore`**: A single struct implements both traits, sharing the `&Database` reference. This avoids redundant struct definitions while maintaining trait-object separation.
 - **V6 migration uses `hash_digest` BLOB not TEXT hex**: The `stage0_artifacts` table stores `hash_digest` as BLOB (raw bytes), not hex TEXT. Test helpers must use `ch.digest.as_slice()` not `ch.digest_hex()`.
 - **FK references for aliases require both `provider_runs` AND `semantic_entities`**: The `provider_entity_aliases` table has FKs to two different tables. Both must exist before an alias can be inserted — test setup needs `insert_project`, `insert_provider`, `insert_run`, AND `insert_entity`.
+
+## 2026-07-17 (Task 17)
+
+- **`EvidenceRecordId` is a new typed ID distinct from M1 `EvidenceId`**: The M1 `ids::EvidenceId` already exists (used by claims/hypotheses). `EvidenceRecordId` is the Stage 0 append-only evidence record ID — a separate type preventing accidental mixing.
+- **`EvidenceValue` contains `f64` via `Float` variant**: Any struct containing `EvidenceValue` (including `EvidenceRecord`) cannot derive `Eq` — must use `PartialEq` only. Same constraint as `EnvironmentIdentity` with `ExtensionData`.
+- **`native_artifacts` stored as JSON array TEXT with no FK**: The `evidence_records.native_artifacts` column stores `Vec<NativeArtifactId>` as a JSON array of UUID strings. No FK constraint — the IDs are opaque references. This matches the `provider_runs.input_artifacts` pattern.
+- **`assumptions` stored as JSON TEXT**: `Vec<Assumption>` serializes as a JSON array of objects with `description` and optional `evidence` fields. The `evidence` field references another `EvidenceRecordId` (self-referential within the same table).
+- **`EvidenceLifecycleState` uses string representation in DB**: The `state` column stores the Display representation ("Active", "Superseded", "Invalidated", "Unavailable"). Reconstruction uses a match on the string rather than serde, keeping the DB format simple and human-readable.
+- **Append-only enforced at API level, not DB level**: The `EvidenceStore` trait has no `update` or `delete` methods. The DB table has no `UNIQUE` constraint beyond the PK — multiple inserts with the same ID would fail on PK collision. The immutability guarantee is the absence of mutation APIs.
+- **V7 migration numbering**: Task plan says "V6__evidence.sql" but V6 is already used by `aliases_native`. V7 is the correct next migration number. No impact — refinery applies migrations in numerical order.
+- **`evidence_lifecycle_events` has no PRIMARY KEY**: Like `provider_entity_aliases`, this table uses rowid. Multiple events per evidence record are expected (append-only history). The `idx_evidence_lifecycle_evidence_time` index provides efficient ordered retrieval.

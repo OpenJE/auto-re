@@ -181,6 +181,10 @@ define_id!(
     GenerationTargetId,
     "Identifies a target for code generation or artifact production."
 );
+define_id!(
+    EvidenceRecordId,
+    "Identifies an append-only evidence record within a project."
+);
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -259,6 +263,7 @@ mod tests {
         let _ = ProjectEventId::new();
         let _ = PackageId::new();
         let _ = GenerationTargetId::new();
+        let _ = EvidenceRecordId::new();
     }
 
     #[test]
@@ -317,6 +322,7 @@ mod tests {
         roundtrip("ProjectEventId", &ProjectEventId::new());
         roundtrip("PackageId", &PackageId::new());
         roundtrip("GenerationTargetId", &GenerationTargetId::new());
+        roundtrip("EvidenceRecordId", &EvidenceRecordId::new());
         // M1 IDs also verified here
         roundtrip("ProjectId", &ProjectId::new());
     }

@@ -1,0 +1,32 @@
+Task 17: Append-only EvidenceRecord + EvidenceLifecycleEvent + EvidenceStore
+=============================================================================
+
+Date: 2026-07-17
+Status: PASS
+
+Files modified:
+- autore-schema/src/ids.rs: Added EvidenceRecordId typed ID
+- autore-schema/src/domain/records.rs: Added EvidenceRecord, Assumption, EvidenceLifecycleEvent, EvidenceLifecycleState, 6 evidence predicate constants, 6 unit tests
+- autore-schema/src/domain/mod.rs: Updated re-exports for new types
+- migrations/V7__evidence.sql: Created evidence_records and evidence_lifecycle_events tables
+- autore-store/src/storage/evidence_store.rs: New file — EvidenceStore trait + SqliteEvidenceStore impl + 11 tests
+- autore-store/src/storage/mod.rs: Added evidence_store module and re-exports
+- autore-store/src/lib.rs: Added EvidenceStore and SqliteEvidenceStore to public API
+
+Verification results:
+- cargo build --workspace: PASS (0 errors, 0 warnings)
+- cargo test -p autore-store -- evidence_append_only: PASS (1/1)
+- cargo test -p autore-store -- evidence_lifecycle_history: PASS (1/1)
+- cargo test -p autore-store -- evidence_query_by_subject_predicate: PASS (1/1)
+- cargo test -p autore-store -- evidence_fk_enforced: PASS (1/1)
+- cargo test -p autore-store -- native_artifact_reference_integrity: PASS (1/1)
+- cargo test --workspace --exclude autore-stage1: PASS (376/376, 0 failures)
+
+Key design decisions:
+- EvidenceRecord is immutable — no update/delete methods on EvidenceStore trait
+- Lifecycle changes tracked via append-only EvidenceLifecycleEvent records
+- native_artifacts stored as JSON array TEXT (no FK — opaque ID references)
+- assumptions stored as JSON TEXT (Vec<Assumption> with optional self-referential evidence ID)
+- EvidenceLifecycleState stored as string TEXT (human-readable: Active/Superseded/Invalidated/Unavailable)
+- V7 migration (not V6 as plan suggested — V6 already used by aliases_native)
+- EvidenceRecordId is distinct from M1 EvidenceId (both coexist)

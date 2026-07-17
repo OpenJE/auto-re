@@ -176,3 +176,26 @@
 - `subject_entities` is stored as a JSON array TEXT column — cannot filter in SQL without SQLite JSON extension.
 - Current implementation fetches all `native_artifacts` rows and filters in Rust.
 - Acceptable for expected small dataset sizes. If performance becomes a concern, a junction table (`native_artifact_subjects`) could be added in a future migration.
+
+## 2026-07-17 (Task 17)
+
+### evidence_store.rs LOC (INFORMATIONAL)
+- Implementation: ~230 pure LOC + ~350 LOC tests = ~580 total.
+- Implementation LOC is within the 250 ceiling.
+- Co-located unit tests per Rust convention.
+
+### records.rs growth (Task 17) (INFORMATIONAL)
+- Added `EvidenceLifecycleState` enum (~20 LOC) + `Assumption` struct (~5 LOC) + `EvidenceRecord` struct (~15 LOC) + `EvidenceLifecycleEvent` struct (~10 LOC) + 6 evidence predicate constants (~24 LOC) + 6 tests (~100 LOC).
+- records.rs now ~440 pure LOC implementation + ~580 LOC tests = ~1020 total.
+- Implementation LOC exceeds 250 ceiling but contains 9 struct/enum definitions, 25 constants, and tests — well-separated sections following established pattern.
+- A future split into an `evidence.rs` module within records is planned.
+
+### V7 migration naming (DESIGN NOTE)
+- Task plan says "V6__evidence.sql" but V6 is already used by `aliases_native`. V7 is the correct next migration number.
+- No impact — refinery applies migrations in numerical order.
+
+### `EvidenceRecordId` vs M1 `EvidenceId` (DESIGN NOTE)
+- M1 `ids::EvidenceId` already exists and is used by claims and hypotheses for evidence linking.
+- Stage 0 `EvidenceRecordId` is a new typed ID for the append-only evidence records table.
+- Both coexist; `EvidenceRecordId` is the persistence-layer identity, while M1 `EvidenceId` remains in the claim/hypothesis domain.
+- When Stage 0 fully replaces M1, `EvidenceRecordId` will subsume `EvidenceId`.
