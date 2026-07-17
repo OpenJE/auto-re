@@ -16,7 +16,7 @@
       };
 
       plugin = [
-        "oh-my-openagent@4.16.2"
+        "oh-my-openagent@4.18.2"
       ];
 
       permission = {
