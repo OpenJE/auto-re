@@ -30,3 +30,11 @@
 - Co-locating unit tests with implementation is idiomatic Rust.
 - Codebase already has larger files: `domain/mod.rs` (945), `claim.rs` (603), `evidence.rs` (367).
 - No split planned; will refactor if the module grows beyond current scope.
+
+## 2026-07-17 (Task 7)
+
+### values.rs growth (INFORMATIONAL)
+- Implementation: 166 pure LOC (under 250 ceiling). Tests: ~339 LOC.
+- Added `ModuleIdentity`, refined `BinaryLocation`, `StableEntityKey` (4 variants), `DerivationMethod` (10 variants), `Derivation` struct.
+- Re-exports updated in `domain/mod.rs`. No `autore-stage1` changes required (no call sites touched `BinaryLocation`).
+- All 152 schema tests + 42 stage1 tests pass.
