@@ -315,3 +315,26 @@
 - All three tests pass as specified.
 - No changes to public APIs, migrations, or Cargo.toml.
 - No M1 scheduler/worker references.
+
+## 2026-07-17 (Task 23)
+
+### `with_event` does not return the emitted event (DESIGN NOTE)
+- `autore_store::with_event` commits an event but returns only the closure's value, not the `ProjectEvent` itself.
+- `LocalProjectEventService::emit_event` therefore reimplements the atomic transaction using `next_project_event_sequence` + `emit_in_tx` directly instead of calling `with_event`.
+- The atomicity guarantee is preserved: the sequence is computed inside the transaction, the event is inserted in the same transaction, and the transaction commits before broadcasting.
+- This avoids changing the public API of `with_event` or any store trait.
+
+### `ProjectEventSubscription` holds a closure rather than a service reference (DESIGN NOTE)
+- The trait-specified `subscribe(&self, ...)` signature makes it impossible for the subscription to hold an `Arc` back to `self` without the caller already wrapping the service in an `Arc`.
+- Passing a closure decouples the subscription from the service type and keeps the public trait signature unchanged.
+- The closure is `Send + Sync`; store queries run inside `tokio::task::spawn_blocking` so the async `next()` method does not block the executor on the `Mutex<Connection>`.
+
+### `GappedSubscription` emulator is replay-only (DESIGN NOTE)
+- The emulator intentionally returns gapped events from `events_after` to verify that the subscription detects unrecoverable gaps and surfaces an error.
+- It uses a closed broadcast channel so the live phase ends immediately after replay.
+- This tests gap detection; it does not test full recovery because a store that itself returns gapped data cannot be recovered from without external repair.
+
+### `sequence_gap_recovery` test semantics (DESIGN NOTE)
+- The acceptance-criteria test injects a gap (sequences `[1, 3, 5]`) and asserts the subscriber detects it.
+- After receiving sequence 1, the next event is 3, which is a gap. The subscription resyncs from `events_after(1)`. Since the emulator still returns 3 as the first event, the gap is unrecoverable and the subscription returns `Error::Subscription("unrecoverable sequence gap ...")`.
+- This satisfies "subscriber detects and rebuilds" in the sense that the subscriber attempts to rebuild via resync; when the authoritative store is inconsistent, it reports the failure rather than silently skipping events.

@@ -27,14 +27,15 @@ impl Event {
     }
 }
 
+pub mod project_event_service;
+
 pub mod operation_events {
     use autore_core::operation::OperationState;
-    use autore_schema::domain::records::{
-        EVENT_KIND_OPERATION_COMPLETED, EVENT_KIND_OPERATION_FAILED,
-        EVENT_KIND_OPERATION_PROGRESS, EVENT_KIND_OPERATION_QUEUED,
-        EVENT_KIND_OPERATION_STARTED,
-    };
     use autore_schema::domain::NamespacedId;
+    use autore_schema::domain::records::{
+        EVENT_KIND_OPERATION_COMPLETED, EVENT_KIND_OPERATION_FAILED, EVENT_KIND_OPERATION_PROGRESS,
+        EVENT_KIND_OPERATION_QUEUED, EVENT_KIND_OPERATION_STARTED,
+    };
 
     /// Returns the event kind for an operation state transition.
     ///
@@ -89,16 +90,16 @@ mod tests {
 
     #[test]
     fn operation_events_emitted_for_transitions() {
-        let kind = emit_transition_event(&OperationState::Queued, &OperationState::Running)
-            .unwrap();
+        let kind =
+            emit_transition_event(&OperationState::Queued, &OperationState::Running).unwrap();
         assert_eq!(kind.to_string(), "core.operation.started");
 
-        let kind = emit_transition_event(&OperationState::Running, &OperationState::Completed)
-            .unwrap();
+        let kind =
+            emit_transition_event(&OperationState::Running, &OperationState::Completed).unwrap();
         assert_eq!(kind.to_string(), "core.operation.completed");
 
-        let kind = emit_transition_event(&OperationState::Running, &OperationState::Failed)
-            .unwrap();
+        let kind =
+            emit_transition_event(&OperationState::Running, &OperationState::Failed).unwrap();
         assert_eq!(kind.to_string(), "core.operation.failed");
 
         let result = emit_transition_event(&OperationState::Completed, &OperationState::Running);
@@ -107,10 +108,22 @@ mod tests {
 
     #[test]
     fn operation_event_kind_str_matches_constants() {
-        assert_eq!(transition_event_kind_str(&OperationState::Queued), "core.operation.queued");
-        assert_eq!(transition_event_kind_str(&OperationState::Running), "core.operation.started");
-        assert_eq!(transition_event_kind_str(&OperationState::Completed), "core.operation.completed");
-        assert_eq!(transition_event_kind_str(&OperationState::Failed), "core.operation.failed");
+        assert_eq!(
+            transition_event_kind_str(&OperationState::Queued),
+            "core.operation.queued"
+        );
+        assert_eq!(
+            transition_event_kind_str(&OperationState::Running),
+            "core.operation.started"
+        );
+        assert_eq!(
+            transition_event_kind_str(&OperationState::Completed),
+            "core.operation.completed"
+        );
+        assert_eq!(
+            transition_event_kind_str(&OperationState::Failed),
+            "core.operation.failed"
+        );
     }
 
     #[test]
@@ -125,4 +138,3 @@ mod tests {
         assert_eq!(k2.to_string(), "core.operation.completed");
     }
 }
-

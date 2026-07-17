@@ -177,3 +177,14 @@
 - **`Transaction::Drop` auto-rollback is atomic across state+event**: When `with_event`'s closure returns `Err`, the `Transaction` drops without `commit()`, triggering `ROLLBACK`. This undoes both the state UPDATE and the event INSERT in one atomic operation — no partial writes survive.
 - **`tempfile::tempdir()` for isolated on-disk tests**: Each test gets a unique temporary directory that is automatically cleaned up. The `Database::open` call creates the SQLite file inside it.
 - **WAL mode does not prevent reopen consistency**: SQLite WAL mode is enabled by `Database::open`. After dropping the connection and reopening, the WAL is checkpointed and all committed data is visible. No special WAL handling needed in tests.
+
+## 2026-07-17 (Task 23)
+
+- **`ProjectEventSubscription` decouples from `ProjectEventService` via a closure**: Holding a trait-object reference back to the service creates a self-reference problem for `LocalProjectEventService::subscribe`. Passing an `Arc<dyn Fn(ProjectId, u64, usize) -> Result<Vec<ProjectEvent>> + Send + Sync>` closure into the subscription avoids the issue and keeps the subscription usable with mock services like `GappedSubscription`.
+- **`tokio::sync::broadcast` lag is a `RecvError::Lagged(n)`**: When a slow subscriber falls behind, the receiver returns this error. The subscription must resync from the durable store rather than dropping events. `Lagged(n)` does not tell us *which* events were missed, only that `n` were dropped, so `events_after(last_known_sequence)` is the correct recovery path.
+- **Replay-to-live gap detection checks `event.sequence > last_known_sequence + 1`**: This works for both replay buffers and live events. On detection, the subscription resyncs from the store and re-evaluates any pending live event.
+- **Store commit before broadcast**: `LocalProjectEventService::emit_event` begins a transaction, computes the sequence inside the transaction, inserts the event, commits, and only then broadcasts. If broadcast fails (no receivers), the event is still durable.
+- **In-process only**: `tokio::sync::broadcast` is the only transport. No TCP, WebSocket, HTTP, or gRPC is introduced, satisfying §21.
+- **`events_after` with `limit`**: The underlying `EventStore::events_after` returns all matching events; the service layer applies `.take(limit)` to satisfy the `ProjectEventService` trait contract without changing the store API.
+- **`ProjectEventSubscription::new` is synchronous but lazy**: The initial replay buffer is loaded on the first `next().await` call, so creating a subscription never blocks on the database.
+- **`EventBroadcaster::with_capacity` enables testable lag**: The default capacity is `EVENT_BROADCAST_CAPACITY = 256`, but a smaller capacity can be used in tests to force `RecvError::Lagged` without emitting hundreds of events.

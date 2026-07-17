@@ -176,7 +176,9 @@ version = "0.1.0"
 dependencies = [
  "autore-core",
  "autore-schema",
+ "autore-store",
  "crossterm",
+ "tokio",
 ]
 
 [[package]]
