@@ -501,7 +501,7 @@ mod tests {
 
     #[test]
     fn evidence_value_float_roundtrip() {
-        roundtrip(&EvidenceValue::float(3.14).unwrap());
+        roundtrip(&EvidenceValue::float(std::f64::consts::PI).unwrap());
         roundtrip(&EvidenceValue::float(0.0).unwrap());
         roundtrip(&EvidenceValue::float(-1.5e10).unwrap());
     }
