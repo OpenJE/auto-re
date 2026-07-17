@@ -6,8 +6,8 @@
 
 use std::path::PathBuf;
 
-use crate::domain::{ContentHash, MetadataMap, NamespacedId, SchemaVersion, Timestamp};
-use crate::ids::{ArtifactId, ProjectId};
+use crate::domain::{ContentHash, MetadataMap, NamespacedId, SchemaVersion, StableEntityKey, Timestamp};
+use crate::ids::{ArtifactId, EntityId, ProjectId};
 
 // ---------------------------------------------------------------------------
 // Project
@@ -146,6 +146,75 @@ pub static ARTIFACT_KIND_TRACE: std::sync::LazyLock<NamespacedId> =
 /// Artifact kind: a generated candidate (e.g., proposed source code).
 pub static ARTIFACT_KIND_GENERATED_CANDIDATE: std::sync::LazyLock<NamespacedId> =
     std::sync::LazyLock::new(|| NamespacedId::parse("core.generated-candidate").unwrap());
+
+// ---------------------------------------------------------------------------
+// SemanticEntity
+// ---------------------------------------------------------------------------
+
+/// A semantic entity discovered during analysis — a function, type, global
+/// variable, string literal, external function, or source symbol.
+///
+/// Entities are identified by a UUIDv7 `EntityId`. An optional `StableEntityKey`
+/// provides cross-revision stability for entities that can be uniquely located
+/// within a binary or artifact. Multiple entities in the same project may share
+/// a `kind` but a non-NULL `stable_key` must be unique per project.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct SemanticEntity {
+    pub id: EntityId,
+    pub project: ProjectId,
+    pub kind: NamespacedId,
+    pub stable_key: Option<StableEntityKey>,
+    pub display_name: Option<String>,
+    pub created_at: Timestamp,
+    pub metadata: MetadataMap,
+}
+
+impl SemanticEntity {
+    pub fn new(
+        project: ProjectId,
+        kind: NamespacedId,
+        stable_key: Option<StableEntityKey>,
+        display_name: Option<String>,
+    ) -> Self {
+        SemanticEntity {
+            id: EntityId::new(),
+            project,
+            kind,
+            stable_key,
+            display_name,
+            created_at: Timestamp::now(),
+            metadata: MetadataMap::new(),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Entity kind constants
+// ---------------------------------------------------------------------------
+
+/// Entity kind: a function within a binary.
+pub static ENTITY_KIND_FUNCTION: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.function").unwrap());
+
+/// Entity kind: a type definition.
+pub static ENTITY_KIND_TYPE: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.type").unwrap());
+
+/// Entity kind: a global variable.
+pub static ENTITY_KIND_GLOBAL: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.global").unwrap());
+
+/// Entity kind: a string literal.
+pub static ENTITY_KIND_STRING: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.string").unwrap());
+
+/// Entity kind: an external (imported) function.
+pub static ENTITY_KIND_EXTERNAL_FUNCTION: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.external-function").unwrap());
+
+/// Entity kind: a source-level symbol (from debug info or source analysis).
+pub static ENTITY_KIND_SOURCE_SYMBOL: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.source-symbol").unwrap());
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -391,5 +460,65 @@ mod tests {
         };
         let external_json = serde_json::to_string_pretty(&artifact_external).unwrap();
         eprintln!("=== artifact_external.json ===\n{external_json}\n=== end ===");
+    }
+
+    #[test]
+    fn semantic_entity_round_trip_json() {
+        use crate::domain::values::{BinaryLocation, ModuleIdentity};
+        use crate::ids::BinaryArtifactId;
+
+        let p = sample_project();
+        let module = ModuleIdentity::new(
+            Some(".text".into()),
+            ContentHash::sha256(b"test module content"),
+            Some(0),
+        );
+        let mut entity = SemanticEntity::new(
+            p.id,
+            ENTITY_KIND_FUNCTION.clone(),
+            Some(StableEntityKey::BinaryLocation(BinaryLocation::new(
+                BinaryArtifactId::new(),
+                module,
+                0x1000,
+            ))),
+            Some("main".to_string()),
+        );
+        entity.metadata = MetadataMap::new();
+
+        let json = serde_json::to_string_pretty(&entity).unwrap();
+        let back: SemanticEntity = serde_json::from_str(&json).unwrap();
+        assert_eq!(entity.id, back.id);
+        assert_eq!(entity.project, back.project);
+        assert_eq!(entity.kind, back.kind);
+        assert_eq!(entity.stable_key, back.stable_key);
+        assert_eq!(entity.display_name, back.display_name);
+        assert_eq!(entity.created_at, back.created_at);
+        assert_eq!(entity.metadata, back.metadata);
+    }
+
+    #[test]
+    fn semantic_entity_null_stable_key_round_trip() {
+        let p = sample_project();
+        let entity = SemanticEntity::new(
+            p.id,
+            ENTITY_KIND_STRING.clone(),
+            None,
+            Some("hello world".to_string()),
+        );
+
+        let json = serde_json::to_string(&entity).unwrap();
+        let back: SemanticEntity = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.stable_key, None);
+        assert_eq!(back.display_name, Some("hello world".to_string()));
+    }
+
+    #[test]
+    fn entity_kinds_registered() {
+        assert_eq!(ENTITY_KIND_FUNCTION.to_string(), "core.function");
+        assert_eq!(ENTITY_KIND_TYPE.to_string(), "core.type");
+        assert_eq!(ENTITY_KIND_GLOBAL.to_string(), "core.global");
+        assert_eq!(ENTITY_KIND_STRING.to_string(), "core.string");
+        assert_eq!(ENTITY_KIND_EXTERNAL_FUNCTION.to_string(), "core.external-function");
+        assert_eq!(ENTITY_KIND_SOURCE_SYMBOL.to_string(), "core.source-symbol");
     }
 }

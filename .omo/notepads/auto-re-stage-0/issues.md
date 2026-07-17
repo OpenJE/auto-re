@@ -130,3 +130,15 @@
 - Implementation: ~85 pure LOC + ~75 LOC tests = ~160 total.
 - Implementation LOC is well within the 250 ceiling.
 - Co-located unit tests per Rust convention.
+
+## 2026-07-17 (Task 14)
+
+### entity_store.rs LOC (INFORMATIONAL)
+- Implementation: ~230 pure LOC + ~320 LOC tests = ~550 total.
+- Implementation LOC is within the 250 ceiling.
+- Co-located unit tests per Rust convention.
+
+### records.rs growth (INFORMATIONAL)
+- Added `SemanticEntity` struct (~20 LOC) + 6 entity kind constants (~24 LOC) + 3 tests (~45 LOC).
+- records.rs now ~220 pure LOC implementation + ~290 LOC tests = ~510 total.
+- Implementation LOC is within the 250 ceiling.

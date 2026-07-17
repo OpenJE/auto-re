@@ -574,10 +574,11 @@ pub use values::{
     ModuleIdentity, StableEntityKey,
 };
 pub use records::{
-    Artifact, ArtifactStorage, BinaryArtifactMetadata, Endianness, Project,
+    Artifact, ArtifactStorage, BinaryArtifactMetadata, Endianness, Project, SemanticEntity,
     ARTIFACT_KIND_BINARY, ARTIFACT_KIND_CONFIGURATION, ARTIFACT_KIND_GENERATED_CANDIDATE,
     ARTIFACT_KIND_LOG, ARTIFACT_KIND_NATIVE_PROVIDER_OUTPUT, ARTIFACT_KIND_SOURCE_TREE,
-    ARTIFACT_KIND_TRACE,
+    ARTIFACT_KIND_TRACE, ENTITY_KIND_EXTERNAL_FUNCTION, ENTITY_KIND_FUNCTION, ENTITY_KIND_GLOBAL,
+    ENTITY_KIND_SOURCE_SYMBOL, ENTITY_KIND_STRING, ENTITY_KIND_TYPE,
 };
 
 // ---------------------------------------------------------------------------
