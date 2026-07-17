@@ -44,10 +44,10 @@ impl Database {
         let path = path.as_ref();
 
         // Create parent directories if they don't exist.
-        if let Some(parent) = path.parent() {
-            if !parent.as_os_str().is_empty() {
-                std::fs::create_dir_all(parent)?;
-            }
+        if let Some(parent) = path.parent()
+            && !parent.as_os_str().is_empty()
+        {
+            std::fs::create_dir_all(parent)?;
         }
 
         let conn =

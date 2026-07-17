@@ -202,7 +202,7 @@ impl Tui {
         let claims = self.state.selected_claims();
         let summary = ClaimSummary::from_claims(&claims);
 
-        let progress = summary.progress() as f64;
+        let progress = summary.progress();
         let label = format!(
             "{}/{} accepted ({:.0}%)",
             summary.accepted,
@@ -217,6 +217,12 @@ impl Tui {
             .label(label);
 
         frame.render_widget(gauge, area);
+    }
+}
+
+impl Default for Tui {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -242,12 +248,11 @@ pub async fn run_tui(
             .map_err(crate::Error::Io)?;
 
         // Poll with 100 ms timeout so tokio can run other tasks.
-        if event::poll(Duration::from_millis(100)).map_err(crate::Error::Io)? {
-            if let Event::Key(key_event) = event::read().map_err(crate::Error::Io)? {
-                if app.handle_key_event(key_event)? {
-                    break;
-                }
-            }
+        if event::poll(Duration::from_millis(100)).map_err(crate::Error::Io)?
+            && let Event::Key(key_event) = event::read().map_err(crate::Error::Io)?
+            && app.handle_key_event(key_event)?
+        {
+            break;
         }
     }
 

@@ -128,7 +128,7 @@ async fn scheduler_loop(sender: mpsc::Sender<TuiUpdate>, tick_interval: Duration
             }
         }
 
-        if tick_count % 10 == 0 {
+        if tick_count.is_multiple_of(10) {
             campaign.state = if tasks.iter().all(|t| t.state == TaskState::Completed) {
                 CampaignState::Complete
             } else {
