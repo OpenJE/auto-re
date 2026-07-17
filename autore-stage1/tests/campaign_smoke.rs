@@ -13,18 +13,18 @@ use tokio::sync::mpsc;
 use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 
-use auto_re::analysis::{
+use autore_stage1::analysis::{
     AnalysisBackend, AnalysisCapability, MockAnalysisBackend, MockPacketBuilder, PacketBuilder,
 };
-use auto_re::domain::*;
-use auto_re::ids::*;
-use auto_re::model::*;
-use auto_re::scheduler::*;
-use auto_re::storage::repositories::*;
-use auto_re::storage::*;
-use auto_re::tui::state::TuiUpdate;
-use auto_re::worker::output::*;
-use auto_re::worker::*;
+use autore_stage1::domain::*;
+use autore_stage1::ids::*;
+use autore_stage1::model::*;
+use autore_stage1::scheduler::*;
+use autore_stage1::storage::repositories::*;
+use autore_stage1::storage::*;
+use autore_stage1::tui::state::TuiUpdate;
+use autore_stage1::worker::output::*;
+use autore_stage1::worker::*;
 
 // ---------------------------------------------------------------------------
 // SQLite SchedulerQueries — replicates task_from_row from task.rs
@@ -136,7 +136,7 @@ fn task_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
 
 #[async_trait]
 impl SchedulerQueries for SqliteQueries {
-    async fn find_tasks_by_campaign(&self, campaign_id: CampaignId) -> auto_re::Result<Vec<Task>> {
+    async fn find_tasks_by_campaign(&self, campaign_id: CampaignId) -> autore_stage1::Result<Vec<Task>> {
         let conn = self.database.connection()?;
         let mut stmt = conn
             .prepare(
@@ -145,12 +145,12 @@ impl SchedulerQueries for SqliteQueries {
 				 preferred_worker, preferred_model_class, input_revision \
 				 FROM tasks WHERE campaign_id = ?1",
             )
-            .map_err(|e| auto_re::Error::Database(e.to_string()))?;
+            .map_err(|e| autore_stage1::Error::Database(e.to_string()))?;
         let tasks = stmt
             .query_map([campaign_id.to_string()], task_from_row)
-            .map_err(|e| auto_re::Error::Database(e.to_string()))?
+            .map_err(|e| autore_stage1::Error::Database(e.to_string()))?
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| auto_re::Error::Database(e.to_string()))?;
+            .map_err(|e| autore_stage1::Error::Database(e.to_string()))?;
         Ok(tasks)
     }
 
@@ -158,22 +158,22 @@ impl SchedulerQueries for SqliteQueries {
         &self,
         _campaign_id: CampaignId,
         _now: OffsetDateTime,
-    ) -> auto_re::Result<Vec<TaskLease>> {
+    ) -> autore_stage1::Result<Vec<TaskLease>> {
         // Leases have 300s TTL; the smoke test runs in <1s. No expiry.
         Ok(vec![])
     }
 
-    async fn update_task_state(&self, task_id: TaskId, state: TaskState) -> auto_re::Result<()> {
+    async fn update_task_state(&self, task_id: TaskId, state: TaskState) -> autore_stage1::Result<()> {
         let conn = self.database.connection()?;
         conn.execute(
             "UPDATE tasks SET state = ?1 WHERE id = ?2",
             rusqlite::params![task_state_to_str(&state), task_id.to_string()],
         )
-        .map_err(|e| auto_re::Error::Database(e.to_string()))?;
+        .map_err(|e| autore_stage1::Error::Database(e.to_string()))?;
         Ok(())
     }
 
-    async fn delete_lease(&self, _task_id: TaskId) -> auto_re::Result<()> {
+    async fn delete_lease(&self, _task_id: TaskId) -> autore_stage1::Result<()> {
         Ok(())
     }
 }
@@ -186,13 +186,13 @@ struct StubCampaignRepo;
 
 #[async_trait]
 impl CampaignRepository for StubCampaignRepo {
-    async fn create(&self, _c: &Campaign) -> auto_re::Result<CampaignId> {
+    async fn create(&self, _c: &Campaign) -> autore_stage1::Result<CampaignId> {
         Ok(CampaignId::new())
     }
-    async fn find_by_id(&self, _id: CampaignId) -> auto_re::Result<Option<Campaign>> {
+    async fn find_by_id(&self, _id: CampaignId) -> autore_stage1::Result<Option<Campaign>> {
         Ok(None)
     }
-    async fn update_state(&self, _id: CampaignId, _state: CampaignState) -> auto_re::Result<()> {
+    async fn update_state(&self, _id: CampaignId, _state: CampaignState) -> autore_stage1::Result<()> {
         Ok(())
     }
 }
@@ -214,11 +214,11 @@ impl CollectingClaimRepo {
 
 #[async_trait]
 impl ClaimRepository for CollectingClaimRepo {
-    async fn create(&self, claim: &Claim) -> auto_re::Result<ClaimId> {
+    async fn create(&self, claim: &Claim) -> autore_stage1::Result<ClaimId> {
         self.claims.lock().unwrap().push(claim.clone());
         Ok(claim.id)
     }
-    async fn find_by_id(&self, _id: ClaimId) -> auto_re::Result<Option<Claim>> {
+    async fn find_by_id(&self, _id: ClaimId) -> autore_stage1::Result<Option<Claim>> {
         Ok(None)
     }
 }
@@ -227,10 +227,10 @@ struct CollectingEvidenceRepo;
 
 #[async_trait]
 impl EvidenceRepository for CollectingEvidenceRepo {
-    async fn create(&self, _e: &Evidence) -> auto_re::Result<EvidenceId> {
+    async fn create(&self, _e: &Evidence) -> autore_stage1::Result<EvidenceId> {
         Ok(EvidenceId::new())
     }
-    async fn find_by_id(&self, _id: EvidenceId) -> auto_re::Result<Option<Evidence>> {
+    async fn find_by_id(&self, _id: EvidenceId) -> autore_stage1::Result<Option<Evidence>> {
         Ok(None)
     }
 }
@@ -243,16 +243,16 @@ struct SmokeTestProvider;
 
 #[async_trait]
 impl ModelProvider for SmokeTestProvider {
-    async fn list_models(&self) -> auto_re::Result<Vec<ModelDescriptor>> {
+    async fn list_models(&self) -> autore_stage1::Result<Vec<ModelDescriptor>> {
         Ok(vec![])
     }
     async fn complete(
         &self,
         _request: ModelRequest,
         cancel: CancellationToken,
-    ) -> auto_re::Result<ModelResponse> {
+    ) -> autore_stage1::Result<ModelResponse> {
         if cancel.is_cancelled() {
-            return Err(auto_re::Error::ModelProvider("cancelled".into()));
+            return Err(autore_stage1::Error::ModelProvider("cancelled".into()));
         }
         let output = FunctionAnalysisOutput {
             function_id: FunctionId::new(),

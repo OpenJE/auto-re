@@ -1,0 +1,273 @@
+=== cargo build (default members) ===
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.21s
+
+=== cargo build -p autore-stage1 ===
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.22s
+
+=== cargo build --workspace ===
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.20s
+
+=== cargo test (default members) ===
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s
+     Running unittests src/lib.rs (target/debug/deps/autore_app-16662ab88c9b44e2)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/auto_re-fb049e250d053a92)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/autore_core-8fd7929494056d63)
+
+running 5 tests
+test tests::error_enum_database_display ... ok
+test tests::error_enum_configuration_display ... ok
+test tests::result_alias_default_error ... ok
+test tests::error_enum_io_from_std ... ok
+test tests::result_alias_explicit_type ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/autore_events-c3d227596cb166db)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/autore_schema-2dd602f524f8a54b)
+
+running 83 tests
+test domain::campaign::tests::campaign_pause_and_resume ... ok
+test domain::campaign::tests::campaign_block_and_unblock ... ok
+test domain::campaign::tests::campaign_complete_from_active ... ok
+test domain::campaign::tests::campaign_rejects_invalid_transitions ... ok
+test domain::claim::tests::claim_add_dependency ... ok
+test domain::campaign::tests::campaign_starts_pending ... ok
+test domain::campaign::tests::campaign_start_transitions_to_active ... ok
+test domain::claim::tests::claim_dependencies_recorded ... ok
+test domain::campaign::tests::campaign_serialize_roundtrip ... ok
+test domain::claim::tests::claim_dependency_deduplicated ... ok
+test domain::claim::tests::claim_evidence_is_deduplicated ... ok
+test domain::claim::tests::claim_evidence_link ... ok
+test domain::claim::tests::claim_full_acceptance_lifecycle ... ok
+test domain::claim::tests::claim_full_rejection_lifecycle ... ok
+test domain::claim::tests::claim_rejects_invalid_transitions ... ok
+test domain::claim::tests::claim_starts_proposed ... ok
+test domain::claim::tests::claim_state_transitions ... ok
+test domain::claim::tests::claim_unlink_evidence ... ok
+test domain::claim::tests::claim_serialize_roundtrip ... ok
+test domain::claim::tests::claim_with_complex_value ... ok
+test domain::claim::tests::claims_start_in_proposed_state ... ok
+test domain::claim::tests::evidence_links_to_claims ... ok
+test domain::claim::tests::worker_output_to_proposed_claims ... ok
+test domain::evidence::tests::artifact_id_default_creates_unique ... ok
+test domain::evidence::tests::artifact_id_roundtrip ... ok
+test domain::evidence::tests::entity_id_display ... ok
+test domain::evidence::tests::evidence_constructs ... ok
+test domain::evidence::tests::evidence_location_with_address_only ... ok
+test domain::evidence::tests::evidence_location_with_path_only ... ok
+test domain::evidence::tests::evidence_with_artifact ... ok
+test domain::evidence::tests::evidence_without_location ... ok
+test domain::evidence::tests::evidence_serialize_roundtrip ... ok
+test domain::function::tests::function_bump_revision ... ok
+test domain::function::tests::function_lock_and_unlock ... ok
+test domain::function::tests::function_new_constructs ... ok
+test domain::function::tests::function_rename ... ok
+test domain::function::tests::function_with_control_flow_hash ... ok
+test domain::task::tests::task_cancel_from_non_terminal ... ok
+test domain::task::tests::task_dependencies ... ok
+test domain::task::tests::task_full_lifecycle ... ok
+test domain::function::tests::function_serialize_roundtrip ... ok
+test domain::task::tests::task_no_dependencies ... ok
+test domain::task::tests::task_pending_dependencies ... ok
+test domain::task::tests::task_priority_display ... ok
+test domain::task::tests::task_rejects_invalid_transitions ... ok
+test domain::task::tests::task_requeue_exhausts_attempts ... ok
+test domain::task::tests::task_required_capabilities_extras ... ok
+test domain::task::tests::task_starts_pending ... ok
+test domain::task::tests::task_state_transitions ... ok
+test domain::task::tests::task_serialize_roundtrip ... ok
+test domain::tests::address_display_format ... ok
+test domain::tests::address_serialize_roundtrip ... ok
+test domain::tests::address_spaces_deserialize_rejects_invalid ... ok
+test domain::tests::address_spaces_deserialize ... ok
+test domain::tests::address_spaces_serialize ... ok
+test domain::tests::confidence_accepts_boundary_values ... ok
+test domain::tests::confidence_deserialize_rejects_out_of_range ... ok
+test domain::tests::confidence_error_message ... ok
+test domain::tests::confidence_rejects_out_of_range ... ok
+test domain::tests::confidence_serialize_roundtrip ... ok
+test domain::tests::confidence_valid_mid_range ... ok
+test domain::tests::content_hash_deterministic ... ok
+test domain::tests::content_hash_different_inputs_differ ... ok
+test domain::tests::content_hash_empty_input ... ok
+test domain::tests::content_hash_length ... ok
+test domain::tests::content_hash_serialize_roundtrip ... ok
+test domain::tests::provenance_agent_serialize_roundtrip ... ok
+test domain::tests::provenance_deserialize_rejects_invalid ... ok
+test domain::tests::provenances_deserialize ... ok
+test domain::tests::symbol_name_construct_and_display ... ok
+test domain::tests::provenances_display_and_serialize ... ok
+test domain::tests::symbol_name_serialize_roundtrip ... ok
+test ids::tests::ids_all_types_constructible ... ok
+test ids::tests::ids_are_not_interchangeable ... ok
+test ids::tests::ids_copy_works ... ok
+test ids::tests::ids_default_creates_new_id ... ok
+test ids::tests::ids_from_uuid_roundtrip ... ok
+test ids::tests::ids_serialize_and_roundtrip ... ok
+test ids::tests::ids_serialize_are_distinct_across_types ... ok
+test worker_output::tests::output_roundtrips_via_json ... ok
+test worker_output::tests::malformed_output_fails_schema ... ok
+test worker_output::tests::schema_error_includes_pointer ... ok
+test worker_output::tests::valid_output_passes_schema ... ok
+
+test result: ok. 83 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+
+     Running unittests src/lib.rs (target/debug/deps/autore_store-c9e9347cc8f22850)
+
+running 16 tests
+test storage::database::tests::domain_has_no_external_imports ... ok
+test storage::database::tests::repository_traits_compile ... ok
+test storage::database::tests::database_connection_works ... ok
+test storage::database::tests::migrations_apply_cleanly ... ok
+test storage::database::tests::foreign_keys_are_enforced ... ok
+test storage::repositories::task::tests::task_repository_create_and_fetch ... ok
+test storage::repositories::task::tests::artifact_reference_integrity ... ok
+test storage::repositories::task::tests::task_repository_lease_next_returns_ready_task ... ok
+test storage::database::tests::migrations_are_idempotent ... ok
+test storage::repositories::task::tests::complete_is_idempotent ... ok
+test storage::repositories::task::tests::task_repository_fail_increments_attempt_count ... ok
+test storage::repositories::task::tests::task_repository_complete_updates_state_and_claims ... ok
+test storage::repositories::task::tests::concurrent_lease_exactly_one_wins ... ok
+test storage::repositories::task::tests::expired_lease_is_reclaimed ... ok
+test storage::repositories::task::tests::task_repository_lease_next_respects_dependencies ... ok
+test storage::database::tests::database_opens_new_file ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running unittests src/lib.rs (target/debug/deps/autore_tui-fb15fa0f9d6a96ed)
+
+running 8 tests
+test tui::tests::tui_dashboard_navigation ... ok
+test tui::tests::tui_dashboard_quits_on_q ... ok
+test runtime::tests::tui_updates_on_task_state_change ... ok
+test runtime::tests::tui_updates_on_new_claim ... ok
+test tui::tests::tui_dashboard_empty_state ... ok
+test tui::tests::tui_dashboard_renders ... ok
+test tui::tests::tui_dashboard_shows_campaigns ... ok
+test runtime::tests::tui_does_not_block_scheduler ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+   Doc-tests autore_app
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests autore_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests autore_events
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests autore_schema
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests autore_store
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests autore_tui
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+=== cargo test -p autore-stage1 ===
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.21s
+     Running unittests src/lib.rs (target/debug/deps/autore_stage1-caa07b0724bfcaca)
+
+running 35 tests
+test analysis::mock::tests::mock_backend_capabilities ... ok
+test analysis::packet::tests::packet_builder_uses_mock_backend ... ok
+test analysis::mock::tests::mock_backend_inventory_returns_ten_functions ... ok
+test cli::tests::cli_no_subcommand_no_tui ... ok
+test analysis::mock::tests::unsupported_capability_returns_error ... ok
+test analysis::packet::tests::packet_hashes_equal_for_equal_input ... ok
+test analysis::mock::tests::mock_backend_analyze_is_deterministic ... ok
+test analysis::packet::tests::packet_is_deterministic ... ok
+test analysis::packet::tests::packet_is_serializable ... ok
+test model::router::tests::model_router_enforces_concurrency_limits ... ok
+test model::mock::tests::mock_provider_cancels_on_token ... ok
+test model::router::tests::model_router_errors_on_missing_class ... ok
+test model::mock::tests::mock_provider_lists_models ... ok
+test model::router::tests::model_router_selects_by_class ... ok
+test scheduler::scheduler::tests::campaign_tests::scheduler_invalidates_stale_work ... ok
+test scheduler::scheduler::tests::campaign_tests::scheduler_evaluates_complete ... ok
+test scheduler::scheduler::tests::priority_factors_are_inspectable ... ok
+test scheduler::scheduler::tests::priority_score_is_stable ... ok
+test model::mock::tests::mock_provider_complete_returns_valid_json ... ok
+test scheduler::scheduler::tests::campaign_tests::scheduler_recovers_expired_lease ... ok
+test scheduler::scheduler::tests::campaign_tests::scheduler_respects_dependencies ... ok
+test scheduler::scheduler::tests::scheduler_score_tasks_batch ... ok
+test scheduler::scheduler::tests::priority_score_verification_bonus ... ok
+test model::mock::tests::mock_provider_descriptor_capabilities ... ok
+test cli::tests::cli_task_status_missing_id_errors ... ok
+test scheduler::scheduler::tests::campaign_tests::scheduler_idle_sleeps ... ok
+test cli::tests::cli_task_status_invalid_uuid_errors ... ok
+test cli::tests::cli_task_list_runs ... ok
+test cli::tests::cli_campaign_status_runs ... ok
+test cli::tests::cli_campaign_status_with_nonexistent_id ... ok
+test cli::tests::cli_task_status_nonexistent_id_errors ... ok
+test worker::runner::tests::worker_times_out ... ok
+test worker::runner::tests::worker_cancels_on_token ... ok
+test worker::runner::tests::worker_rejects_malformed_schema ... ok
+test worker::runner::tests::worker_runs_valid_output_to_claims ... ok
+
+test result: ok. 35 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+
+     Running tests/campaign_smoke.rs (target/debug/deps/campaign_smoke-65cafba1d140a273)
+
+running 4 tests
+test campaign_smoke_analyzes_all_functions ... ok
+test campaign_smoke_updates_tui ... ok
+test campaign_smoke_produces_claims ... ok
+test campaign_smoke_completes ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s
+
+     Running tests/kill_resume.rs (target/debug/deps/kill_resume-2507752de6cb3d87)
+
+running 3 tests
+test campaign_completes_after_resume ... ok
+test accepted_claims_persist_after_kill ... ok
+test kill_resume_no_duplicate_claims ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.99s
+
+   Doc-tests autore_stage1
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+=== grep verification ===
+(no matches)

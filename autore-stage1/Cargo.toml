@@ -1,0 +1,36 @@
+[package]
+name = "autore-stage1"
+version.workspace = true
+edition.workspace = true
+
+[features]
+default = ["tui"]
+ida = ["dep:idax"]
+gdb = ["dep:gdbstub"]
+llama = ["dep:llama_cpp"]
+tui = ["dep:autore-tui", "dep:autore-events"]
+
+[dependencies]
+autore-core = { path = "../autore-core" }
+autore-schema = { path = "../autore-schema" }
+autore-store = { path = "../autore-store" }
+autore-tui = { path = "../autore-tui", optional = true }
+autore-events = { path = "../autore-events", optional = true }
+async-trait.workspace = true
+clap.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+time.workspace = true
+uuid.workspace = true
+rusqlite.workspace = true
+schemars.workspace = true
+jsonschema.workspace = true
+petgraph.workspace = true
+idax = { version = "0.3.0", optional = true }
+gdbstub = { version = "0.7.8", optional = true }
+llama_cpp = { version = "0.3.2", optional = true }
+
+[dev-dependencies]
+tempfile.workspace = true

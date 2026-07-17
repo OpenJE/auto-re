@@ -17,7 +17,7 @@ fn binary_path() -> PathBuf {
         .unwrap_or_else(|_| {
             let manifest_dir = env!("CARGO_MANIFEST_DIR");
             let target_dir = std::env::var("CARGO_TARGET_DIR")
-                .unwrap_or_else(|_| format!("{manifest_dir}/target"));
+                .unwrap_or_else(|_| format!("{manifest_dir}/../target"));
             PathBuf::from(target_dir).join("debug").join("auto-re")
         })
 }
