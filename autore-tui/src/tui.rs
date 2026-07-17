@@ -423,4 +423,130 @@ mod tests {
         tui.handle_key_event(up).unwrap();
         assert_eq!(tui.state().selected_campaign, 1);
     }
+
+    // -----------------------------------------------------------------------
+    // Pre-refactor regression tests (Stage 0 remap baseline)
+    // -----------------------------------------------------------------------
+    //
+    // The following tests pin the current M1 dashboard behavior so the
+    // upcoming 4-panel → Stage 0 remap preserves useful functionality.
+
+    /// Startup with empty state renders without panicking and displays the
+    /// empty-state help message.
+    #[test]
+    fn tui_startup_renders_empty() {
+        let tui = Tui::new();
+        let backend = ratatui::backend::TestBackend::new(80, 24);
+        let mut terminal = ratatui::Terminal::new(backend).expect("terminal creation must not fail");
+        // Must not panic — this is the primary assertion for a cold start.
+        terminal
+            .draw(|frame| tui.render(frame))
+            .expect("initial render must succeed");
+
+        let output = render_to_string(&tui, 80, 24);
+
+        // Empty state must communicate that nothing is loaded.
+        assert!(
+            output.contains("No campaign selected"),
+            "empty-state message missing from startup render: {output}"
+        );
+        // The campaign list must show a count of zero.
+        assert!(
+            output.contains("Campaigns (0)"),
+            "empty campaign list title missing: {output}"
+        );
+        // The task panel must indicate no tasks.
+        assert!(
+            output.contains("No tasks"),
+            "empty task panel message missing: {output}"
+        );
+    }
+
+    /// Primary 4-panel screen renders with the panel titles
+    /// `Campaigns` / `Campaign Status` / `Tasks` / `Claims Progress`.
+    #[test]
+    fn tui_primary_panels_present() {
+        let tui = Tui::with_state(sample_state());
+        let output = render_to_string(&tui, 80, 24);
+
+        // All four panel titles must be present in a single render pass.
+        let expected_titles = [
+            "Campaigns",
+            "Campaign Status",
+            "Tasks",
+            "Claims Progress",
+        ];
+        for title in expected_titles {
+            assert!(
+                output.contains(title),
+                "panel title {title:?} missing from dashboard render: {output}"
+            );
+        }
+    }
+
+    /// `j`/`Down` and `k`/`Up` navigation moves selection and wraps around
+    /// both ends of the campaign list.
+    #[test]
+    fn tui_navigation_jk_up_down_wraps() {
+        let mut tui = Tui::with_state(sample_state());
+        // sample_state has 2 campaigns (alpha, beta); selection starts at 0.
+        assert_eq!(tui.state().selected_campaign, 0);
+
+        let j = KeyEvent::new(KeyCode::Char('j'), crossterm::event::KeyModifiers::NONE);
+        let k = KeyEvent::new(KeyCode::Char('k'), crossterm::event::KeyModifiers::NONE);
+        let down = KeyEvent::new(KeyCode::Down, crossterm::event::KeyModifiers::NONE);
+        let up = KeyEvent::new(KeyCode::Up, crossterm::event::KeyModifiers::NONE);
+
+        // 'j' moves selection down (0 → 1).
+        tui.handle_key_event(j).unwrap();
+        assert_eq!(tui.state().selected_campaign, 1, "'j' must move selection down");
+
+        // Down arrow wraps around (1 → 0, since there are 2 campaigns).
+        tui.handle_key_event(down).unwrap();
+        assert_eq!(
+            tui.state().selected_campaign, 0,
+            "Down arrow must wrap from last to first"
+        );
+
+        // 'k' moves selection up, wrapping to the end (0 → 1).
+        tui.handle_key_event(k).unwrap();
+        assert_eq!(
+            tui.state().selected_campaign, 1,
+            "'k' must wrap from first to last"
+        );
+
+        // Up arrow moves selection up (1 → 0).
+        tui.handle_key_event(up).unwrap();
+        assert_eq!(tui.state().selected_campaign, 0, "Up arrow must move selection up");
+    }
+
+    /// `q` quits; no other common key should signal quit.
+    #[test]
+    fn tui_q_quits_cleanly() {
+        let mut tui = Tui::new();
+
+        // 'q' must signal quit.
+        let q = KeyEvent::new(KeyCode::Char('q'), crossterm::event::KeyModifiers::NONE);
+        assert!(
+            tui.handle_key_event(q).unwrap(),
+            "'q' must signal quit (return true)"
+        );
+
+        // Navigation keys must NOT signal quit.
+        for code in [
+            KeyCode::Char('j'),
+            KeyCode::Char('k'),
+            KeyCode::Down,
+            KeyCode::Up,
+            KeyCode::Enter,
+            KeyCode::Char(' '),
+        ] {
+            let mut t = Tui::new();
+            let event = KeyEvent::new(code, crossterm::event::KeyModifiers::NONE);
+            assert!(
+                !t.handle_key_event(event).unwrap(),
+                "{code:?} must not signal quit"
+            );
+        }
+    }
 }
