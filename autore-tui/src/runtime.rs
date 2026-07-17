@@ -37,7 +37,7 @@ pub async fn run_with_tick_interval(tick_interval: Duration) -> crate::Result<()
 
     let tui_result = tui_handle
         .await
-        .map_err(|e| crate::Error::Worker(format!("TUI task panicked: {e}")))?;
+        .map_err(|e| crate::Error::Operation(format!("TUI task panicked: {e}")))?;
 
     scheduler_handle.abort();
     tui_result
