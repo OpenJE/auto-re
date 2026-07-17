@@ -63,3 +63,12 @@
 - **ExtensionData is a struct, not an enum**: Unlike `EvidenceValue` (adjacently tagged enum), `ExtensionData` is a struct with `schema: NamespacedId`, `version: u32`, `value: serde_json::Value`. Constructed via `ExtensionData::new(schema, version, value)`.
 - **`lint_schema_no_db_ids` test pattern**: Query `sqlite_master` for all table DDL, uppercase it, and assert no `AUTOINCREMENT` keyword and no `DEFAULT` + `UUID` combination. This catches both `INTEGER PRIMARY KEY AUTOINCREMENT` and `DEFAULT (uuid())` patterns at migration time.
 - **`next_project_event_sequence` queries future table**: The method references `project_events` which doesn't exist in V2. It's a utility for future migrations. Tests create the table inline via `CREATE TABLE project_events (...)` to verify the logic works.
+
+## 2026-07-17 (Task 12)
+
+- **FK constraint requires project existence before artifact insert**: The `stage0_artifacts` table references `projects(id)` via FK. Tests must insert a project into the `projects` table before registering artifacts — `SqliteProjectStore::insert_project` must run first.
+- **`ContentHash` row reconstruction must NOT re-hash**: `ContentHash::sha256(data)` computes a NEW hash from raw data. When reconstructing from a stored digest in `row_to_artifact`, use direct struct construction `ContentHash { algorithm, digest }` — NOT `ContentHash::sha256(&digest)` which would hash-the-hash. Both `algorithm` and `digest` fields are `pub`, making this safe.
+- **Content-addressed dedup at filesystem level**: Two `register_managed` calls with identical content produce the same blob path but different `ArtifactId` values. The dedup check is `blob_path.exists()` — skip the `fs::write` when the blob already exists. The DB always gets a new row with a unique UUID.
+- **External artifact verification returns `HashMismatch` not silent update**: When an external file changes after registration, `verify_artifact` returns `Err(Error::HashMismatch)` — the stored hash is immutable. This is the correct behavior per spec §8.
+- **V3 migration uses `stage0_artifacts` table name**: The V1 migration already creates an `artifacts` table (M1 schema). The Stage 0 artifact table is named `stage0_artifacts` to avoid collision.
+- **`base_dir` + `project_id` path composition**: `SqliteArtifactStore` takes a `base_dir` and composes project paths as `<base_dir>/<project_id>/`. This avoids storing project directory paths in the DB and keeps the store stateless wrt filesystem layout.

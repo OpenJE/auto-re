@@ -99,3 +99,21 @@
 - It's a utility for use by later stage-0 migrations that add the events table.
 - Tests create the table inline to verify the query logic.
 - No runtime impact: method is only called when the table exists.
+
+## 2026-07-17 (Task 12)
+
+### artifact_store.rs LOC (INFORMATIONAL)
+- Implementation: ~230 pure LOC + ~260 LOC tests = ~490 total.
+- Implementation LOC is within the 250 ceiling.
+- Co-located unit tests per Rust convention.
+
+### `stage0_artifacts` table name divergence (DESIGN NOTE)
+- V1 migration creates `artifacts` table (M1 schema with `content_hash TEXT`, `size INTEGER`, `mime_type TEXT`).
+- V3 migration creates `stage0_artifacts` table (Stage 0 schema with full content-hash, storage-kind, project FK).
+- The two tables coexist until M1 is fully deferred. No name collision.
+
+### `ContentHash` row reconstruction (RESOLVED)
+- `ContentHash::sha256(data)` computes a hash from raw data — it does NOT wrap a pre-computed digest.
+- Initial implementation used `ContentHash::sha256(&digest)` in `row_to_artifact`, which hash-the-hashed.
+- Fixed by using direct struct construction: `ContentHash { algorithm, digest }`.
+- Added `get_artifact_round_trip` test to verify DB insert + retrieval produces identical `content_hash`.
