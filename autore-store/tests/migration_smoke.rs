@@ -33,4 +33,9 @@ fn migration_runs_v1_then_v2() {
             "V1 table '{v1_table}' should exist after migration"
         );
     }
+
+    assert!(
+        tables.contains(&"projects".to_string()),
+        "V2 table 'projects' should exist after migration"
+    );
 }

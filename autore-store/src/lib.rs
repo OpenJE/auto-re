@@ -3,4 +3,7 @@ pub use autore_schema::{domain, ids};
 
 pub mod storage;
 
-pub use storage::{Database, SqliteClaimRepository, SqliteTaskRepository};
+pub use storage::{
+    Database, Page, ProjectColumn, ProjectStore, SqliteClaimRepository, SqliteProjectStore,
+    SqliteTaskRepository, Transaction,
+};

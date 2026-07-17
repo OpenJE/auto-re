@@ -3,9 +3,17 @@
 //! `Database` wraps a `rusqlite::Connection` in a `Mutex` for safe
 //! concurrent access from async tasks. Migrations are embedded at
 //! compile time via `refinery` and applied automatically on `open()`.
+//!
+//! # Stage 0 additions
+//!
+//! `Transaction` provides an atomic commit/rollback wrapper, and
+//! `next_project_event_sequence` computes the next monotonic sequence
+//! for a project's event log (without AUTOINCREMENT).
 
 use std::path::Path;
 use std::sync::{Mutex, MutexGuard};
+
+use autore_schema::ids::ProjectId;
 
 // Embed migration SQL files at compile time. The path is relative to
 // `CARGO_MANIFEST_DIR` (the crate root where `Cargo.toml` lives).
@@ -99,6 +107,61 @@ impl Database {
             .lock()
             .map_err(|e| crate::Error::Database(format!("mutex poisoned: {e}")))
     }
+
+    pub fn begin_transaction(&self) -> crate::Result<Transaction<'_>> {
+        let guard = self.connection()?;
+        Transaction::new(guard)
+    }
+
+    pub fn next_project_event_sequence(&self, project_id: ProjectId) -> crate::Result<u64> {
+        let guard = self.connection()?;
+        let next: u64 = guard
+            .query_row(
+                "SELECT COALESCE(MAX(sequence), 0) + 1 \
+                 FROM project_events WHERE project_id = ?1",
+                rusqlite::params![project_id.as_uuid().as_bytes().as_slice()],
+                |row| row.get(0),
+            )
+            .map_err(|e| crate::Error::Database(e.to_string()))?;
+        Ok(next)
+    }
+}
+
+pub struct Transaction<'a> {
+    guard: MutexGuard<'a, rusqlite::Connection>,
+    committed: bool,
+}
+
+impl<'a> Transaction<'a> {
+    fn new(guard: MutexGuard<'a, rusqlite::Connection>) -> crate::Result<Self> {
+        guard
+            .execute("BEGIN IMMEDIATE", [])
+            .map_err(|e| crate::Error::Database(e.to_string()))?;
+        Ok(Transaction {
+            guard,
+            committed: false,
+        })
+    }
+
+    pub fn commit(mut self) -> crate::Result<()> {
+        self.guard
+            .execute("COMMIT", [])
+            .map_err(|e| crate::Error::Database(e.to_string()))?;
+        self.committed = true;
+        Ok(())
+    }
+
+    pub fn conn(&self) -> &rusqlite::Connection {
+        &self.guard
+    }
+}
+
+impl<'a> Drop for Transaction<'a> {
+    fn drop(&mut self) {
+        if !self.committed {
+            let _ = self.guard.execute("ROLLBACK", []);
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -133,6 +196,7 @@ mod tests {
         assert!(tables.contains(&"evidences".to_string()));
         assert!(tables.contains(&"leases".to_string()));
         assert!(tables.contains(&"artifacts".to_string()));
+        assert!(tables.contains(&"projects".to_string()));
     }
 
     #[test]
@@ -242,5 +306,156 @@ mod tests {
             3,
         );
         assert_eq!(task.state, TaskState::Pending);
+    }
+
+    #[test]
+    fn foreign_keys_pragma_on() {
+        let db = Database::open_in_memory().unwrap();
+        let conn = db.connection().unwrap();
+        let fk: i32 = conn
+            .pragma_query_value(None, "foreign_keys", |row| row.get(0))
+            .unwrap();
+        assert_eq!(fk, 1, "foreign_keys pragma must be ON");
+    }
+
+    #[test]
+    fn lint_schema_no_db_ids() {
+        let db = Database::open_in_memory().unwrap();
+        let conn = db.connection().unwrap();
+
+        let sqls: Vec<String> = conn
+            .prepare(
+                "SELECT sql FROM sqlite_master \
+                 WHERE type='table' AND sql IS NOT NULL \
+                 AND name NOT LIKE 'sqlite_%' AND name != 'schema_migrations'",
+            )
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+
+        for sql in &sqls {
+            let upper = sql.to_uppercase();
+            assert!(
+                !upper.contains("AUTOINCREMENT"),
+                "table DDL must not use AUTOINCREMENT: {sql}"
+            );
+            assert!(
+                !upper.contains("DEFAULT") || !upper.contains("UUID"),
+                "table DDL must not use DEFAULT with uuid(): {sql}"
+            );
+        }
+    }
+
+    #[test]
+    fn transaction_commit_persists() {
+        let db = Database::open_in_memory().unwrap();
+
+        {
+            let txn = db.begin_transaction().unwrap();
+            txn.conn()
+                .execute(
+                    "INSERT INTO campaigns (id, name, state) VALUES (?1, ?2, ?3)",
+                    rusqlite::params!["txn-1", "txn-campaign", "Pending"],
+                )
+                .unwrap();
+            txn.commit().unwrap();
+        }
+
+        let conn = db.connection().unwrap();
+        let name: String = conn
+            .query_row(
+                "SELECT name FROM campaigns WHERE id = ?1",
+                rusqlite::params!["txn-1"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(name, "txn-campaign");
+    }
+
+    #[test]
+    fn transaction_rollback_on_drop() {
+        let db = Database::open_in_memory().unwrap();
+
+        {
+            let txn = db.begin_transaction().unwrap();
+            txn.conn()
+                .execute(
+                    "INSERT INTO campaigns (id, name, state) VALUES (?1, ?2, ?3)",
+                    rusqlite::params!["rollback-1", "should-not-exist", "Pending"],
+                )
+                .unwrap();
+        }
+
+        let conn = db.connection().unwrap();
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM campaigns WHERE id = ?1",
+                rusqlite::params!["rollback-1"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0, "uncommitted insert must be rolled back");
+    }
+
+    #[test]
+    fn transaction_rollback_on_error() {
+        let db = Database::open_in_memory().unwrap();
+
+        let result = {
+            let txn = db.begin_transaction().unwrap();
+            txn.conn()
+                .execute(
+                    "INSERT INTO campaigns (id, name, state) VALUES (?1, ?2, ?3)",
+                    rusqlite::params!["err-1", "error-campaign", "Pending"],
+                )
+                .unwrap();
+            let res: crate::Result<()> =
+                Err(crate::Error::Validation("simulated failure".into()));
+            res
+        };
+
+        assert!(result.is_err());
+
+        let conn = db.connection().unwrap();
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM campaigns WHERE id = ?1",
+                rusqlite::params!["err-1"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0, "transaction must roll back on error path");
+    }
+
+    #[test]
+    fn next_project_event_sequence_with_table() {
+        let db = Database::open_in_memory().unwrap();
+        let conn = db.connection().unwrap();
+        conn.execute(
+            "CREATE TABLE project_events (\
+                project_id BLOB NOT NULL, \
+                sequence INTEGER NOT NULL, \
+                PRIMARY KEY (project_id, sequence))",
+            [],
+        )
+        .unwrap();
+        drop(conn);
+
+        let pid = ProjectId::new();
+        let seq1 = db.next_project_event_sequence(pid).unwrap();
+        assert_eq!(seq1, 1);
+
+        let conn = db.connection().unwrap();
+        conn.execute(
+            "INSERT INTO project_events (project_id, sequence) VALUES (?1, ?2)",
+            rusqlite::params![pid.as_uuid().as_bytes().as_slice(), 1i64],
+        )
+        .unwrap();
+        drop(conn);
+
+        let seq2 = db.next_project_event_sequence(pid).unwrap();
+        assert_eq!(seq2, 2);
     }
 }

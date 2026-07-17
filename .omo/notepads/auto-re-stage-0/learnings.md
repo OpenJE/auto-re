@@ -53,3 +53,13 @@
 - **ArtifactStorage adjacently tagged**: `#[serde(tag = "kind", content = "value")]` produces `{"kind":"ManagedBlob","value":{"relative_path":"..."}}` — consistent with the pattern used for `EvidenceValue` and `StableEntityKey`.
 - **Timestamp lacks PartialOrd/Ord**: `Timestamp` only derives `PartialEq, Eq, Hash`. For ordering comparisons in tests, use `timestamp.as_offset_datetime()` to access the inner `time::OffsetDateTime` which implements `Ord`.
 - **TOML round-trip via flat structure**: `ProjectManifest` uses a flat `ManifestToml` intermediate type (schema_version, project_id, name, created_at, updated_at) rather than serializing the full `Project` struct. Metadata is stored in the database, not the manifest file.
+
+## 2026-07-17 (Task 11)
+
+- **Transaction wrapper pattern with `Mutex<Connection>`**: `rusqlite::Transaction<'conn>` borrows `&'conn mut Connection`, which conflicts with `MutexGuard` lifetimes. Solution: custom `Transaction` struct holds the `MutexGuard`, issues raw `BEGIN IMMEDIATE` / `COMMIT` / `ROLLBACK` SQL, and uses `Drop` for automatic rollback on uncommitted drop. The `committed: bool` flag prevents double-rollback.
+- **`BEGIN IMMEDIATE` over `BEGIN`**: Using `BEGIN IMMEDIATE` acquires a RESERVED lock immediately, preventing `SQLITE_BUSY` errors that occur when two connections start concurrent read-then-write transactions. This is the correct default for SQLite write transactions.
+- **`FromSqlConversionFailure` requires `Box<dyn Error + Send + Sync>`**: `rusqlite::Error::FromSqlConversionFailure` needs `Box<dyn std::error::Error + Send + Sync>`, not `Box<String>`. A simple `ParseError(String)` newtype with `Display + Error` impls bridges the gap.
+- **UUIDv7 as BLOB in SQLite**: `ProjectId` (UUIDv7 newtype) is stored as 16-byte BLOB via `as_uuid().as_bytes().as_slice()`. Reconstruction uses `Uuid::from_slice(&bytes)` which accepts `&[u8]` of length 16.
+- **ExtensionData is a struct, not an enum**: Unlike `EvidenceValue` (adjacently tagged enum), `ExtensionData` is a struct with `schema: NamespacedId`, `version: u32`, `value: serde_json::Value`. Constructed via `ExtensionData::new(schema, version, value)`.
+- **`lint_schema_no_db_ids` test pattern**: Query `sqlite_master` for all table DDL, uppercase it, and assert no `AUTOINCREMENT` keyword and no `DEFAULT` + `UUID` combination. This catches both `INTEGER PRIMARY KEY AUTOINCREMENT` and `DEFAULT (uuid())` patterns at migration time.
+- **`next_project_event_sequence` queries future table**: The method references `project_events` which doesn't exist in V2. It's a utility for future migrations. Tests create the table inline via `CREATE TABLE project_events (...)` to verify the logic works.

@@ -81,3 +81,21 @@
 - records.rs: ~140 pure LOC implementation + ~170 LOC tests = ~310 total.
 - Implementation LOC is well within the 250 ceiling.
 - Co-located unit tests per Rust convention.
+
+## 2026-07-17 (Task 11)
+
+### database.rs LOC (INFORMATIONAL)
+- database.rs: ~165 pure LOC implementation + ~200 LOC tests = ~365 total.
+- Implementation LOC is well within the 250 ceiling.
+- Co-located unit tests per Rust convention.
+
+### project_store.rs LOC (INFORMATIONAL)
+- project_store.rs: ~160 pure LOC implementation + ~120 LOC tests = ~280 total.
+- Implementation LOC is well within the 250 ceiling.
+- Co-located unit tests per Rust convention.
+
+### `next_project_event_sequence` references future table (DESIGN NOTE)
+- The method queries `project_events` which doesn't exist in V2 migration.
+- It's a utility for use by later stage-0 migrations that add the events table.
+- Tests create the table inline to verify the query logic.
+- No runtime impact: method is only called when the table exists.
