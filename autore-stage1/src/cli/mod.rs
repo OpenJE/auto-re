@@ -49,7 +49,7 @@ where
     I: IntoIterator,
     I::Item: Into<OsString> + Clone,
 {
-    let cli = Cli::try_parse_from(args).map_err(|e| crate::Error::Validation(e.to_string()))?;
+    let cli = Cli::try_parse_from(args).map_err(|e| crate::Error::from(autore_core::Error::Validation(e.to_string())))?;
 
     match cli.command {
         Some(Commands::Campaign(c)) => match c.command {
@@ -87,7 +87,7 @@ where
         None => {
             #[cfg(feature = "tui")]
             {
-                return crate::runtime::run().await;
+                return crate::runtime::run().await.map_err(crate::Error::from);
             }
             #[cfg(not(feature = "tui"))]
             {

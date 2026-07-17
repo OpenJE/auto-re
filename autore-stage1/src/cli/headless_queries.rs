@@ -110,12 +110,12 @@ impl SchedulerQueries for SqliteQueries {
                  preferred_worker, preferred_model_class, input_revision \
                  FROM tasks WHERE campaign_id = ?1",
             )
-            .map_err(|e| crate::Error::Database(e.to_string()))?;
+            .map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
         let tasks = stmt
             .query_map([campaign_id.to_string()], task_from_row)
-            .map_err(|e| crate::Error::Database(e.to_string()))?
+            .map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| crate::Error::Database(e.to_string()))?;
+            .map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
         Ok(tasks)
     }
 
@@ -144,7 +144,7 @@ impl SchedulerQueries for SqliteQueries {
             "UPDATE tasks SET state = ?1 WHERE id = ?2",
             rusqlite::params![state_str, task_id.to_string()],
         )
-        .map_err(|e| crate::Error::Database(e.to_string()))?;
+        .map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
         Ok(())
     }
 
@@ -157,13 +157,13 @@ pub(super) struct NoopCampaignRepo;
 
 #[async_trait]
 impl CampaignRepository for NoopCampaignRepo {
-    async fn create(&self, _c: &Campaign) -> crate::Result<CampaignId> {
+    async fn create(&self, _c: &Campaign) -> autore_core::Result<CampaignId> {
         Ok(CampaignId::new())
     }
-    async fn find_by_id(&self, _id: CampaignId) -> crate::Result<Option<Campaign>> {
+    async fn find_by_id(&self, _id: CampaignId) -> autore_core::Result<Option<Campaign>> {
         Ok(None)
     }
-    async fn update_state(&self, _id: CampaignId, _state: CampaignState) -> crate::Result<()> {
+    async fn update_state(&self, _id: CampaignId, _state: CampaignState) -> autore_core::Result<()> {
         Ok(())
     }
 }
@@ -172,10 +172,10 @@ pub(super) struct NoopEvidenceRepo;
 
 #[async_trait]
 impl EvidenceRepository for NoopEvidenceRepo {
-    async fn create(&self, _e: &Evidence) -> crate::Result<EvidenceId> {
+    async fn create(&self, _e: &Evidence) -> autore_core::Result<EvidenceId> {
         Ok(EvidenceId::new())
     }
-    async fn find_by_id(&self, _id: EvidenceId) -> crate::Result<Option<Evidence>> {
+    async fn find_by_id(&self, _id: EvidenceId) -> autore_core::Result<Option<Evidence>> {
         Ok(None)
     }
 }

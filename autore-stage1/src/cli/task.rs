@@ -34,7 +34,7 @@ pub async fn list(db: Arc<Database>) -> crate::Result<()> {
             "SELECT id, campaign_id, kind, state, priority \
              FROM tasks ORDER BY priority DESC",
         )
-        .map_err(|e| crate::Error::Database(e.to_string()))?;
+        .map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
 
     let rows = stmt
         .query_map([], |row| {
@@ -46,11 +46,11 @@ pub async fn list(db: Arc<Database>) -> crate::Result<()> {
                 row.get::<_, i64>(4)?,
             ))
         })
-        .map_err(|e| crate::Error::Database(e.to_string()))?;
+        .map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
 
     let tasks: Vec<_> = rows
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| crate::Error::Database(e.to_string()))?;
+        .map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
 
     if tasks.is_empty() {
         println!("No tasks found.");
@@ -74,7 +74,7 @@ pub async fn list(db: Arc<Database>) -> crate::Result<()> {
 /// Executes the `task status <id>` subcommand.
 pub async fn status(db: Arc<Database>, id_str: String) -> crate::Result<()> {
     let uuid = uuid::Uuid::parse_str(&id_str)
-        .map_err(|e| crate::Error::Validation(format!("invalid task ID '{id_str}': {e}")))?;
+        .map_err(|e| crate::Error::from(autore_core::Error::Validation(format!("invalid task ID '{id_str}': {e}"))))?;
     let _task_id = crate::TaskId::from_uuid(uuid);
 
     let conn = db.connection()?;
@@ -115,11 +115,11 @@ pub async fn status(db: Arc<Database>, id_str: String) -> crate::Result<()> {
             }
         }
         Err(rusqlite::Error::QueryReturnedNoRows) => {
-            return Err(crate::Error::Validation(format!(
+            return Err(crate::Error::from(autore_core::Error::Validation(format!(
                 "task not found: {id_str}"
-            )));
+            ))));
         }
-        Err(e) => return Err(crate::Error::Database(e.to_string())),
+        Err(e) => return Err(crate::Error::from(autore_core::Error::Database(e.to_string()))),
     }
 
     Ok(())

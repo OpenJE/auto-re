@@ -1,4 +1,3 @@
-pub use autore_core::{Error, Result};
 pub use autore_schema::{
     domain,
     domain::{
@@ -15,6 +14,9 @@ pub use autore_schema::{
     },
 };
 pub use autore_store::storage as storage;
+
+mod error;
+pub use error::{Error, Result};
 
 #[cfg(feature = "tui")]
 pub use autore_events;

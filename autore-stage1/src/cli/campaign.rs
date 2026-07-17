@@ -51,12 +51,12 @@ pub async fn status(db: Arc<Database>, id: Option<String>) -> crate::Result<()> 
             Err(rusqlite::Error::QueryReturnedNoRows) => {
                 println!("No campaign found with ID: {id_str}");
             }
-            Err(e) => return Err(crate::Error::Database(e.to_string())),
+            Err(e) => return Err(crate::Error::from(autore_core::Error::Database(e.to_string()))),
         }
     } else {
         let mut stmt = conn
             .prepare("SELECT id, name, state FROM campaigns ORDER BY name")
-            .map_err(|e| crate::Error::Database(e.to_string()))?;
+            .map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
 
         let rows = stmt
             .query_map([], |row| {
@@ -66,11 +66,11 @@ pub async fn status(db: Arc<Database>, id: Option<String>) -> crate::Result<()> 
                     row.get::<_, String>(2)?,
                 ))
             })
-            .map_err(|e| crate::Error::Database(e.to_string()))?;
+            .map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
 
         let campaigns: Vec<_> = rows
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| crate::Error::Database(e.to_string()))?;
+            .map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
 
         if campaigns.is_empty() {
             println!("No campaigns found.");

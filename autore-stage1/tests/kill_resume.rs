@@ -12,13 +12,13 @@ use rusqlite::Connection;
 use tempfile::TempDir;
 
 fn binary_path() -> PathBuf {
-    std::env::var("CARGO_BIN_EXE_auto_re")
+    std::env::var("CARGO_BIN_EXE_auto_re_stage1")
         .map(PathBuf::from)
         .unwrap_or_else(|_| {
             let manifest_dir = env!("CARGO_MANIFEST_DIR");
             let target_dir = std::env::var("CARGO_TARGET_DIR")
                 .unwrap_or_else(|_| format!("{manifest_dir}/../target"));
-            PathBuf::from(target_dir).join("debug").join("auto-re")
+            PathBuf::from(target_dir).join("debug").join("auto-re-stage1")
         })
 }
 

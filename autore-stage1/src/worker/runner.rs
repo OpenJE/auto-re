@@ -241,28 +241,28 @@ mod tests {
 
     #[async_trait]
     impl TaskRepository for StubTaskRepository {
-        async fn create(&self, _task: &Task) -> crate::Result<TaskId> {
+        async fn create(&self, _task: &Task) -> autore_core::Result<TaskId> {
             Ok(TaskId::new())
         }
         async fn lease_next(
             &self,
             _campaign_id: CampaignId,
             _now: time::OffsetDateTime,
-        ) -> crate::Result<Option<Task>> {
+        ) -> autore_core::Result<Option<Task>> {
             Ok(None)
         }
         async fn renew_lease(
             &self,
             _task_id: TaskId,
             _until: time::OffsetDateTime,
-        ) -> crate::Result<()> {
+        ) -> autore_core::Result<()> {
             Ok(())
         }
-        async fn complete(&self, _task_id: TaskId) -> crate::Result<()> {
+        async fn complete(&self, _task_id: TaskId) -> autore_core::Result<()> {
             *self.state.lock().unwrap() = TaskState::Completed;
             Ok(())
         }
-        async fn fail(&self, _task_id: TaskId, _error: String) -> crate::Result<()> {
+        async fn fail(&self, _task_id: TaskId, _error: String) -> autore_core::Result<()> {
             *self.state.lock().unwrap() = TaskState::Failed;
             Ok(())
         }
@@ -286,11 +286,11 @@ mod tests {
 
     #[async_trait]
     impl ClaimRepository for StubClaimRepository {
-        async fn create(&self, claim: &Claim) -> crate::Result<ClaimId> {
+        async fn create(&self, claim: &Claim) -> autore_core::Result<ClaimId> {
             self.claims.lock().unwrap().push(claim.clone());
             Ok(claim.id)
         }
-        async fn find_by_id(&self, _id: ClaimId) -> crate::Result<Option<Claim>> {
+        async fn find_by_id(&self, _id: ClaimId) -> autore_core::Result<Option<Claim>> {
             Ok(None)
         }
     }
@@ -313,11 +313,11 @@ mod tests {
 
     #[async_trait]
     impl EvidenceRepository for StubEvidenceRepository {
-        async fn create(&self, evidence: &Evidence) -> crate::Result<EvidenceId> {
+        async fn create(&self, evidence: &Evidence) -> autore_core::Result<EvidenceId> {
             self.evidence.lock().unwrap().push(evidence.clone());
             Ok(evidence.id)
         }
-        async fn find_by_id(&self, _id: EvidenceId) -> crate::Result<Option<Evidence>> {
+        async fn find_by_id(&self, _id: EvidenceId) -> autore_core::Result<Option<Evidence>> {
             Ok(None)
         }
     }

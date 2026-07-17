@@ -11,7 +11,7 @@ llama = ["dep:llama_cpp"]
 tui = ["dep:autore-tui", "dep:autore-events"]
 
 [[bin]]
-name = "auto-re"
+name = "auto-re-stage1"
 path = "src/main.rs"
 
 [dependencies]
@@ -32,6 +32,7 @@ rusqlite.workspace = true
 schemars.workspace = true
 jsonschema.workspace = true
 petgraph.workspace = true
+thiserror.workspace = true
 idax = { version = "0.3.0", optional = true }
 gdbstub = { version = "0.7.8", optional = true }
 llama_cpp = { version = "0.3.2", optional = true }

@@ -490,7 +490,7 @@ mod tests {
 
         #[async_trait]
         impl TaskRepository for MockStore {
-            async fn create(&self, task: &Task) -> crate::Result<TaskId> {
+            async fn create(&self, task: &Task) -> autore_core::Result<TaskId> {
                 self.tasks.lock().unwrap().push(task.clone());
                 Ok(task.id)
             }
@@ -499,7 +499,7 @@ mod tests {
                 &self,
                 campaign_id: CampaignId,
                 now: OffsetDateTime,
-            ) -> crate::Result<Option<Task>> {
+            ) -> autore_core::Result<Option<Task>> {
                 let mut tasks = self.tasks.lock().unwrap();
                 let mut leases = self.leases.lock().unwrap();
 
@@ -538,19 +538,19 @@ mod tests {
                 &self,
                 task_id: TaskId,
                 until: OffsetDateTime,
-            ) -> crate::Result<()> {
+            ) -> autore_core::Result<()> {
                 let mut leases = self.leases.lock().unwrap();
                 if let Some(lease) = leases.iter_mut().find(|l| l.task_id == task_id) {
                     lease.expires_at = until;
                     Ok(())
                 } else {
-                    Err(crate::Error::Validation(format!(
+                    Err(autore_core::Error::Validation(format!(
                         "no lease for task {task_id}"
                     )))
                 }
             }
 
-            async fn complete(&self, task_id: TaskId) -> crate::Result<()> {
+            async fn complete(&self, task_id: TaskId) -> autore_core::Result<()> {
                 let mut tasks = self.tasks.lock().unwrap();
                 if let Some(task) = tasks.iter_mut().find(|t| t.id == task_id) {
                     task.state = TaskState::Completed;
@@ -561,7 +561,7 @@ mod tests {
                 Ok(())
             }
 
-            async fn fail(&self, task_id: TaskId, _error: String) -> crate::Result<()> {
+            async fn fail(&self, task_id: TaskId, _error: String) -> autore_core::Result<()> {
                 let mut tasks = self.tasks.lock().unwrap();
                 if let Some(task) = tasks.iter_mut().find(|t| t.id == task_id) {
                     task.state = TaskState::Failed;
@@ -634,17 +634,17 @@ mod tests {
 
         #[async_trait]
         impl CampaignRepository for NoopCampaignRepo {
-            async fn create(&self, _c: &Campaign) -> crate::Result<CampaignId> {
+            async fn create(&self, _c: &Campaign) -> autore_core::Result<CampaignId> {
                 Ok(CampaignId::new())
             }
-            async fn find_by_id(&self, _id: CampaignId) -> crate::Result<Option<Campaign>> {
+            async fn find_by_id(&self, _id: CampaignId) -> autore_core::Result<Option<Campaign>> {
                 Ok(None)
             }
             async fn update_state(
                 &self,
                 _id: CampaignId,
                 _state: CampaignState,
-            ) -> crate::Result<()> {
+            ) -> autore_core::Result<()> {
                 Ok(())
             }
         }
@@ -653,10 +653,10 @@ mod tests {
 
         #[async_trait]
         impl ClaimRepository for NoopClaimRepo {
-            async fn create(&self, _c: &Claim) -> crate::Result<ClaimId> {
+            async fn create(&self, _c: &Claim) -> autore_core::Result<ClaimId> {
                 Ok(ClaimId::new())
             }
-            async fn find_by_id(&self, _id: ClaimId) -> crate::Result<Option<Claim>> {
+            async fn find_by_id(&self, _id: ClaimId) -> autore_core::Result<Option<Claim>> {
                 Ok(None)
             }
         }
@@ -665,10 +665,10 @@ mod tests {
 
         #[async_trait]
         impl EvidenceRepository for NoopEvidenceRepo {
-            async fn create(&self, _e: &Evidence) -> crate::Result<EvidenceId> {
+            async fn create(&self, _e: &Evidence) -> autore_core::Result<EvidenceId> {
                 Ok(EvidenceId::new())
             }
-            async fn find_by_id(&self, _id: EvidenceId) -> crate::Result<Option<Evidence>> {
+            async fn find_by_id(&self, _id: EvidenceId) -> autore_core::Result<Option<Evidence>> {
                 Ok(None)
             }
         }

@@ -14,6 +14,7 @@ use crate::analysis::{
     AnalysisBackend, AnalysisCapability, MockAnalysisBackend, MockPacketBuilder, PacketBuilder,
 };
 use crate::domain::*;
+use crate::domain::EntityId;
 use crate::ids::*;
 use crate::model::*;
 use crate::scheduler::*;
@@ -189,7 +190,7 @@ pub async fn run_headless(db: Arc<Database>) -> crate::Result<()> {
             "UPDATE campaigns SET state = 'Complete' WHERE id = ?1",
             rusqlite::params![campaign_id.to_string()],
         )
-        .map_err(|e| crate::Error::Database(e.to_string()))?;
+        .map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
     }
 
     Ok(())
@@ -205,11 +206,11 @@ fn get_or_create_campaign(db: &Database) -> crate::Result<CampaignId> {
             |row| row.get(0),
         )
         .optional()
-        .map_err(|e| crate::Error::Database(e.to_string()))?;
+        .map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
 
     if let Some(id_str) = existing {
         let uuid =
-            uuid::Uuid::parse_str(&id_str).map_err(|e| crate::Error::Database(e.to_string()))?;
+            uuid::Uuid::parse_str(&id_str).map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
         return Ok(CampaignId::from_uuid(uuid));
     }
 
@@ -223,11 +224,11 @@ fn get_or_create_campaign(db: &Database) -> crate::Result<CampaignId> {
             |row| row.get(0),
         )
         .optional()
-        .map_err(|e| crate::Error::Database(e.to_string()))?;
+        .map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
 
     if let Some(id_str) = with_leases {
         let uuid =
-            uuid::Uuid::parse_str(&id_str).map_err(|e| crate::Error::Database(e.to_string()))?;
+            uuid::Uuid::parse_str(&id_str).map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
         return Ok(CampaignId::from_uuid(uuid));
     }
 
@@ -236,7 +237,7 @@ fn get_or_create_campaign(db: &Database) -> crate::Result<CampaignId> {
         "INSERT INTO campaigns (id, name, state) VALUES (?1, ?2, ?3)",
         rusqlite::params![campaign_id.to_string(), "Headless Campaign", "Active"],
     )
-    .map_err(|e| crate::Error::Database(e.to_string()))?;
+    .map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
     Ok(campaign_id)
 }
 
@@ -248,7 +249,7 @@ fn count_tasks(db: &Database, campaign_id: CampaignId) -> crate::Result<usize> {
             rusqlite::params![campaign_id.to_string()],
             |row| row.get(0),
         )
-        .map_err(|e| crate::Error::Database(e.to_string()))?;
+        .map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
     Ok(count)
 }
 
@@ -258,7 +259,7 @@ fn accept_new_claims(db: &Database) -> crate::Result<()> {
         "UPDATE claims SET state = 'Accepted' WHERE state = 'Proposed'",
         [],
     )
-    .map_err(|e| crate::Error::Database(e.to_string()))?;
+    .map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
     Ok(())
 }
 
@@ -268,22 +269,22 @@ fn recover_stale_leases(db: &Database) -> crate::Result<()> {
         "UPDATE tasks SET state = 'Ready' WHERE state = 'Leased'",
         [],
     )
-    .map_err(|e| crate::Error::Database(e.to_string()))?;
+    .map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
     conn.execute("DELETE FROM leases", [])
-        .map_err(|e| crate::Error::Database(e.to_string()))?;
+        .map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
     Ok(())
 }
 
 fn function_has_claims(db: &Database, func_id: FunctionId) -> crate::Result<bool> {
     let conn = db.connection()?;
     let subject_json = serde_json::to_string(&EntityId::Function(func_id))
-        .map_err(|e| crate::Error::Database(e.to_string()))?;
+        .map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
     let count: usize = conn
         .query_row(
             "SELECT COUNT(*) FROM claims WHERE subject = ?1",
             rusqlite::params![subject_json],
             |row| row.get(0),
         )
-        .map_err(|e| crate::Error::Database(e.to_string()))?;
+        .map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
     Ok(count > 0)
 }

@@ -17,6 +17,7 @@ use autore_stage1::analysis::{
     AnalysisBackend, AnalysisCapability, MockAnalysisBackend, MockPacketBuilder, PacketBuilder,
 };
 use autore_stage1::domain::*;
+use autore_stage1::domain::EntityId;
 use autore_stage1::ids::*;
 use autore_stage1::model::*;
 use autore_stage1::scheduler::*;
@@ -145,12 +146,12 @@ impl SchedulerQueries for SqliteQueries {
 				 preferred_worker, preferred_model_class, input_revision \
 				 FROM tasks WHERE campaign_id = ?1",
             )
-            .map_err(|e| autore_stage1::Error::Database(e.to_string()))?;
+            .map_err(|e| autore_stage1::Error::from(autore_core::Error::Database(e.to_string())))?;
         let tasks = stmt
             .query_map([campaign_id.to_string()], task_from_row)
-            .map_err(|e| autore_stage1::Error::Database(e.to_string()))?
+            .map_err(|e| autore_stage1::Error::from(autore_core::Error::Database(e.to_string())))?
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| autore_stage1::Error::Database(e.to_string()))?;
+            .map_err(|e| autore_stage1::Error::from(autore_core::Error::Database(e.to_string())))?;
         Ok(tasks)
     }
 
@@ -169,7 +170,7 @@ impl SchedulerQueries for SqliteQueries {
             "UPDATE tasks SET state = ?1 WHERE id = ?2",
             rusqlite::params![task_state_to_str(&state), task_id.to_string()],
         )
-        .map_err(|e| autore_stage1::Error::Database(e.to_string()))?;
+        .map_err(|e| autore_stage1::Error::from(autore_core::Error::Database(e.to_string())))?;
         Ok(())
     }
 
@@ -186,13 +187,13 @@ struct StubCampaignRepo;
 
 #[async_trait]
 impl CampaignRepository for StubCampaignRepo {
-    async fn create(&self, _c: &Campaign) -> autore_stage1::Result<CampaignId> {
+    async fn create(&self, _c: &Campaign) -> autore_core::Result<CampaignId> {
         Ok(CampaignId::new())
     }
-    async fn find_by_id(&self, _id: CampaignId) -> autore_stage1::Result<Option<Campaign>> {
+    async fn find_by_id(&self, _id: CampaignId) -> autore_core::Result<Option<Campaign>> {
         Ok(None)
     }
-    async fn update_state(&self, _id: CampaignId, _state: CampaignState) -> autore_stage1::Result<()> {
+    async fn update_state(&self, _id: CampaignId, _state: CampaignState) -> autore_core::Result<()> {
         Ok(())
     }
 }
@@ -214,11 +215,11 @@ impl CollectingClaimRepo {
 
 #[async_trait]
 impl ClaimRepository for CollectingClaimRepo {
-    async fn create(&self, claim: &Claim) -> autore_stage1::Result<ClaimId> {
+    async fn create(&self, claim: &Claim) -> autore_core::Result<ClaimId> {
         self.claims.lock().unwrap().push(claim.clone());
         Ok(claim.id)
     }
-    async fn find_by_id(&self, _id: ClaimId) -> autore_stage1::Result<Option<Claim>> {
+    async fn find_by_id(&self, _id: ClaimId) -> autore_core::Result<Option<Claim>> {
         Ok(None)
     }
 }
@@ -227,10 +228,10 @@ struct CollectingEvidenceRepo;
 
 #[async_trait]
 impl EvidenceRepository for CollectingEvidenceRepo {
-    async fn create(&self, _e: &Evidence) -> autore_stage1::Result<EvidenceId> {
+    async fn create(&self, _e: &Evidence) -> autore_core::Result<EvidenceId> {
         Ok(EvidenceId::new())
     }
-    async fn find_by_id(&self, _id: EvidenceId) -> autore_stage1::Result<Option<Evidence>> {
+    async fn find_by_id(&self, _id: EvidenceId) -> autore_core::Result<Option<Evidence>> {
         Ok(None)
     }
 }
