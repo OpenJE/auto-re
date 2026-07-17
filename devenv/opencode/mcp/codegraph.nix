@@ -3,7 +3,7 @@
 { inputs, pkgs, ... }:
 let
   system = pkgs.stdenv.hostPlatform.system;
-  codegraph = inputs.codegraph.packages.${system}.codegraph;
+  codegraph = inputs.codegraph.legacyPackages.${system}.codegraph;
 in {
   # https://github.com/colbymchenry/codegraph
   opencode.mcp.codegraph = {
