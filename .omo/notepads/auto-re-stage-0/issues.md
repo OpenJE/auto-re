@@ -38,3 +38,28 @@
 - Added `ModuleIdentity`, refined `BinaryLocation`, `StableEntityKey` (4 variants), `DerivationMethod` (10 variants), `Derivation` struct.
 - Re-exports updated in `domain/mod.rs`. No `autore-stage1` changes required (no call sites touched `BinaryLocation`).
 - All 152 schema tests + 42 stage1 tests pass.
+
+## 2026-07-17 (Task 8)
+
+### SchemaMismatch uses String instead of SchemaVersion (DESIGN NOTE)
+- `autore_core::Error::SchemaMismatch` uses `expected: String, actual: String` instead of `SchemaVersion` to avoid circular dependency (autore_schema → autore_core).
+- Callers format SchemaVersion to string when constructing this variant.
+- No loss of information since SchemaVersion has a Display impl.
+
+### autore-tui::runtime::run() return type mismatch (RESOLVED)
+- `autore_tui::runtime::run()` returns `autore_core::Result<()>` but stage1's `cli::run()` now returns `autore_stage1::Result<()>`.
+- Resolved with `.map_err(crate::Error::from)` at the call site.
+- `autore-tui` `Error::Worker` variant migrated to `Error::Operation` (core).
+
+## 2026-07-17 (Task 9)
+
+### JSON format layer redaction (RESOLVED)
+- Initially the JSON formatter did not redact sensitive fields.
+- Resolved with `RedactingJsonFormatter` — a custom `FormatEvent` that builds JSON output with the same `RedactingFieldVisitor` used by plain-text mode.
+- Both JSON and plain-text modes now redact fields matching `*key*`, `*token*`, `*secret*`, `*password*`, `*credential*`.
+
+### autore-core LOC with co-located tests (INFORMATIONAL)
+- logging.rs: 202 pure LOC implementation + 153 LOC tests = 355 total.
+- validation.rs: 161 pure LOC implementation + 217 LOC tests = 378 total.
+- Implementation LOC is within the 250 ceiling. Tests are co-located per Rust convention.
+- Existing codebase files are larger: domain/mod.rs (945), claim.rs (603), evidence.rs (367).

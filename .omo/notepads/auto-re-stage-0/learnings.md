@@ -27,3 +27,19 @@
 - **Struct-level serde `#[serde(tag)]` adds unwanted type field**: `Derivation` is a struct (not an enum), so `#[serde(tag = "kind")]` would inject a spurious `"kind"` field. Structs use normal field-level derives — `Derivation` serializes as `{"method":{...},"operation":"...","supporting_evidence":[...],"source_hypotheses":[...]}`.
 - **Type-system as API contract**: `BinaryLocation::new(artifact, module: ModuleIdentity, rva)` replaces the old `(artifact, module: String, rva)` signature. The type system rejects absolute addresses, filesystem paths, and tool IDs at compile time — no runtime validation needed.
 - **`ArtifactId` import alias in values.rs**: `ids::ArtifactId` is imported as `Stage0ArtifactId` to avoid collision with `domain::evidence::ArtifactId` (M1 semantic enum). This alias is internal; the public type exposed through structs is still `ids::ArtifactId`.
+
+## 2026-07-17 (Task 8)
+
+- **Stage-split error architecture**: `autore_core::Error` holds only cross-cutting Stage 0 categories (Io, Database, Serialization, Validation, NotFound, Conflict, HashMismatch, SchemaMismatch, Migration, InvalidStateTransition, Subscription, Operation, Unsupported). Stage-specific errors (Configuration, ModelProvider, AnalysisBackend, Worker) live in `autore_stage1::Error` with `Core(#[from] autore_core::Error)` for transparent forwarding.
+- **Circular dependency prevention**: `autore_schema` depends on `autore_core` (for `Error::Validation` in `From<NamespacedIdError>`), so `autore_core` cannot depend on `autore_schema`. `SchemaMismatch` uses `String` fields for version info rather than `SchemaVersion` to avoid the cycle.
+- **Trait impl return types must match the defining crate**: Repository traits in `autore-store` use `autore_core::Result<T>`. Stage1 impls (test stubs, noop repos) must use `autore_core::Result<T>` explicitly — `crate::Result<T>` in stage1 now means `autore_stage1::Result<T>`, a different type.
+- **`.into()` ambiguity in closures**: When `#[from]` generates `From<CoreError> for Stage1Error`, `.into()` inside a closure is ambiguous (could be `CoreError -> Stage1Error` or `CoreError -> CoreError` via `impl<T> From<T> for T`). Fix: use `crate::Error::from(autore_core::Error::...)` which is unambiguous.
+- **IDAError stays in autore-stage1 only**: `idax::Error` is wrapped as `EngineError::IdaError` in `autore-stage1/src/engine.rs` behind `#[cfg(feature = "ida")]`. It never touches `autore_core`.
+
+## 2026-07-17 (Task 9)
+
+- **tracing-subscriber `FormatEvent` for field redaction**: Custom `FormatEvent` implementation (`RedactingFormatter`) visits each event field via `Visit` trait and replaces sensitive values with `<redacted>`. This intercepts at the formatting layer — the field data never reaches the writer.
+- **`tracing::subscriber::with_default` for scoped test subscribers**: Tests can install a temporary subscriber scoped to a closure, avoiding global `set_global_default` conflicts. This allows parallel test execution with separate log files.
+- **`Mutex<File>` as `MakeWriter`**: `tracing_subscriber::fmt::layer().with_writer(Mutex::new(file))` works because `Mutex<T>` implements `MakeWriter` when `T: Write`. No custom wrapper needed.
+- **Panic hook via `OnceLock<Arc<Mutex<...>>>`**: Global terminal restore hook uses `OnceLock` for one-time initialization + `Arc<Mutex<Option<...>>>` for mutable access. The `install_panic_hook()` function clones the `Arc` into the hook closure, capturing the shared reference without lifetime issues.
+- **Doc tests need explicit imports**: `/// ``` ` blocks don't inherit `use` statements from the enclosing module. Every type used in a doc test must be explicitly imported within the block.
