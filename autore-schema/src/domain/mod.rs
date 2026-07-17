@@ -618,9 +618,10 @@ pub use values::{
     ModuleIdentity, StableEntityKey,
 };
 pub use records::{
-    Artifact, ArtifactStorage, Assumption, BinaryArtifactMetadata, Contradiction,
-    ContradictionResolution, ContradictionStatus, Endianness, EnvironmentIdentity,
-    EvidenceLifecycleEvent, EvidenceLifecycleState, EvidenceRecord, Hypothesis, HypothesisStatus,
+    Artifact, ArtifactStorage, Assumption, BinaryArtifactMetadata, CancellationRequest,
+    Contradiction, ContradictionResolution, ContradictionStatus, Endianness, EnvironmentIdentity,
+    EventSource, EventSubject, EvidenceLifecycleEvent, EvidenceLifecycleState, EvidenceRecord,
+    Hypothesis, HypothesisStatus, MetricMap, Operation, OperationFailure, ProgressUpdate,
     Project, Provider, ProviderEntityAlias, ProviderRun, ProviderRunStatus, NativeArtifact, SemanticEntity,
     VerificationRecord, VerificationState, VerificationSubject,
     ARTIFACT_KIND_BINARY, ARTIFACT_KIND_CONFIGURATION, ARTIFACT_KIND_GENERATED_CANDIDATE,
@@ -638,6 +639,9 @@ pub use records::{
     HYPOTHESIS_STATUS_UNDER_INVESTIGATION,
     NATIVE_FORMAT_GDB_TRACE, NATIVE_FORMAT_GHIDRA_PCODE, NATIVE_FORMAT_IDA_HEXRAYS_PSEUDOCODE,
     NATIVE_FORMAT_IDA_MICROCODE, NATIVE_FORMAT_LLM_RAW_RESPONSE, NATIVE_FORMAT_Z3_MODEL,
+    OPERATION_KIND_ARTIFACT_IMPORT, OPERATION_KIND_EXTERNAL_ARTIFACT_CHECK,
+    OPERATION_KIND_PROJECT_MIGRATION, OPERATION_KIND_PROJECT_REBUILD_INDEXES,
+    OPERATION_KIND_PROJECT_VALIDATION,
     PROVIDER_KIND_DEBUGGER, PROVIDER_KIND_DECOMPILER, PROVIDER_KIND_DISASSEMBLER,
     PROVIDER_KIND_HUMAN, PROVIDER_KIND_LLM, PROVIDER_KIND_SYMBOLIC_EXECUTOR,
     VERIFICATION_CHECK_ABI_LAYOUT, VERIFICATION_CHECK_ARTIFACT_HASH,

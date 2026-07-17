@@ -149,6 +149,7 @@ dependencies = [
  "autore-schema",
  "autore-store",
  "autore-tui",
+ "rusqlite",
  "tempfile",
 ]
 
@@ -160,6 +161,8 @@ version = "0.1.0"
 name = "autore-core"
 version = "0.1.0"
 dependencies = [
+ "serde",
+ "serde_json",
  "tempfile",
  "thiserror 2.0.18",
  "time",
@@ -171,6 +174,7 @@ dependencies = [
 name = "autore-events"
 version = "0.1.0"
 dependencies = [
+ "autore-core",
  "crossterm",
 ]
 

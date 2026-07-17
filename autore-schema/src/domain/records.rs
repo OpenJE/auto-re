@@ -4,10 +4,13 @@
 //! query. Artifact kinds are registered as `NamespacedId` constants (NOT enum
 //! variants) to allow runtime extensibility.
 
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+use autore_core::operation::OperationState;
+
 use crate::domain::{Confidence, ContentHash, ExtensionData, EvidenceValue, MetadataMap, NamespacedId, SchemaVersion, StableEntityKey, Timestamp};
-use crate::ids::{ArtifactId, ContradictionId, EntityId, EvidenceRecordId, GenerationTargetId, HypothesisId, NativeArtifactId, PackageId, ProjectId, ProviderId, ProviderRunId, VerificationRecordId};
+use crate::ids::{ArtifactId, ContradictionId, EntityId, EvidenceRecordId, GenerationTargetId, HypothesisId, NativeArtifactId, OperationId, PackageId, ProjectId, ProviderId, ProviderRunId, VerificationRecordId};
 
 // ---------------------------------------------------------------------------
 // Project
@@ -1090,6 +1093,245 @@ impl VerificationRecord {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// EventSource + EventSubject (shared by Operation + future ProjectEvent)
+// ---------------------------------------------------------------------------
+
+/// The source of a domain event — identifies what kind of record triggered it.
+///
+/// Designed to be shareable between `Operation` events and `ProjectEvent`
+/// records (Task 21).
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum EventSource {
+    Operation,
+    Project,
+    Artifact,
+    Entity,
+    Evidence,
+    Hypothesis,
+    Contradiction,
+    Verification,
+    Provider,
+}
+
+impl std::fmt::Display for EventSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EventSource::Operation => write!(f, "Operation"),
+            EventSource::Project => write!(f, "Project"),
+            EventSource::Artifact => write!(f, "Artifact"),
+            EventSource::Entity => write!(f, "Entity"),
+            EventSource::Evidence => write!(f, "Evidence"),
+            EventSource::Hypothesis => write!(f, "Hypothesis"),
+            EventSource::Contradiction => write!(f, "Contradiction"),
+            EventSource::Verification => write!(f, "Verification"),
+            EventSource::Provider => write!(f, "Provider"),
+        }
+    }
+}
+
+/// The subject of a domain event — identifies which specific record it refers to.
+///
+/// Uses a discriminator + UUID pattern matching `VerificationSubject`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind", content = "id")]
+pub enum EventSubject {
+    Operation(OperationId),
+    Project(ProjectId),
+    Artifact(ArtifactId),
+    Entity(EntityId),
+    Evidence(EvidenceRecordId),
+    Hypothesis(HypothesisId),
+    Contradiction(ContradictionId),
+    Verification(VerificationRecordId),
+}
+
+// ---------------------------------------------------------------------------
+// MetricMap
+// ---------------------------------------------------------------------------
+
+/// Structured metrics attached to a progress update.
+///
+/// Keys are namespaced identifiers; values are floating-point measurements.
+/// Uses `BTreeMap` for deterministic serialization ordering.
+pub type MetricMap = BTreeMap<NamespacedId, f64>;
+
+// ---------------------------------------------------------------------------
+// OperationFailure
+// ---------------------------------------------------------------------------
+
+/// Failure details captured when an operation transitions to `Failed`.
+///
+/// Stored as JSON TEXT in the `operations.failure` column.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct OperationFailure {
+    /// A namespaced identifier for the failure kind (extensible).
+    pub code: NamespacedId,
+    /// Human-readable description of the failure.
+    pub message: String,
+    /// Optional structured details for diagnostics.
+    pub details: Option<ExtensionData>,
+}
+
+// ---------------------------------------------------------------------------
+// Operation
+// ---------------------------------------------------------------------------
+
+/// A long-running operation within a project.
+///
+/// Operations track work like artifact imports, project validation,
+/// migrations, and index rebuilds. They follow a state machine
+/// (`OperationState`) with structured progress updates and cooperative
+/// cancellation.
+///
+/// `subject` is optional JSON describing what the operation targets
+/// (stored as `Option<EventSubject>`). `requested_by` is a string
+/// discriminant for the requester (e.g. "cli", "tui", "system").
+/// `failure` is optional JSON with `OperationFailure` details.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Operation {
+    pub id: OperationId,
+    pub project: ProjectId,
+    pub kind: NamespacedId,
+    pub state: OperationState,
+    pub subject: Option<EventSubject>,
+    pub requested_by: String,
+    pub parent: Option<OperationId>,
+    pub failure: Option<OperationFailure>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
+}
+
+impl Operation {
+    /// Creates a new operation in `Queued` state.
+    pub fn new(
+        project: ProjectId,
+        kind: NamespacedId,
+        requested_by: impl Into<String>,
+    ) -> Self {
+        let now = Timestamp::now();
+        Operation {
+            id: OperationId::new(),
+            project,
+            kind,
+            state: OperationState::Queued,
+            subject: None,
+            requested_by: requested_by.into(),
+            parent: None,
+            failure: None,
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
+    /// Transitions this operation to the target state, validating the
+    /// state machine.
+    pub fn transition(&mut self, target: OperationState) -> autore_core::Result<()> {
+        self.state.transition(&target)?;
+        self.state = target;
+        self.updated_at = Timestamp::now();
+        Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ProgressUpdate
+// ---------------------------------------------------------------------------
+
+/// A structured progress update for an operation.
+///
+/// Sequence numbers are per-operation (not global). Each operation
+/// maintains its own monotonic sequence starting from 0.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ProgressUpdate {
+    pub id: uuid::Uuid,
+    pub operation_id: OperationId,
+    pub sequence: u64,
+    pub message: String,
+    pub metrics: MetricMap,
+    pub created_at: Timestamp,
+}
+
+impl ProgressUpdate {
+    /// Creates a new progress update with the given sequence number.
+    pub fn new(
+        operation_id: OperationId,
+        sequence: u64,
+        message: impl Into<String>,
+        metrics: MetricMap,
+    ) -> Self {
+        ProgressUpdate {
+            id: uuid::Uuid::now_v7(),
+            operation_id,
+            sequence,
+            message: message.into(),
+            metrics,
+            created_at: Timestamp::now(),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CancellationRequest
+// ---------------------------------------------------------------------------
+
+/// A cooperative cancellation request for an operation.
+///
+/// Cancellation is cooperative — the request is recorded, not forced.
+/// The operation checks for pending requests and transitions to
+/// `Cancelling` when it next yields.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CancellationRequest {
+    pub id: uuid::Uuid,
+    pub operation_id: OperationId,
+    pub requested_by: String,
+    pub reason: Option<String>,
+    pub created_at: Timestamp,
+}
+
+impl CancellationRequest {
+    /// Creates a new cancellation request.
+    pub fn new(
+        operation_id: OperationId,
+        requested_by: impl Into<String>,
+        reason: Option<String>,
+    ) -> Self {
+        CancellationRequest {
+            id: uuid::Uuid::now_v7(),
+            operation_id,
+            requested_by: requested_by.into(),
+            reason,
+            created_at: Timestamp::now(),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Stage 0 operation kind constants
+// ---------------------------------------------------------------------------
+
+/// Operation kind: importing an artifact.
+pub static OPERATION_KIND_ARTIFACT_IMPORT: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.artifact.import").unwrap());
+
+/// Operation kind: project validation.
+pub static OPERATION_KIND_PROJECT_VALIDATION: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.project.validation").unwrap());
+
+/// Operation kind: project migration.
+pub static OPERATION_KIND_PROJECT_MIGRATION: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.project.migration").unwrap());
+
+/// Operation kind: rebuilding derived indexes.
+pub static OPERATION_KIND_PROJECT_REBUILD_INDEXES: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.project.rebuild-indexes").unwrap());
+
+/// Operation kind: external artifact integrity check.
+pub static OPERATION_KIND_EXTERNAL_ARTIFACT_CHECK: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| {
+        NamespacedId::parse("core.project.external-artifact-check").unwrap()
+    });
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -2231,6 +2473,160 @@ mod tests {
         assert!(
             (h.confidence.score() - 0.9).abs() < f32::EPSILON,
             "confidence updates must remain independent of verification records"
+        );
+    }
+
+    // -- Operation tests --
+
+    use super::{
+        CancellationRequest, EventSource, EventSubject, MetricMap, Operation, OperationFailure,
+        ProgressUpdate, OPERATION_KIND_ARTIFACT_IMPORT, OPERATION_KIND_EXTERNAL_ARTIFACT_CHECK,
+        OPERATION_KIND_PROJECT_MIGRATION, OPERATION_KIND_PROJECT_REBUILD_INDEXES,
+        OPERATION_KIND_PROJECT_VALIDATION,
+    };
+    use autore_core::operation::OperationState;
+
+    #[test]
+    fn operation_new_defaults() {
+        let op = Operation::new(
+            ProjectId::new(),
+            OPERATION_KIND_ARTIFACT_IMPORT.clone(),
+            "cli",
+        );
+        assert_eq!(op.state, OperationState::Queued);
+        assert!(op.subject.is_none());
+        assert!(op.parent.is_none());
+        assert!(op.failure.is_none());
+        assert_eq!(op.requested_by, "cli");
+    }
+
+    #[test]
+    fn operation_transition_queued_to_running() {
+        let mut op = Operation::new(
+            ProjectId::new(),
+            OPERATION_KIND_ARTIFACT_IMPORT.clone(),
+            "cli",
+        );
+        assert!(op.transition(OperationState::Running).is_ok());
+        assert_eq!(op.state, OperationState::Running);
+    }
+
+    #[test]
+    fn operation_transition_full_lifecycle() {
+        let mut op = Operation::new(
+            ProjectId::new(),
+            OPERATION_KIND_PROJECT_VALIDATION.clone(),
+            "system",
+        );
+        assert!(op.transition(OperationState::Running).is_ok());
+        assert!(op.transition(OperationState::Paused).is_ok());
+        assert!(op.transition(OperationState::Running).is_ok());
+        assert!(op.transition(OperationState::Completed).is_ok());
+        assert!(op.state.is_terminal());
+    }
+
+    #[test]
+    fn operation_transition_cancellation_flow() {
+        let mut op = Operation::new(
+            ProjectId::new(),
+            OPERATION_KIND_PROJECT_MIGRATION.clone(),
+            "tui",
+        );
+        assert!(op.transition(OperationState::Running).is_ok());
+        assert!(op.transition(OperationState::Cancelling).is_ok());
+        assert!(op.transition(OperationState::Cancelled).is_ok());
+        assert!(op.state.is_terminal());
+    }
+
+    #[test]
+    fn operation_round_trip_json() {
+        let mut op = Operation::new(
+            ProjectId::new(),
+            OPERATION_KIND_PROJECT_REBUILD_INDEXES.clone(),
+            "cli",
+        );
+        op.subject = Some(EventSubject::Project(op.project));
+        op.parent = Some(OperationId::new());
+        let json = serde_json::to_string_pretty(&op).unwrap();
+        let back: Operation = serde_json::from_str(&json).unwrap();
+        assert_eq!(op.id, back.id);
+        assert_eq!(op.project, back.project);
+        assert_eq!(op.kind, back.kind);
+        assert_eq!(op.state, back.state);
+        assert_eq!(op.subject, back.subject);
+        assert_eq!(op.parent, back.parent);
+    }
+
+    #[test]
+    fn operation_failure_round_trip() {
+        let failure = OperationFailure {
+            code: NamespacedId::parse("core.error.timeout").unwrap(),
+            message: "operation timed out after 60s".into(),
+            details: None,
+        };
+        let json = serde_json::to_string(&failure).unwrap();
+        let back: OperationFailure = serde_json::from_str(&json).unwrap();
+        assert_eq!(failure.code, back.code);
+        assert_eq!(failure.message, back.message);
+    }
+
+    #[test]
+    fn progress_update_round_trip() {
+        let mut metrics: MetricMap = BTreeMap::new();
+        metrics.insert(
+            NamespacedId::parse("progress.percent").unwrap(),
+            42.5,
+        );
+        let pu = ProgressUpdate::new(OperationId::new(), 0, "analyzing", metrics.clone());
+        let json = serde_json::to_string(&pu).unwrap();
+        let back: ProgressUpdate = serde_json::from_str(&json).unwrap();
+        assert_eq!(pu.id, back.id);
+        assert_eq!(pu.operation_id, back.operation_id);
+        assert_eq!(pu.sequence, 0);
+        assert_eq!(back.metrics.len(), 1);
+    }
+
+    #[test]
+    fn cancellation_request_round_trip() {
+        let cr = CancellationRequest::new(
+            OperationId::new(),
+            "user",
+            Some("no longer needed".into()),
+        );
+        let json = serde_json::to_string(&cr).unwrap();
+        let back: CancellationRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(cr.id, back.id);
+        assert_eq!(cr.operation_id, back.operation_id);
+        assert_eq!(cr.requested_by, "user");
+        assert_eq!(cr.reason, Some("no longer needed".into()));
+    }
+
+    #[test]
+    fn event_source_display() {
+        assert_eq!(EventSource::Operation.to_string(), "Operation");
+        assert_eq!(EventSource::Project.to_string(), "Project");
+    }
+
+    #[test]
+    fn event_subject_round_trip() {
+        let subject = EventSubject::Operation(OperationId::new());
+        let json = serde_json::to_string(&subject).unwrap();
+        let back: EventSubject = serde_json::from_str(&json).unwrap();
+        assert_eq!(subject, back);
+    }
+
+    #[test]
+    fn operation_kind_constants() {
+        assert_eq!(OPERATION_KIND_ARTIFACT_IMPORT.to_string(), "core.artifact.import");
+        assert_eq!(OPERATION_KIND_PROJECT_VALIDATION.to_string(), "core.project.validation");
+        assert_eq!(OPERATION_KIND_PROJECT_MIGRATION.to_string(), "core.project.migration");
+        assert_eq!(
+            OPERATION_KIND_PROJECT_REBUILD_INDEXES.to_string(),
+            "core.project.rebuild-indexes"
+        );
+        assert_eq!(
+            OPERATION_KIND_EXTERNAL_ARTIFACT_CHECK.to_string(),
+            "core.project.external-artifact-check"
         );
     }
 }

@@ -145,3 +145,16 @@
 - **`VerificationStore.multi_check_per_subject_supported` returns `true`**: A capability flag. The table has no UNIQUE constraint on (subject, check), so multiple records per (subject_kind, subject_id, check_kind) are permitted. Index on `(subject_kind, subject_id, check_kind)` supports efficient queries.
 - **Subject-discriminator isolation is verified by test**: `verification_subject_kind_discriminator_isolated` inserts both an `Entity(id)` and an `Artifact(same_uuid)` and asserts that `list_by_subject` returns only the matching variant. This catches regressions where a future refactor forgets to filter on `subject_kind`.
 - **V9 migration numbering**: Plan text says `V8__contradictions_verification.sql` but V8 is already used by `hypotheses.sql`. V9 is the correct next migration number. Task brief correctly noted this.
+
+## 2026-07-17 (Task 20)
+
+- **`OperationState` placement in `autore-core`**: Since `OperationState` is unit-only (no schema dependency), it lives in `autore-core/src/operation.rs`. `autore-schema` imports it via `autore_core::operation::OperationState`. This avoids the circular dependency constraint while keeping the state machine testable independently.
+- **`serde` and `serde_json` added to `autore-core`**: `OperationState` derives `Serialize`/`Deserialize` for JSON round-trip tests and future event serialization. These were already workspace dependencies.
+- **`MetricMap` as type alias**: `pub type MetricMap = BTreeMap<NamespacedId, f64>` — a simple type alias rather than a newtype. `BTreeMap` provides deterministic serialization ordering; `f64` values are measurements.
+- **`EventSource` and `EventSubject` designed for reuse**: These types are shareable between `Operation` events and future `ProjectEvent` records (Task 21). `EventSubject` uses adjacently tagged serde (`#[serde(tag = "kind", content = "id")]`) matching the `VerificationSubject` pattern.
+- **Per-operation sequence numbers**: `ProgressUpdate.sequence` is per-operation, not global. The store uses `INSERT` with caller-provided sequence; a future `next_sequence` helper would query `MAX(sequence) + 1 WHERE operation_id = ?`.
+- **Cooperative cancellation is store-level, not domain-level**: `CancellationRequest` records are inserted into the DB; the operation's state does NOT change automatically. The application layer checks for pending requests and transitions through `Cancelling → Cancelled` when the operation yields.
+- **`Operation.parent` is self-referential FK**: `operations.parent BLOB NULL REFERENCES operations(id)` — SQLite supports self-referential FKs. Cycle rejection is at the application layer via `validate_no_cycle`.
+- **`OperationFailure` stored as JSON TEXT**: Same pattern as `ContradictionResolution` — complex type serialized to a TEXT column. NULL until the operation transitions to `Failed`.
+- **V10 migration numbering**: Plan text says `V9__operations.sql` but V9 is already used by `contradictions_verification.sql`. V10 is the correct next migration number. Task brief correctly flagged this.
+- **`autore-events::operation_events` module**: Created as a bridge module with `transition_event_kind()` and `emit_transition_event()` functions. Task 21 will wire these to actual `ProjectEvent` records. The event kind format is `core.operation.<state>` (e.g., `core.operation.started` for Running).

@@ -248,3 +248,27 @@
 ### V9 migration numbering
 - Plan text says `V8__contradictions_verification.sql` but V8 is already used by `hypotheses.sql`.
 - V9 is the correct next migration number; task brief correctly flagged this.
+
+## 2026-07-17 (Task 20)
+
+### V10 migration numbering (DESIGN NOTE)
+- Plan text says `V9__operations.sql` but V9 is already used by `contradictions_verification.sql`.
+- V10 is the correct next migration number; task brief correctly flagged this.
+
+### records.rs growth (Task 20) (INFORMATIONAL)
+- Added `Operation` struct (~25 LOC) + `ProgressUpdate` struct (~15 LOC) + `CancellationRequest` struct (~15 LOC) + `OperationFailure` struct (~5 LOC) + `EventSource` enum (~10 LOC) + `EventSubject` enum (~10 LOC) + `MetricMap` type alias (~3 LOC) + 5 operation kind constants (~20 LOC) + 12 tests (~140 LOC).
+- records.rs now ~550 pure LOC implementation + ~720 LOC tests = ~1270 total.
+- Implementation LOC exceeds 250 ceiling but contains 12+ struct/enum definitions, 30+ constants, and tests — well-separated sections following established pattern.
+
+### OperationState test crate location (DESIGN NOTE)
+- Plan says `cargo test -p autore-core -- operation_state_transitions_valid` — this is correct because `OperationState` lives in `autore-core` (unit-only, no schema dependency).
+- This differs from Tasks 18/19 where status enums lived in `autore-schema` due to the circular dependency.
+
+### autore-events gains autore-core dependency (DESIGN NOTE)
+- `autore-events/Cargo.toml` now depends on `autore-core` for `OperationState` and `autore_core::Result`.
+- This is a lightweight dependency (no SQLite, no schema) and does not create circular references.
+- The `operation_events` module serves as a bridge until Task 21 implements `ProjectEvent`.
+
+### `Operation.parent` self-referential FK (INFORMATIONAL)
+- Same pattern as `hypotheses.superseded_by` — self-referential FK supported natively by SQLite.
+- Cycle rejection is enforced at the application layer via `validate_no_cycle`.

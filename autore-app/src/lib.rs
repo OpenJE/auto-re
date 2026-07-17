@@ -6,4 +6,7 @@ pub use autore_tui::{runtime, tui};
 
 pub mod lifecycle;
 
+#[cfg(test)]
+mod operation;
+
 pub use lifecycle::{close_project, create_project, open_project};
