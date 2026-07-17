@@ -231,3 +231,20 @@
 - `hypotheses.superseded_by BLOB NULL REFERENCES hypotheses(id)` is a self-referential FK.
 - SQLite supports this natively. The FK is checked at insert/update time.
 - Cycle rejection is enforced at the application layer via `validate_no_cycle`, not at the DB level.
+
+## 2026-07-17 (Task 19)
+
+### Verification test crate location (same pattern as Task 18)
+- Plan says `cargo test -p autore-core -- contradiction_status_transitions` and `cargo test -p autore-core -- verification_does_not_change_confidence`.
+- Actual: `cargo test -p autore-schema -- contradiction_status_transitions` and `cargo test -p autore-schema -- verification_does_not_change_confidence`.
+- Reason: `ContradictionStatus` / `VerificationState` live in `autore-schema` per the same circular dependency constraint noted in Task 18.
+- Store-side tests (`contradiction_store_*`, `verification_*`) run under `-p autore-store` as the plan specifies — no adjustment needed.
+
+### No FK from verification_records.subject_id to target tables
+- `verification_records.subject_id BLOB` has no FK constraint because `VerificationSubject` discriminates between four different target tables (`semantic_entities`, `hypotheses`, `stage0_artifacts`, and the not-yet-created `generation_targets`).
+- Application-layer validation is the enforcement point (e.g., when `ApplicationService.AddVerification` is implemented in Task 24, it should check the referenced ID exists in the appropriate table based on `subject_kind`).
+- The `verification_subject_kind_discriminator_isolated` test guards against regressions where a query accidentally collapses two variants with the same UUID.
+
+### V9 migration numbering
+- Plan text says `V8__contradictions_verification.sql` but V8 is already used by `hypotheses.sql`.
+- V9 is the correct next migration number; task brief correctly flagged this.
