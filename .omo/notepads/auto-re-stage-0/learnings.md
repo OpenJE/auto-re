@@ -72,3 +72,13 @@
 - **External artifact verification returns `HashMismatch` not silent update**: When an external file changes after registration, `verify_artifact` returns `Err(Error::HashMismatch)` — the stored hash is immutable. This is the correct behavior per spec §8.
 - **V3 migration uses `stage0_artifacts` table name**: The V1 migration already creates an `artifacts` table (M1 schema). The Stage 0 artifact table is named `stage0_artifacts` to avoid collision.
 - **`base_dir` + `project_id` path composition**: `SqliteArtifactStore` takes a `base_dir` and composes project paths as `<base_dir>/<project_id>/`. This avoids storing project directory paths in the DB and keeps the store stateless wrt filesystem layout.
+
+## 2026-07-17 (Task 13)
+
+- **Lifecycle code placement in autore-app**: Task description suggested `autore-core`, but the circular dependency (`autore-schema` → `autore-core`) prevents it. `autore-app` depends on both `autore-schema` (for `ProjectManifest`) and `autore-store` (for `Database`), making it the correct location. This is a preview of the `ApplicationService` that will arrive in Wave 0G.
+- **Project directory layout constants**: Using module-level constants (`PROJECT_DIR_NAME`, `MANIFEST_FILE_NAME`, etc.) for the directory structure makes the layout explicit and testable. The layout is `<parent>/project.auto-re/{project.toml,project.sqlite3,artifacts/,packages.lock}`.
+- **Schema version verification on open**: `open_project` checks that the manifest's `schema_version` matches the expected `SchemaVersion::new(2, 0)`. This provides forward-migration safety — opening a project with an incompatible schema version fails early with `Error::SchemaMismatch`.
+- **Database::open is idempotent**: Calling `Database::open` on an existing database file applies any pending migrations but does not fail if migrations are already applied. This makes `open_project` safe to call multiple times.
+- **close_project as no-op marker**: The `Database` uses `Mutex<Connection>` which is dropped when it goes out of scope. Explicit cleanup is not required, but the `close_project` function documents the lifecycle and provides a future hook for explicit resource management if needed.
+- **Project equality via PartialEq derive**: `Project` derives `PartialEq`, allowing `assert_eq!` for round-trip tests. The manifest's `Project` reconstructed from TOML matches the original `Project` field-by-field (id, name, schema_version, created_at, updated_at). Metadata is empty in both cases since it's stored in the database, not the manifest.
+- **tempfile as dev-dependency**: Tests use `tempfile::TempDir` for isolated project directories. Added as `[dev-dependencies]` in `autore-app/Cargo.toml` with `tempfile.workspace = true`.

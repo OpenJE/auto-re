@@ -149,6 +149,7 @@ dependencies = [
  "autore-schema",
  "autore-store",
  "autore-tui",
+ "tempfile",
 ]
 
 [[package]]

@@ -9,3 +9,6 @@ autore-schema = { path = "../autore-schema" }
 autore-store = { path = "../autore-store" }
 autore-events = { path = "../autore-events" }
 autore-tui = { path = "../autore-tui" }
+
+[dev-dependencies]
+tempfile.workspace = true

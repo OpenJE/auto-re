@@ -117,3 +117,16 @@
 - Initial implementation used `ContentHash::sha256(&digest)` in `row_to_artifact`, which hash-the-hashed.
 - Fixed by using direct struct construction: `ContentHash { algorithm, digest }`.
 - Added `get_artifact_round_trip` test to verify DB insert + retrieval produces identical `content_hash`.
+
+## 2026-07-17 (Task 13)
+
+### Lifecycle code placement deviation (DESIGN NOTE)
+- Task description says to put lifecycle code in `autore-core`, but `autore-schema` depends on `autore-core` (for `Error::Validation`), making it impossible for `autore-core` to depend on `autore-schema` without circular dependency.
+- Resolved: Lifecycle functions (`create_project`, `open_project`, `close_project`) live in `autore-app/src/lifecycle.rs` where they can use both `ProjectManifest` (from `autore-schema`) and `Database` (from `autore-store`).
+- Test command adjusted: `cargo test -p autore-app` instead of `cargo test -p autore-core`.
+- This aligns with the plan's description: "autore-app preview before 0G" — the lifecycle is a precursor to the full `ApplicationService` that will arrive in Wave 0G.
+
+### lifecycle.rs LOC (INFORMATIONAL)
+- Implementation: ~85 pure LOC + ~75 LOC tests = ~160 total.
+- Implementation LOC is well within the 250 ceiling.
+- Co-located unit tests per Rust convention.
