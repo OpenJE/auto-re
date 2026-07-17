@@ -12,3 +12,4 @@ time.workspace = true
 blake3.workspace = true
 schemars.workspace = true
 jsonschema.workspace = true
+sha2.workspace = true

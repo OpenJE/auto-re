@@ -10,3 +10,7 @@ autore-events = { path = "../autore-events" }
 ratatui.workspace = true
 crossterm.workspace = true
 tokio.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+expectrl = "0.8"

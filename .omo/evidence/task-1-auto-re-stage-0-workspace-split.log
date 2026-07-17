@@ -271,3 +271,19 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 === grep verification ===
 (no matches)
+
+=== 2026-07-17 fix: move root binary from autore-cli to autore-stage1 ===
+
+=== cargo build (default members) ===
+(no autore-stage1 compilation output)
+    Finished `dev` profile [unoptimized + debuginfo] target(s)
+
+=== cargo build -p autore-stage1 ===
+   Compiling autore-stage1 v0.1.0 (/mnt/shanes-ssd-1tb/code/shane/auto-re/autore-stage1)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.81s
+
+=== cargo test (default members) ===
+all default-member tests pass (112 tests)
+
+=== cargo test -p autore-stage1 ===
+all autore-stage1 tests pass (42 tests: 35 unit + 4 campaign_smoke + 3 kill_resume)
