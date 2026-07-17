@@ -1,12 +1,32 @@
-# auto-re-stage-0 Issues Notepad
+# Issues — Task 5: Stage 0 Typed IDs
 
-## 2026-07-17 Atlas: initial orchestration
-- No blockers yet.
+## 2026-07-17
 
-## 2026-07-17 Sisyphus: task 1 known issues
-- **Resolved**: `autore-cli` no longer depends on `autore-stage1`. The root `auto-re` binary was moved to `autore-stage1` as `[[bin]] name = "auto-re"`, while `autore-cli/src/main.rs` became a Stage 0 placeholder. `cargo build` default-members now skips `autore-stage1`, and `cargo test -p autore-stage1` continues to pass `campaign_smoke`/`kill_resume` via `CARGO_BIN_EXE_auto_re`.
-- **Optional `ida` feature does not compile**: `cargo check -p autore-stage1 --features ida` fails inside `idax-sys` C++ shim compilation (missing IDA SDK / struct member mismatches). This is an environmental/upstream issue, not caused by the workspace split; default-feature builds are unaffected.
-- **M1 headless CLI logic is in `autore-stage1`, not `autore-cli`**: `src/cli/headless.rs` and `src/cli/headless_queries.rs` were moved to `autore-stage1/src/cli/` because they depend on M1 modules. The plain status/list CLI subcommands remain in `autore-stage1/src/cli/` as well since they share the same dispatch module; only the argument-parsing dispatch framework notionally belongs in Stage 0.
+### EntityId / ArtifactId naming collision (LOW priority)
+- `ids::EntityId` (UUIDv7 newtype) and `domain::evidence::EntityId` (semantic enum) coexist.
+- Fixed for autore-stage1 via explicit imports; new consumers need the same.
+- Resolution: replace M1 enum when spec §6 fully adopted.
 
-## 2026-07-17 Sisyphus: task 4 known issues
-- No new blockers. `expectrl` v0.8 works on Linux; its `Expect` trait must be explicitly imported (`use expectrl::Expect`) for `.expect()` method resolution — non-obvious but documented in the smoke test. No V2 migration exists yet; `migration_runs_v1_then_v2` covers V1 tables and will automatically pick up V2 when added.
+### ContentHash serde format breaking change
+- Changed from bare hex string to tagged struct.
+- No persisted data exists yet; no impact until persistence is implemented.
+
+### Binary target name collision (RESOLVED)
+- Both `autore-cli` and `autore-stage1` defined `[[bin]] name = "auto-re"`.
+- Resolved: `autore-stage1` renamed to `auto-re-stage1`; `autore-cli` keeps `auto-re`.
+- `kill_resume.rs` updated to use `CARGO_BIN_EXE_auto_re_stage1`.
+- `cargo build --workspace` now warning-free.
+
+## 2026-07-17 (Task 6)
+
+### NamespacedId missing Ord/PartialOrd (RESOLVED)
+- `MetadataMap` uses `BTreeMap<NamespacedId, ExtensionData>` which requires `K: Ord`.
+- Added `PartialOrd, Ord` derives to `NamespacedId(String)` — valid since `String: Ord`.
+- No semantic impact: lexicographic ordering on the inner string is correct for namespaced IDs.
+
+### values.rs LOC (INFORMATIONAL)
+- 316 pure LOC including `#[cfg(test)]` module (~150 LOC implementation, ~166 LOC tests).
+- Exceeds 250 pure LOC threshold but implementation alone is within bounds.
+- Co-locating unit tests with implementation is idiomatic Rust.
+- Codebase already has larger files: `domain/mod.rs` (945), `claim.rs` (603), `evidence.rs` (367).
+- No split planned; will refactor if the module grows beyond current scope.
