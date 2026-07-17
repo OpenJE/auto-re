@@ -2,6 +2,6 @@
 
 { inputs, pkgs, ... }: {
   packages = [
-    inputs.codegraph.packages.${pkgs.stdenv.hostPlatform.system}.codegraph
+    inputs.codegraph.legacyPackages.${pkgs.stdenv.hostPlatform.system}.codegraph
   ];
 }
