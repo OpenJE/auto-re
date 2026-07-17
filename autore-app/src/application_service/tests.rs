@@ -6,7 +6,7 @@ use autore_schema::domain::records::{
     Contradiction, EvidenceRecord, HypothesisStatus, Provider, ProviderRun, ProviderRunStatus,
     VerificationRecord, VerificationSubject,
 };
-use autore_schema::domain::{ContentHash, EnvironmentIdentity, EvidenceValue, NamespacedId, Timestamp};
+use autore_schema::domain::{ContentHash, Derivation, DerivationMethod, EnvironmentIdentity, EvidenceValue, NamespacedId, Timestamp};
 use autore_schema::ids::{
     EntityId, EvidenceRecordId, HypothesisId, ProjectId, ProviderRunId,
 };
@@ -473,4 +473,132 @@ fn add_verification_emits_event() {
         })
         .collect();
     assert_eq!(verification_events.len(), 1);
+}
+
+fn test_client() -> (LocalAutoReClient, Arc<ApplicationService>, tempfile::TempDir) {
+    let (service, tmp) = test_service();
+    let service = Arc::new(service);
+    let client = LocalAutoReClient::new(Arc::clone(&service));
+    (client, service, tmp)
+}
+
+#[test]
+fn local_client_routes_command() {
+    let (client, _service, _tmp) = test_client();
+    let result = client
+        .execute(ApplicationCommand::CreateProject(CreateProjectRequest {
+            name: "client-cmd-test".into(),
+        }))
+        .unwrap();
+    match result {
+        CommandResult::ProjectCreated(resp) => {
+            assert_eq!(resp.project.name, "client-cmd-test");
+        }
+        _ => panic!("expected ProjectCreated"),
+    }
+}
+
+#[test]
+fn local_client_routes_query() {
+    let (client, _service, _tmp) = test_client();
+    let result = client
+        .execute(ApplicationCommand::CreateProject(CreateProjectRequest {
+            name: "client-query-test".into(),
+        }))
+        .unwrap();
+    let project_id = match result {
+        CommandResult::ProjectCreated(resp) => resp.project.id,
+        _ => panic!("expected ProjectCreated"),
+    };
+
+    let query_result = client
+        .query(ApplicationQuery::GetProjectSummary(GetProjectSummaryQuery {
+            project: project_id,
+        }))
+        .unwrap();
+    match query_result {
+        QueryResult::ProjectSummary(resp) => {
+            assert_eq!(resp.project.name, "client-query-test");
+            assert_eq!(resp.project.id, project_id);
+        }
+        _ => panic!("expected ProjectSummary"),
+    }
+}
+
+#[tokio::test]
+async fn local_client_routes_subscription() {
+    let (client, _service, _tmp) = test_client();
+    let result = client
+        .execute(ApplicationCommand::CreateProject(CreateProjectRequest {
+            name: "client-sub-test".into(),
+        }))
+        .unwrap();
+    let project_id = match result {
+        CommandResult::ProjectCreated(resp) => resp.project.id,
+        _ => panic!("expected ProjectCreated"),
+    };
+
+    let mut sub = client.subscribe_events(project_id, 0).unwrap();
+    let event = sub.next().await.unwrap().unwrap();
+    assert_eq!(event.project, project_id);
+    assert_eq!(
+        event.kind,
+        autore_schema::domain::records::EVENT_KIND_PROJECT_CREATED.clone()
+    );
+    assert_eq!(event.sequence, 1);
+}
+
+#[test]
+fn cross_project_reference_rejected() {
+    let (client, _service, _tmp) = test_client();
+
+    let project_a = match client
+        .execute(ApplicationCommand::CreateProject(CreateProjectRequest {
+            name: "project-a".into(),
+        }))
+        .unwrap()
+    {
+        CommandResult::ProjectCreated(resp) => resp.project.id,
+        _ => panic!("expected ProjectCreated"),
+    };
+
+    let project_b = match client
+        .execute(ApplicationCommand::CreateProject(CreateProjectRequest {
+            name: "project-b".into(),
+        }))
+        .unwrap()
+    {
+        CommandResult::ProjectCreated(resp) => resp.project.id,
+        _ => panic!("expected ProjectCreated"),
+    };
+
+    let record = EvidenceRecord {
+        id: EvidenceRecordId::new(),
+        project: project_b,
+        subject: EntityId::new(),
+        predicate: NamespacedId::parse("evidence.test").unwrap(),
+        value: EvidenceValue::String("cross-project".into()),
+        derivation: Derivation::new(
+            DerivationMethod::DirectObservation,
+            NamespacedId::parse("core.observe").unwrap(),
+            vec![],
+            vec![],
+        ),
+        provider_run: None,
+        native_artifacts: vec![],
+        assumptions: vec![],
+        created_at: Timestamp::now(),
+    };
+
+    let result = client.execute(ApplicationCommand::AddEvidence(AddEvidenceRequest {
+        project: project_a,
+        record,
+    }));
+
+    assert!(result.is_err(), "cross-project evidence must be rejected");
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("different project") || err.contains("Validation"),
+        "unexpected error: {err}"
+    );
 }

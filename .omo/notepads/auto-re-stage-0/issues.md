@@ -366,3 +366,14 @@
 ### Test predicates needed valid NamespacedIds (RESOLVED)
 - Early tests used `hypothesis.predicate.test` as a predicate, which fails the one-dot validation rule.
 - Changed test predicates to `hypothesis.test` so validation and confidence checks run in the correct order.
+
+## 2026-07-17 (Task 25)
+
+### `ProjectId` duplicate import in `requests.rs` (RESOLVED)
+- `ProjectId` was already imported at the top of `requests.rs` (line 9). The new `AutoReClient` trait section initially re-imported it, causing an `E0252` compile error.
+- Removed the duplicate import; the existing import serves both the request structs and the new trait.
+
+### No deviations from task requirements
+- All 4 acceptance-criteria tests pass as specified.
+- Cross-project validation for `RegisterProvider` and `StartProviderRun` was not added because neither request type carries a sub-record with its own `project` field — `Provider` has no project field, and `ProviderRun` is constructed from request fields.
+- `ApplicationService` no longer implements `AutoReClient` (old empty impl removed). This is a necessary breaking change since the trait now has required methods that would conflict with `ApplicationService`'s own inherent methods.

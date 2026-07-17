@@ -200,3 +200,11 @@
 - **`MetadataMap` is private in `domain::records`**: Import it from `autore_schema::domain::values` when constructing records manually.
 - **`ProjectEventService` trait does not expose `emit_event`**: Only `LocalProjectEventService` has the inherent `emit_event` method; application code should route through `with_event` for atomicity.
 - **Clippy tuple-variant `map_err`**: `map_err(|e| Error::Database(e))` can be simplified to `map_err(Error::Database)`.
+
+## 2026-07-17 (Task 25)
+
+- **`AutoReClient` trait expands from empty placeholder to full interface**: The trait now has `execute`, `query`, `events_after`, and `subscribe_events`. `LocalAutoReClient` delegates to `Arc<ApplicationService>`, giving CLI/TUI a stable interface without exposing store fields.
+- **Cross-project validation already comprehensive in Task 24**: `ensure_same_project` was already called for `AddEvidence`, `ChangeHypothesisStatus`, `RecordContradiction`, `AddVerification`, and `CancelOperation`. `RegisterProvider` and `StartProviderRun` don't carry sub-records with their own `project` field (Provider has no project field; ProviderRun is constructed from request fields), so no additional checks needed.
+- **`ProjectEventSubscription::next()` is async**: The subscription test requires `#[tokio::test]`. Added `tokio` as a dev-dependency of `autore-app`. The `tokio::test` macro provides a runtime automatically.
+- **`ApplicationService` no longer implements `AutoReClient` directly**: The old empty `impl AutoReClient for ApplicationService {}` was removed. `LocalAutoReClient` is now the sole in-process implementation, wrapping `Arc<ApplicationService>`. This decouples the client interface from the service implementation.
+- **`Derivation` and `DerivationMethod` accessible via `autore_schema::domain`**: Used in test code to construct `EvidenceRecord` fixtures. The import path is `autore_schema::domain::{Derivation, DerivationMethod}`.

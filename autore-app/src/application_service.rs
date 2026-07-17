@@ -595,4 +595,4 @@ impl ApplicationService {
     }
 }
 
-impl requests::AutoReClient for ApplicationService {}
+

@@ -507,9 +507,63 @@ pub enum QueryResult {
 }
 
 // ---------------------------------------------------------------------------
-// Client trait placeholder (Task 25)
+// Client trait (Task 25)
 // ---------------------------------------------------------------------------
 
-/// Placeholder for the client abstraction that will hide the store layer from
-/// CLI/TUI code in Task 25.
-pub trait AutoReClient: Send + Sync {}
+use autore_events::project_event_service::ProjectEventSubscription;
+use autore_schema::domain::records::ProjectEvent;
+
+pub trait AutoReClient: Send + Sync {
+    fn execute(&self, command: ApplicationCommand) -> autore_core::Result<CommandResult>;
+    fn query(&self, query: ApplicationQuery) -> autore_core::Result<QueryResult>;
+    fn events_after(
+        &self,
+        project: ProjectId,
+        sequence: u64,
+        limit: usize,
+    ) -> autore_core::Result<Vec<ProjectEvent>>;
+    fn subscribe_events(
+        &self,
+        project: ProjectId,
+        after: u64,
+    ) -> autore_core::Result<ProjectEventSubscription>;
+}
+
+/// In-process [`AutoReClient`] that delegates directly to an
+/// [`ApplicationService`]. No network transport (spec §21).
+pub struct LocalAutoReClient {
+    application: std::sync::Arc<super::ApplicationService>,
+}
+
+impl LocalAutoReClient {
+    pub fn new(application: std::sync::Arc<super::ApplicationService>) -> Self {
+        Self { application }
+    }
+}
+
+impl AutoReClient for LocalAutoReClient {
+    fn execute(&self, command: ApplicationCommand) -> autore_core::Result<CommandResult> {
+        self.application.execute(command)
+    }
+
+    fn query(&self, query: ApplicationQuery) -> autore_core::Result<QueryResult> {
+        self.application.query(query)
+    }
+
+    fn events_after(
+        &self,
+        project: ProjectId,
+        sequence: u64,
+        limit: usize,
+    ) -> autore_core::Result<Vec<ProjectEvent>> {
+        self.application.events.events_after(project, sequence, limit)
+    }
+
+    fn subscribe_events(
+        &self,
+        project: ProjectId,
+        after: u64,
+    ) -> autore_core::Result<ProjectEventSubscription> {
+        self.application.events.subscribe(project, after)
+    }
+}
