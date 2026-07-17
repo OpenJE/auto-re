@@ -8,3 +8,9 @@ name = "auto-re"
 path = "src/main.rs"
 
 [dependencies]
+autore-app = { path = "../autore-app" }
+autore-schema = { path = "../autore-schema" }
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true

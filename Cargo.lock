@@ -150,6 +150,7 @@ dependencies = [
  "autore-store",
  "autore-tui",
  "rusqlite",
+ "serde",
  "serde_json",
  "tempfile",
  "time",
@@ -160,6 +161,14 @@ dependencies = [
 [[package]]
 name = "autore-cli"
 version = "0.1.0"
+dependencies = [
+ "autore-app",
+ "autore-schema",
+ "clap",
+ "serde",
+ "serde_json",
+ "uuid",
+]
 
 [[package]]
 name = "autore-core"

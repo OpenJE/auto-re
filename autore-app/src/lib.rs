@@ -18,3 +18,25 @@ pub use application_service::{
     LocalAutoReClient, QueryResult,
 };
 
+pub use application_service::requests::{
+    AddEvidenceRequest, AddEvidenceResponse, AddHypothesisRequest, AddHypothesisResponse,
+    AddVerificationRequest, AddVerificationResponse, ArtifactResponse, ArtifactsResponse,
+    CancelOperationRequest, CancelOperationResponse, ChangeHypothesisStatusRequest,
+    ChangeHypothesisStatusResponse, ContradictionResponse, ContradictionsResponse,
+    CreateProjectRequest, CreateProjectResponse, EntitiesResponse, EntityResponse,
+    EventsResponse, EvidenceListResponse, EvidenceResponse, GetArtifactQuery,
+    GetContradictionQuery, GetEntityQuery, GetEvidenceQuery, GetHypothesisQuery,
+    GetOperationQuery, GetProjectSummaryQuery, GetProviderQuery, GetProviderRunQuery,
+    GetVerificationQuery, HypothesesResponse, HypothesisResponse, ListArtifactsQuery,
+    ListContradictionsQuery, ListEntitiesQuery, ListEvidenceQuery, ListEventsQuery,
+    ListHypothesesQuery, ListOperationsQuery, ListProviderRunsQuery, ListProvidersQuery,
+    ListVerificationsQuery, MigrateProjectRequest, MigrateProjectResponse, OperationResponse,
+    OperationsResponse, ProviderResponse, ProviderRunResponse, ProviderRunsResponse,
+    ProvidersResponse, RebuildIndexesRequest, RebuildIndexesResponse,
+    RecordContradictionRequest, RecordContradictionResponse, RegisterArtifactRequest,
+    RegisterArtifactResponse, RegisterEntityRequest, RegisterEntityResponse,
+    RegisterProviderRequest, RegisterProviderResponse, StartProviderRunRequest,
+    StartProviderRunResponse, ValidateProjectRequest, ValidateProjectResponse,
+    VerificationResponse, VerificationsResponse,
+};
+

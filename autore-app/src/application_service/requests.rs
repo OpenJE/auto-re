@@ -14,12 +14,12 @@ use autore_schema::ids::{
 // Project commands
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct CreateProjectRequest {
     pub name: String,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct CreateProjectResponse {
     pub project: Project,
 }
@@ -28,14 +28,14 @@ pub struct CreateProjectResponse {
 // Artifact commands
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct RegisterArtifactRequest {
     pub project: ProjectId,
     pub source_path: PathBuf,
     pub kind: String,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct RegisterArtifactResponse {
     pub artifact: Artifact,
 }
@@ -44,7 +44,7 @@ pub struct RegisterArtifactResponse {
 // Entity commands
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct RegisterEntityRequest {
     pub project: ProjectId,
     pub kind: String,
@@ -52,7 +52,7 @@ pub struct RegisterEntityRequest {
     pub display_name: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct RegisterEntityResponse {
     pub entity: SemanticEntity,
 }
@@ -61,18 +61,18 @@ pub struct RegisterEntityResponse {
 // Provider commands
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct RegisterProviderRequest {
     pub project: ProjectId,
     pub provider: Provider,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct RegisterProviderResponse {
     pub provider: Provider,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct StartProviderRunRequest {
     pub project: ProjectId,
     pub provider: ProviderId,
@@ -83,7 +83,7 @@ pub struct StartProviderRunRequest {
     pub environment: EnvironmentIdentity,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct StartProviderRunResponse {
     pub run: ProviderRun,
 }
@@ -92,18 +92,18 @@ pub struct StartProviderRunResponse {
 // Evidence / Hypothesis / Contradiction / Verification commands
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct AddEvidenceRequest {
     pub project: ProjectId,
     pub record: EvidenceRecord,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct AddEvidenceResponse {
     pub id: EvidenceRecordId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct AddHypothesisRequest {
     pub project: ProjectId,
     pub subject: EntityId,
@@ -117,41 +117,41 @@ pub struct AddHypothesisRequest {
     pub status: autore_schema::domain::records::HypothesisStatus,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct AddHypothesisResponse {
     pub id: HypothesisId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ChangeHypothesisStatusRequest {
     pub project: ProjectId,
     pub id: HypothesisId,
     pub status: autore_schema::domain::records::HypothesisStatus,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ChangeHypothesisStatusResponse {
     pub hypothesis: Hypothesis,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct RecordContradictionRequest {
     pub project: ProjectId,
     pub contradiction: Contradiction,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct RecordContradictionResponse {
     pub id: ContradictionId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct AddVerificationRequest {
     pub project: ProjectId,
     pub record: VerificationRecord,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct AddVerificationResponse {
     pub id: VerificationRecordId,
 }
@@ -160,7 +160,7 @@ pub struct AddVerificationResponse {
 // Operation commands
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct CancelOperationRequest {
     pub project: ProjectId,
     pub id: OperationId,
@@ -168,37 +168,37 @@ pub struct CancelOperationRequest {
     pub reason: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct CancelOperationResponse {
     pub operation: Operation,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ValidateProjectRequest {
     pub project: ProjectId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ValidateProjectResponse {
     pub operation: Operation,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct MigrateProjectRequest {
     pub project: ProjectId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct MigrateProjectResponse {
     pub operation: Operation,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct RebuildIndexesRequest {
     pub project: ProjectId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct RebuildIndexesResponse {
     pub operation: Operation,
 }
@@ -207,7 +207,7 @@ pub struct RebuildIndexesResponse {
 // Command enum and result enum
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum ApplicationCommand {
     CreateProject(CreateProjectRequest),
     RegisterArtifact(RegisterArtifactRequest),
@@ -225,7 +225,7 @@ pub enum ApplicationCommand {
     RebuildIndexes(RebuildIndexesRequest),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum CommandResult {
     ProjectCreated(CreateProjectResponse),
     ArtifactRegistered(RegisterArtifactResponse),
@@ -247,49 +247,49 @@ pub enum CommandResult {
 // Query request / response structs
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct GetProjectSummaryQuery {
     pub project: ProjectId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ProjectSummaryResponse {
     pub project: Project,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct GetArtifactQuery {
     pub id: ArtifactId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ArtifactResponse {
     pub artifact: Artifact,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ListArtifactsQuery {
     pub project: ProjectId,
     pub offset: u32,
     pub limit: u32,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ArtifactsResponse {
     pub artifacts: Vec<Artifact>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct GetEntityQuery {
     pub id: EntityId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct EntityResponse {
     pub entity: SemanticEntity,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ListEntitiesQuery {
     pub project: ProjectId,
     pub offset: u32,
@@ -297,159 +297,159 @@ pub struct ListEntitiesQuery {
     pub kind_filter: Option<NamespacedId>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct EntitiesResponse {
     pub entities: Vec<SemanticEntity>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct GetProviderQuery {
     pub id: ProviderId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ProviderResponse {
     pub provider: Provider,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ListProvidersQuery;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ProvidersResponse {
     pub providers: Vec<Provider>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct GetProviderRunQuery {
     pub id: ProviderRunId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ProviderRunResponse {
     pub run: ProviderRun,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ListProviderRunsQuery {
     pub project: ProjectId,
     pub offset: u32,
     pub limit: u32,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ProviderRunsResponse {
     pub runs: Vec<ProviderRun>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct GetEvidenceQuery {
     pub id: EvidenceRecordId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct EvidenceResponse {
     pub record: EvidenceRecord,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ListEvidenceQuery {
     pub project: ProjectId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct EvidenceListResponse {
     pub records: Vec<EvidenceRecord>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct GetHypothesisQuery {
     pub id: HypothesisId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct HypothesisResponse {
     pub hypothesis: Hypothesis,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ListHypothesesQuery {
     pub project: ProjectId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct HypothesesResponse {
     pub hypotheses: Vec<Hypothesis>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct GetContradictionQuery {
     pub id: ContradictionId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ContradictionResponse {
     pub contradiction: Contradiction,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ListContradictionsQuery {
     pub project: ProjectId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ContradictionsResponse {
     pub contradictions: Vec<Contradiction>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct GetVerificationQuery {
     pub id: VerificationRecordId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct VerificationResponse {
     pub record: VerificationRecord,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ListVerificationsQuery {
     pub project: ProjectId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct VerificationsResponse {
     pub records: Vec<VerificationRecord>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct GetOperationQuery {
     pub id: OperationId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct OperationResponse {
     pub operation: Operation,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ListOperationsQuery {
     pub project: ProjectId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct OperationsResponse {
     pub operations: Vec<Operation>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ListEventsQuery {
     pub project: ProjectId,
     pub after_sequence: u64,
     pub limit: usize,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct EventsResponse {
     pub events: Vec<autore_schema::domain::records::ProjectEvent>,
 }
@@ -458,7 +458,7 @@ pub struct EventsResponse {
 // Query enum and result enum
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum ApplicationQuery {
     GetProjectSummary(GetProjectSummaryQuery),
     GetArtifact(GetArtifactQuery),
@@ -482,7 +482,7 @@ pub enum ApplicationQuery {
     ListEvents(ListEventsQuery),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum QueryResult {
     ProjectSummary(ProjectSummaryResponse),
     Artifact(ArtifactResponse),
