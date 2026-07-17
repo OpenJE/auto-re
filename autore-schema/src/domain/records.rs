@@ -7,7 +7,7 @@
 use std::path::PathBuf;
 
 use crate::domain::{Confidence, ContentHash, ExtensionData, EvidenceValue, MetadataMap, NamespacedId, SchemaVersion, StableEntityKey, Timestamp};
-use crate::ids::{ArtifactId, EntityId, EvidenceRecordId, HypothesisId, NativeArtifactId, PackageId, ProjectId, ProviderId, ProviderRunId};
+use crate::ids::{ArtifactId, ContradictionId, EntityId, EvidenceRecordId, GenerationTargetId, HypothesisId, NativeArtifactId, PackageId, ProjectId, ProviderId, ProviderRunId, VerificationRecordId};
 
 // ---------------------------------------------------------------------------
 // Project
@@ -718,6 +718,376 @@ impl Hypothesis {
         self.status = target;
         self.updated_at = Timestamp::now();
         Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ContradictionStatus
+// ---------------------------------------------------------------------------
+
+/// The lifecycle status of a contradiction.
+///
+/// Valid transitions (§14):
+/// - Open -> Investigating, Resolved, Deferred
+/// - Investigating -> Resolved, Deferred
+/// - Deferred -> Open (reopened for further analysis)
+/// - Resolved is terminal.
+///
+/// `ContradictionResolution` captures the resolution metadata when the
+/// contradiction transitions to `Resolved`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum ContradictionStatus {
+    Open,
+    Investigating,
+    Resolved,
+    Deferred,
+}
+
+impl ContradictionStatus {
+    /// Validates a state transition from `self` to `target`.
+    pub fn transition(&self, target: &ContradictionStatus) -> autore_core::Result<()> {
+        match (self, target) {
+            (ContradictionStatus::Open, ContradictionStatus::Investigating) => Ok(()),
+            (ContradictionStatus::Open, ContradictionStatus::Resolved) => Ok(()),
+            (ContradictionStatus::Open, ContradictionStatus::Deferred) => Ok(()),
+            (ContradictionStatus::Investigating, ContradictionStatus::Resolved) => Ok(()),
+            (ContradictionStatus::Investigating, ContradictionStatus::Deferred) => Ok(()),
+            (ContradictionStatus::Deferred, ContradictionStatus::Open) => Ok(()),
+            _ => Err(autore_core::Error::InvalidStateTransition(format!(
+                "{self} -> {target}"
+            ))),
+        }
+    }
+
+    /// Returns the discriminant string for database storage and filtering.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            ContradictionStatus::Open => "Open",
+            ContradictionStatus::Investigating => "Investigating",
+            ContradictionStatus::Resolved => "Resolved",
+            ContradictionStatus::Deferred => "Deferred",
+        }
+    }
+
+    /// Returns `true` if this status is a terminal state.
+    pub fn is_terminal(&self) -> bool {
+        matches!(self, ContradictionStatus::Resolved)
+    }
+}
+
+impl std::fmt::Display for ContradictionStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ContradictionStatus::Open => write!(f, "Open"),
+            ContradictionStatus::Investigating => write!(f, "Investigating"),
+            ContradictionStatus::Resolved => write!(f, "Resolved"),
+            ContradictionStatus::Deferred => write!(f, "Deferred"),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Contradiction status constants
+// ---------------------------------------------------------------------------
+
+pub static CONTRADICTION_STATUS_OPEN: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("contradiction.status.open").unwrap());
+
+pub static CONTRADICTION_STATUS_INVESTIGATING: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("contradiction.status.investigating").unwrap());
+
+pub static CONTRADICTION_STATUS_RESOLVED: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("contradiction.status.resolved").unwrap());
+
+pub static CONTRADICTION_STATUS_DEFERRED: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("contradiction.status.deferred").unwrap());
+
+// ---------------------------------------------------------------------------
+// ContradictionResolution
+// ---------------------------------------------------------------------------
+
+/// Resolution metadata attached when a contradiction transitions to
+/// `Resolved`.
+///
+/// `chosen` lists the hypotheses that were selected as the preferred
+/// explanation; `rationale` explains the decision. `resolution` is a
+/// namespaced identifier for the resolution kind (extensible).
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ContradictionResolution {
+    pub resolved_at: Timestamp,
+    pub resolution: NamespacedId,
+    pub chosen: Vec<HypothesisId>,
+    pub rationale: String,
+}
+
+// ---------------------------------------------------------------------------
+// Contradiction
+// ---------------------------------------------------------------------------
+
+/// A detected contradiction between two or more hypotheses about the same
+/// subject entity and predicate.
+///
+/// Contradictions are RECORDED (not auto-detected — §14). They track the
+/// set of competing hypotheses and supporting/contradicting evidence.
+/// Resolving a contradiction attaches a `ContradictionResolution` but
+/// does NOT auto-delete the competing hypotheses.
+///
+/// NOTE: `evidence` uses `EvidenceRecordId` (Stage 0), NOT the M1
+/// `EvidenceId`.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Contradiction {
+    pub id: ContradictionId,
+    pub project: ProjectId,
+    pub subject: EntityId,
+    pub predicate: NamespacedId,
+    pub evidence: Vec<EvidenceRecordId>,
+    pub hypotheses: Vec<HypothesisId>,
+    pub status: ContradictionStatus,
+    pub resolution: Option<ContradictionResolution>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
+}
+
+impl Contradiction {
+    /// Creates a new contradiction in `Open` status with empty resolution.
+    pub fn new(
+        project: ProjectId,
+        subject: EntityId,
+        predicate: NamespacedId,
+        evidence: Vec<EvidenceRecordId>,
+        hypotheses: Vec<HypothesisId>,
+    ) -> Self {
+        let now = Timestamp::now();
+        Contradiction {
+            id: ContradictionId::new(),
+            project,
+            subject,
+            predicate,
+            evidence,
+            hypotheses,
+            status: ContradictionStatus::Open,
+            resolution: None,
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
+    /// Transitions this contradiction to the target status, validating the
+    /// state machine. When transitioning to `Resolved`, a resolution MUST
+    /// be provided; for other transitions, `resolution` must be `None`.
+    pub fn transition(
+        &mut self,
+        target: ContradictionStatus,
+        resolution: Option<ContradictionResolution>,
+    ) -> autore_core::Result<()> {
+        self.status.transition(&target)?;
+        match (&target, &resolution) {
+            (ContradictionStatus::Resolved, Some(_)) => {}
+            (ContradictionStatus::Resolved, None) => {
+                return Err(autore_core::Error::Validation(
+                    "resolution is required when transitioning to Resolved".into(),
+                ));
+            }
+            (_, Some(_)) => {
+                return Err(autore_core::Error::Validation(
+                    "resolution must be None when not transitioning to Resolved".into(),
+                ));
+            }
+            (_, None) => {}
+        }
+        self.status = target;
+        self.resolution = resolution;
+        self.updated_at = Timestamp::now();
+        Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// VerificationSubject
+// ---------------------------------------------------------------------------
+
+/// The subject of a verification record — one of four supported domain
+/// types (§15).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum VerificationSubject {
+    Entity(EntityId),
+    Hypothesis(HypothesisId),
+    Artifact(ArtifactId),
+    GenerationTarget(GenerationTargetId),
+}
+
+impl VerificationSubject {
+    /// Returns the discriminator string used in database storage.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            VerificationSubject::Entity(_) => "Entity",
+            VerificationSubject::Hypothesis(_) => "Hypothesis",
+            VerificationSubject::Artifact(_) => "Artifact",
+            VerificationSubject::GenerationTarget(_) => "GenerationTarget",
+        }
+    }
+
+    /// Returns the inner UUID (across all variants).
+    pub fn id_uuid(&self) -> uuid::Uuid {
+        match self {
+            VerificationSubject::Entity(id) => *id.as_uuid(),
+            VerificationSubject::Hypothesis(id) => *id.as_uuid(),
+            VerificationSubject::Artifact(id) => *id.as_uuid(),
+            VerificationSubject::GenerationTarget(id) => *id.as_uuid(),
+        }
+    }
+}
+
+impl std::fmt::Display for VerificationSubject {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VerificationSubject::Entity(id) => write!(f, "Entity({id})"),
+            VerificationSubject::Hypothesis(id) => write!(f, "Hypothesis({id})"),
+            VerificationSubject::Artifact(id) => write!(f, "Artifact({id})"),
+            VerificationSubject::GenerationTarget(id) => write!(f, "GenerationTarget({id})"),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// VerificationState
+// ---------------------------------------------------------------------------
+
+/// The state of a verification check (§15). Closed finite state machine.
+///
+/// Valid transitions:
+/// - NotChecked -> Pending
+/// - Pending -> Passed, Failed, Inconclusive, Blocked
+/// - Blocked -> Pending (retry after unblocking)
+/// - All terminal states (Passed, Failed, Inconclusive) cannot transition
+///   further.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum VerificationState {
+    NotChecked,
+    Pending,
+    Passed,
+    Failed,
+    Inconclusive,
+    Blocked,
+}
+
+impl VerificationState {
+    /// Validates a state transition from `self` to `target`.
+    pub fn transition(&self, target: &VerificationState) -> autore_core::Result<()> {
+        match (self, target) {
+            (VerificationState::NotChecked, VerificationState::Pending) => Ok(()),
+            (VerificationState::Pending, VerificationState::Passed)
+            | (VerificationState::Pending, VerificationState::Failed)
+            | (VerificationState::Pending, VerificationState::Inconclusive)
+            | (VerificationState::Pending, VerificationState::Blocked) => Ok(()),
+            (VerificationState::Blocked, VerificationState::Pending) => Ok(()),
+            _ => Err(autore_core::Error::InvalidStateTransition(format!(
+                "{self:?} -> {target:?}"
+            ))),
+        }
+    }
+
+    /// Returns the discriminant string for database storage.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            VerificationState::NotChecked => "NotChecked",
+            VerificationState::Pending => "Pending",
+            VerificationState::Passed => "Passed",
+            VerificationState::Failed => "Failed",
+            VerificationState::Inconclusive => "Inconclusive",
+            VerificationState::Blocked => "Blocked",
+        }
+    }
+
+    /// Returns `true` if this state is a terminal state.
+    pub fn is_terminal(&self) -> bool {
+        matches!(
+            self,
+            VerificationState::Passed | VerificationState::Failed | VerificationState::Inconclusive
+        )
+    }
+}
+
+impl std::fmt::Display for VerificationState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VerificationState::NotChecked => write!(f, "NotChecked"),
+            VerificationState::Pending => write!(f, "Pending"),
+            VerificationState::Passed => write!(f, "Passed"),
+            VerificationState::Failed => write!(f, "Failed"),
+            VerificationState::Inconclusive => write!(f, "Inconclusive"),
+            VerificationState::Blocked => write!(f, "Blocked"),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Verification check constants (§15)
+// ---------------------------------------------------------------------------
+
+/// Verification check: artifact content hash matches expected.
+pub static VERIFICATION_CHECK_ARTIFACT_HASH: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.artifact.hash").unwrap());
+
+/// Verification check: project integrity validation.
+pub static VERIFICATION_CHECK_PROJECT_INTEGRITY: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.project.integrity").unwrap());
+
+/// Verification check: build verification.
+pub static VERIFICATION_CHECK_BUILD: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("verification.build").unwrap());
+
+/// Verification check: ABI layout verification.
+pub static VERIFICATION_CHECK_ABI_LAYOUT: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("verification.abi.layout").unwrap());
+
+/// Verification check: differential behavior verification.
+pub static VERIFICATION_CHECK_DIFFERENTIAL_BEHAVIOR: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("verification.differential.behavior").unwrap());
+
+// ---------------------------------------------------------------------------
+// VerificationRecord
+// ---------------------------------------------------------------------------
+
+/// A generic verification record — the result of running a named check
+/// against a subject (entity, hypothesis, artifact, or generation target).
+///
+/// Verification is generic (§15): Stage 0 does not interpret the check
+/// semantics. Recording a verification does NOT change hypothesis
+/// confidence (§3.5 / §15).
+///
+/// NOTE: `evidence` uses `EvidenceRecordId` (Stage 0).
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct VerificationRecord {
+    pub id: VerificationRecordId,
+    pub project: ProjectId,
+    pub subject: VerificationSubject,
+    pub check: NamespacedId,
+    pub state: VerificationState,
+    pub provider_run: Option<ProviderRunId>,
+    pub evidence: Vec<EvidenceRecordId>,
+    pub details: Option<ExtensionData>,
+    pub created_at: Timestamp,
+}
+
+impl VerificationRecord {
+    /// Creates a new verification record in `NotChecked` state.
+    pub fn new(
+        project: ProjectId,
+        subject: VerificationSubject,
+        check: NamespacedId,
+    ) -> Self {
+        VerificationRecord {
+            id: VerificationRecordId::new(),
+            project,
+            subject,
+            check,
+            state: VerificationState::NotChecked,
+            provider_run: None,
+            evidence: vec![],
+            details: None,
+            created_at: Timestamp::now(),
+        }
     }
 }
 
@@ -1522,5 +1892,345 @@ mod tests {
         let result = h.transition(HypothesisStatus::Accepted);
         assert!(result.is_err());
         assert_eq!(h.status, HypothesisStatus::Proposed, "status unchanged on invalid transition");
+    }
+
+    #[test]
+    fn contradiction_status_transitions_valid() {
+        let open = ContradictionStatus::Open;
+        assert!(open.transition(&ContradictionStatus::Investigating).is_ok());
+        assert!(open.transition(&ContradictionStatus::Resolved).is_ok());
+        assert!(open.transition(&ContradictionStatus::Deferred).is_ok());
+
+        let investigating = ContradictionStatus::Investigating;
+        assert!(investigating.transition(&ContradictionStatus::Resolved).is_ok());
+        assert!(investigating.transition(&ContradictionStatus::Deferred).is_ok());
+
+        let deferred = ContradictionStatus::Deferred;
+        assert!(deferred.transition(&ContradictionStatus::Open).is_ok());
+    }
+
+    #[test]
+    fn contradiction_status_transitions_reject_invalid() {
+        assert!(ContradictionStatus::Resolved.transition(&ContradictionStatus::Open).is_err());
+        assert!(ContradictionStatus::Resolved.transition(&ContradictionStatus::Investigating).is_err());
+        assert!(ContradictionStatus::Resolved.transition(&ContradictionStatus::Deferred).is_err());
+        assert!(ContradictionStatus::Deferred.transition(&ContradictionStatus::Resolved).is_err());
+        assert!(ContradictionStatus::Deferred.transition(&ContradictionStatus::Investigating).is_err());
+        assert!(ContradictionStatus::Investigating.transition(&ContradictionStatus::Open).is_err());
+        assert!(ContradictionStatus::Investigating.transition(&ContradictionStatus::Investigating).is_err());
+        assert!(ContradictionStatus::Open.transition(&ContradictionStatus::Open).is_err());
+    }
+
+    #[test]
+    fn contradiction_status_terminal() {
+        assert!(!ContradictionStatus::Open.is_terminal());
+        assert!(!ContradictionStatus::Investigating.is_terminal());
+        assert!(ContradictionStatus::Resolved.is_terminal());
+        assert!(!ContradictionStatus::Deferred.is_terminal());
+    }
+
+    #[test]
+    fn contradiction_status_kind() {
+        assert_eq!(ContradictionStatus::Open.kind(), "Open");
+        assert_eq!(ContradictionStatus::Investigating.kind(), "Investigating");
+        assert_eq!(ContradictionStatus::Resolved.kind(), "Resolved");
+        assert_eq!(ContradictionStatus::Deferred.kind(), "Deferred");
+    }
+
+    #[test]
+    fn contradiction_status_display() {
+        assert_eq!(ContradictionStatus::Open.to_string(), "Open");
+        assert_eq!(ContradictionStatus::Investigating.to_string(), "Investigating");
+        assert_eq!(ContradictionStatus::Resolved.to_string(), "Resolved");
+        assert_eq!(ContradictionStatus::Deferred.to_string(), "Deferred");
+    }
+
+    #[test]
+    fn contradiction_status_serialize_round_trip() {
+        for status in [
+            ContradictionStatus::Open,
+            ContradictionStatus::Investigating,
+            ContradictionStatus::Resolved,
+            ContradictionStatus::Deferred,
+        ] {
+            let json = serde_json::to_string(&status).unwrap();
+            let back: ContradictionStatus = serde_json::from_str(&json).unwrap();
+            assert_eq!(status, back);
+        }
+    }
+
+    #[test]
+    fn contradiction_status_constants_registered() {
+        assert_eq!(CONTRADICTION_STATUS_OPEN.to_string(), "contradiction.status.open");
+        assert_eq!(CONTRADICTION_STATUS_INVESTIGATING.to_string(), "contradiction.status.investigating");
+        assert_eq!(CONTRADICTION_STATUS_RESOLVED.to_string(), "contradiction.status.resolved");
+        assert_eq!(CONTRADICTION_STATUS_DEFERRED.to_string(), "contradiction.status.deferred");
+    }
+
+    #[test]
+    fn contradiction_new_defaults() {
+        let c = Contradiction::new(
+            ProjectId::new(),
+            EntityId::new(),
+            NamespacedId::parse("core.test").unwrap(),
+            vec![EvidenceRecordId::new()],
+            vec![HypothesisId::new(), HypothesisId::new()],
+        );
+        assert_eq!(c.status, ContradictionStatus::Open);
+        assert!(c.resolution.is_none());
+        assert_eq!(c.evidence.len(), 1);
+        assert_eq!(c.hypotheses.len(), 2);
+    }
+
+    #[test]
+    fn contradiction_transition_to_resolved_requires_resolution() {
+        let mut c = Contradiction::new(
+            ProjectId::new(),
+            EntityId::new(),
+            NamespacedId::parse("core.test").unwrap(),
+            vec![],
+            vec![],
+        );
+        let result = c.transition(ContradictionStatus::Resolved, None);
+        assert!(result.is_err());
+        assert_eq!(c.status, ContradictionStatus::Open, "status unchanged on failed transition");
+    }
+
+    #[test]
+    fn contradiction_transition_to_non_resolved_rejects_resolution() {
+        let mut c = Contradiction::new(
+            ProjectId::new(),
+            EntityId::new(),
+            NamespacedId::parse("core.test").unwrap(),
+            vec![],
+            vec![],
+        );
+        let resolution = ContradictionResolution {
+            resolved_at: Timestamp::now(),
+            resolution: NamespacedId::parse("core.resolution.test").unwrap(),
+            chosen: vec![],
+            rationale: "rationale".into(),
+        };
+        let result = c.transition(ContradictionStatus::Investigating, Some(resolution));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn contradiction_transition_open_to_resolved() {
+        let mut c = Contradiction::new(
+            ProjectId::new(),
+            EntityId::new(),
+            NamespacedId::parse("core.test").unwrap(),
+            vec![],
+            vec![HypothesisId::new()],
+        );
+        let chosen = c.hypotheses.clone();
+        let resolution = ContradictionResolution {
+            resolved_at: Timestamp::now(),
+            resolution: NamespacedId::parse("core.resolution.chosen-preferred").unwrap(),
+            chosen,
+            rationale: "preferred hypothesis supported by stronger evidence".into(),
+        };
+        c.transition(ContradictionStatus::Resolved, Some(resolution)).unwrap();
+        assert_eq!(c.status, ContradictionStatus::Resolved);
+        assert!(c.resolution.is_some());
+    }
+
+    #[test]
+    fn contradiction_round_trip_json() {
+        let mut c = Contradiction::new(
+            ProjectId::new(),
+            EntityId::new(),
+            NamespacedId::parse("core.test").unwrap(),
+            vec![EvidenceRecordId::new()],
+            vec![HypothesisId::new(), HypothesisId::new()],
+        );
+        let chosen = vec![c.hypotheses[0]];
+        let resolution = ContradictionResolution {
+            resolved_at: Timestamp::now(),
+            resolution: NamespacedId::parse("core.resolution.test").unwrap(),
+            chosen,
+            rationale: "chosen".into(),
+        };
+        c.transition(ContradictionStatus::Resolved, Some(resolution)).unwrap();
+        let json = serde_json::to_string_pretty(&c).unwrap();
+        let back: Contradiction = serde_json::from_str(&json).unwrap();
+        assert_eq!(c.id, back.id);
+        assert_eq!(c.project, back.project);
+        assert_eq!(c.subject, back.subject);
+        assert_eq!(c.predicate, back.predicate);
+        assert_eq!(c.evidence, back.evidence);
+        assert_eq!(c.hypotheses, back.hypotheses);
+        assert_eq!(c.status, back.status);
+        assert_eq!(c.resolution, back.resolution);
+    }
+
+    #[test]
+    fn verification_subject_kinds() {
+        assert_eq!(VerificationSubject::Entity(EntityId::new()).kind(), "Entity");
+        assert_eq!(VerificationSubject::Hypothesis(HypothesisId::new()).kind(), "Hypothesis");
+        assert_eq!(VerificationSubject::Artifact(ArtifactId::new()).kind(), "Artifact");
+        assert_eq!(
+            VerificationSubject::GenerationTarget(GenerationTargetId::new()).kind(),
+            "GenerationTarget"
+        );
+    }
+
+    #[test]
+    fn verification_subject_round_trip_json() {
+        let subjects = vec![
+            VerificationSubject::Entity(EntityId::new()),
+            VerificationSubject::Hypothesis(HypothesisId::new()),
+            VerificationSubject::Artifact(ArtifactId::new()),
+            VerificationSubject::GenerationTarget(GenerationTargetId::new()),
+        ];
+        for s in subjects {
+            let json = serde_json::to_string(&s).unwrap();
+            let back: VerificationSubject = serde_json::from_str(&json).unwrap();
+            assert_eq!(s, back);
+        }
+    }
+
+    #[test]
+    fn verification_state_transitions_valid() {
+        let nc = VerificationState::NotChecked;
+        assert!(nc.transition(&VerificationState::Pending).is_ok());
+
+        let pending = VerificationState::Pending;
+        assert!(pending.transition(&VerificationState::Passed).is_ok());
+        assert!(pending.transition(&VerificationState::Failed).is_ok());
+        assert!(pending.transition(&VerificationState::Inconclusive).is_ok());
+        assert!(pending.transition(&VerificationState::Blocked).is_ok());
+
+        let blocked = VerificationState::Blocked;
+        assert!(blocked.transition(&VerificationState::Pending).is_ok());
+    }
+
+    #[test]
+    fn verification_state_transitions_reject_invalid() {
+        assert!(VerificationState::Passed.transition(&VerificationState::Failed).is_err());
+        assert!(VerificationState::Failed.transition(&VerificationState::Passed).is_err());
+        assert!(VerificationState::Inconclusive.transition(&VerificationState::Pending).is_err());
+        assert!(VerificationState::NotChecked.transition(&VerificationState::Passed).is_err());
+        assert!(VerificationState::NotChecked.transition(&VerificationState::Failed).is_err());
+        assert!(VerificationState::Blocked.transition(&VerificationState::Passed).is_err());
+        assert!(VerificationState::Pending.transition(&VerificationState::NotChecked).is_err());
+    }
+
+    #[test]
+    fn verification_state_terminal() {
+        assert!(!VerificationState::NotChecked.is_terminal());
+        assert!(!VerificationState::Pending.is_terminal());
+        assert!(VerificationState::Passed.is_terminal());
+        assert!(VerificationState::Failed.is_terminal());
+        assert!(VerificationState::Inconclusive.is_terminal());
+        assert!(!VerificationState::Blocked.is_terminal());
+    }
+
+    #[test]
+    fn verification_state_kind() {
+        assert_eq!(VerificationState::NotChecked.kind(), "NotChecked");
+        assert_eq!(VerificationState::Pending.kind(), "Pending");
+        assert_eq!(VerificationState::Passed.kind(), "Passed");
+        assert_eq!(VerificationState::Failed.kind(), "Failed");
+        assert_eq!(VerificationState::Inconclusive.kind(), "Inconclusive");
+        assert_eq!(VerificationState::Blocked.kind(), "Blocked");
+    }
+
+    #[test]
+    fn verification_state_serialize_round_trip() {
+        for state in [
+            VerificationState::NotChecked,
+            VerificationState::Pending,
+            VerificationState::Passed,
+            VerificationState::Failed,
+            VerificationState::Inconclusive,
+            VerificationState::Blocked,
+        ] {
+            let json = serde_json::to_string(&state).unwrap();
+            let back: VerificationState = serde_json::from_str(&json).unwrap();
+            assert_eq!(state, back);
+        }
+    }
+
+    #[test]
+    fn verification_check_constants_registered() {
+        assert_eq!(VERIFICATION_CHECK_ARTIFACT_HASH.to_string(), "core.artifact.hash");
+        assert_eq!(VERIFICATION_CHECK_PROJECT_INTEGRITY.to_string(), "core.project.integrity");
+        assert_eq!(VERIFICATION_CHECK_BUILD.to_string(), "verification.build");
+        assert_eq!(VERIFICATION_CHECK_ABI_LAYOUT.to_string(), "verification.abi.layout");
+        assert_eq!(
+            VERIFICATION_CHECK_DIFFERENTIAL_BEHAVIOR.to_string(),
+            "verification.differential.behavior"
+        );
+    }
+
+    #[test]
+    fn verification_record_new_defaults() {
+        let rec = VerificationRecord::new(
+            ProjectId::new(),
+            VerificationSubject::Entity(EntityId::new()),
+            VERIFICATION_CHECK_ARTIFACT_HASH.clone(),
+        );
+        assert_eq!(rec.state, VerificationState::NotChecked);
+        assert!(rec.evidence.is_empty());
+        assert!(rec.provider_run.is_none());
+        assert!(rec.details.is_none());
+    }
+
+    #[test]
+    fn verification_record_round_trip_json() {
+        let schema = NamespacedId::parse("core.verification.details").unwrap();
+        let rec = VerificationRecord {
+            id: VerificationRecordId::new(),
+            project: ProjectId::new(),
+            subject: VerificationSubject::Hypothesis(HypothesisId::new()),
+            check: VERIFICATION_CHECK_BUILD.clone(),
+            state: VerificationState::Passed,
+            provider_run: Some(ProviderRunId::new()),
+            evidence: vec![EvidenceRecordId::new(), EvidenceRecordId::new()],
+            details: Some(ExtensionData::new(schema, 1, serde_json::json!({"notes": "ok"}))),
+            created_at: Timestamp::now(),
+        };
+        let json = serde_json::to_string_pretty(&rec).unwrap();
+        let back: VerificationRecord = serde_json::from_str(&json).unwrap();
+        assert_eq!(rec.id, back.id);
+        assert_eq!(rec.project, back.project);
+        assert_eq!(rec.subject, back.subject);
+        assert_eq!(rec.check, back.check);
+        assert_eq!(rec.state, back.state);
+        assert_eq!(rec.provider_run, back.provider_run);
+        assert_eq!(rec.evidence, back.evidence);
+        assert_eq!(rec.details, back.details);
+    }
+
+    #[test]
+    fn verification_does_not_change_confidence() {
+        let project = ProjectId::new();
+        let subject = EntityId::new();
+        let mut h = Hypothesis::new(
+            project,
+            subject,
+            NamespacedId::parse("hypothesis.predicate.test").unwrap(),
+            EvidenceValue::Null,
+        );
+        let original_confidence = h.confidence.score();
+
+        let _vr = VerificationRecord::new(
+            project,
+            VerificationSubject::Hypothesis(h.id),
+            VERIFICATION_CHECK_BUILD.clone(),
+        );
+
+        assert!(
+            (h.confidence.score() - original_confidence).abs() < f32::EPSILON,
+            "recording a VerificationRecord must NOT change hypothesis confidence (§3.5)"
+        );
+
+        h.confidence = Confidence::new(0.9).unwrap();
+        assert!(
+            (h.confidence.score() - 0.9).abs() < f32::EPSILON,
+            "confidence updates must remain independent of verification records"
+        );
     }
 }
