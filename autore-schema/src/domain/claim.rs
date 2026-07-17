@@ -4,9 +4,10 @@
 //! `ClaimPredicate` about a `ClaimSubject` with a `ClaimValue`, supported
 //! by `Evidence` and tracked through its `ClaimState`.
 
+use autore_core::{Error, Result};
 use crate::domain::{Confidence, EntityId, Provenance};
 use crate::ids::{ClaimId, EvidenceId, FunctionId, WorkerRunId};
-use crate::worker::output::{FunctionAnalysisOutput, ProposedClaim};
+use crate::worker_output::{FunctionAnalysisOutput, ProposedClaim};
 
 // ---------------------------------------------------------------------------
 // ClaimState
@@ -172,13 +173,13 @@ impl Claim {
     // -----------------------------------------------------------------------
 
     /// Transitions `Proposed` → `UnderReview`.
-    pub fn submit_for_review(&mut self) -> crate::Result<()> {
+    pub fn submit_for_review(&mut self) -> Result<()> {
         match self.state {
             ClaimState::Proposed => {
                 self.state = ClaimState::UnderReview;
                 Ok(())
             }
-            _ => Err(crate::Error::Validation(format!(
+            _ => Err(Error::Validation(format!(
                 "cannot submit claim {:?} for review in state {:?}",
                 self.id, self.state
             ))),
@@ -186,13 +187,13 @@ impl Claim {
     }
 
     /// Transitions `UnderReview` → `Accepted`.
-    pub fn accept(&mut self) -> crate::Result<()> {
+    pub fn accept(&mut self) -> Result<()> {
         match self.state {
             ClaimState::UnderReview => {
                 self.state = ClaimState::Accepted;
                 Ok(())
             }
-            _ => Err(crate::Error::Validation(format!(
+            _ => Err(Error::Validation(format!(
                 "cannot accept claim {:?} in state {:?}",
                 self.id, self.state
             ))),
@@ -200,13 +201,13 @@ impl Claim {
     }
 
     /// Transitions `UnderReview` → `Rejected`.
-    pub fn reject(&mut self) -> crate::Result<()> {
+    pub fn reject(&mut self) -> Result<()> {
         match self.state {
             ClaimState::UnderReview => {
                 self.state = ClaimState::Rejected;
                 Ok(())
             }
-            _ => Err(crate::Error::Validation(format!(
+            _ => Err(Error::Validation(format!(
                 "cannot reject claim {:?} in state {:?}",
                 self.id, self.state
             ))),
@@ -214,13 +215,13 @@ impl Claim {
     }
 
     /// Transitions `Accepted` → `Superseded`.
-    pub fn supersede(&mut self) -> crate::Result<()> {
+    pub fn supersede(&mut self) -> Result<()> {
         match self.state {
             ClaimState::Accepted => {
                 self.state = ClaimState::Superseded;
                 Ok(())
             }
-            _ => Err(crate::Error::Validation(format!(
+            _ => Err(Error::Validation(format!(
                 "cannot supersede claim {:?} in state {:?}",
                 self.id, self.state
             ))),
@@ -228,9 +229,9 @@ impl Claim {
     }
 
     /// Transitions from any state to `Invalidated`.
-    pub fn invalidate(&mut self) -> crate::Result<()> {
+    pub fn invalidate(&mut self) -> Result<()> {
         if self.state == ClaimState::Invalidated {
-            return Err(crate::Error::Validation(format!(
+            return Err(Error::Validation(format!(
                 "claim {:?} is already invalidated",
                 self.id
             )));
@@ -271,7 +272,7 @@ impl Claim {
         function_id: FunctionId,
         proposed: ProposedClaim,
         worker_run_id: WorkerRunId,
-    ) -> crate::Result<Self> {
+    ) -> Result<Self> {
         Ok(Claim::new(
             ClaimId::new(),
             EntityId::Function(function_id),
@@ -289,7 +290,7 @@ impl Claim {
         function_id: FunctionId,
         output: &FunctionAnalysisOutput,
         worker_run_id: WorkerRunId,
-    ) -> crate::Result<Vec<Self>> {
+    ) -> Result<Vec<Self>> {
         // First pass: create all claims.
         let mut claims: Vec<Claim> = output
             .claims
@@ -504,7 +505,7 @@ mod tests {
 
     use crate::domain::{Address, AddressSpace, EvidenceKind, EvidenceLocation, SymbolName};
     use crate::ids::WorkerRunId;
-    use crate::worker::output::{FunctionAnalysisOutput, ProposedClaim, ProposedEvidence};
+    use crate::worker_output::{FunctionAnalysisOutput, ProposedClaim, ProposedEvidence};
 
     fn sample_worker_output() -> FunctionAnalysisOutput {
         FunctionAnalysisOutput {
@@ -575,7 +576,7 @@ mod tests {
         let worker_run_id = WorkerRunId::new();
 
         let evidence =
-            crate::domain::Evidence::from_worker_output(function_id, &output, worker_run_id)
+            crate::domain::evidence::Evidence::from_worker_output(function_id, &output, worker_run_id)
                 .unwrap();
 
         assert_eq!(evidence.len(), 1);

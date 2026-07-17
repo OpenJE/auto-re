@@ -4,11 +4,12 @@
 //! evidence records *what* kind of data it is, *where* it came from
 //! (address, file path, provenance), and an optional artifact reference.
 
+use autore_core::Result;
 use crate::domain::{Address, Provenance};
 use crate::ids::{
     BinaryRevisionId, CampaignId, ClaimId, EvidenceId, FunctionId, ModuleId, TaskId, WorkerRunId,
 };
-use crate::worker::output::{FunctionAnalysisOutput, ProposedEvidence};
+use crate::worker_output::{FunctionAnalysisOutput, ProposedEvidence};
 
 use uuid::Uuid;
 
@@ -221,7 +222,7 @@ impl Evidence {
         function_id: FunctionId,
         proposed: ProposedEvidence,
         worker_run_id: WorkerRunId,
-    ) -> crate::Result<Self> {
+    ) -> Result<Self> {
         Ok(Evidence::new(
             EvidenceId::new(),
             proposed.kind,
@@ -238,7 +239,7 @@ impl Evidence {
         function_id: FunctionId,
         output: &FunctionAnalysisOutput,
         worker_run_id: WorkerRunId,
-    ) -> crate::Result<Vec<Self>> {
+    ) -> Result<Vec<Self>> {
         Ok(output
             .evidence
             .iter()

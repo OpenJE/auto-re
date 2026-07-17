@@ -4,6 +4,7 @@
 //! a worker produces after analyzing a single function — and provides
 //! `validate_output()` to verify JSON output against the generated schema.
 
+use autore_core::{Error, Result};
 use crate::domain::{
     Address, AddressSpace, ClaimPredicate, ClaimValue, Confidence, EvidenceKind, EvidenceLocation,
     SymbolName,
@@ -233,15 +234,15 @@ pub struct FunctionAnalysisOutput {
 ///
 /// Returns `Error::Validation(String)` on schema mismatch. The error
 /// message includes the JSON pointer path to each failing field.
-pub fn validate_output(json: &str) -> crate::Result<FunctionAnalysisOutput> {
+pub fn validate_output(json: &str) -> Result<FunctionAnalysisOutput> {
     let schema = schemars::schema_for!(FunctionAnalysisOutput);
     let schema_value = schema.as_value();
 
     let instance: serde_json::Value = serde_json::from_str(json)
-        .map_err(|e| crate::Error::Validation(format!("invalid JSON: {e}")))?;
+        .map_err(|e| Error::Validation(format!("invalid JSON: {e}")))?;
 
     let validator = jsonschema::validator_for(schema_value)
-        .map_err(|e| crate::Error::Validation(format!("schema compilation failed: {e}")))?;
+        .map_err(|e| Error::Validation(format!("schema compilation failed: {e}")))?;
 
     let errors: Vec<_> = validator.iter_errors(&instance).collect();
     if !errors.is_empty() {
@@ -253,11 +254,11 @@ pub fn validate_output(json: &str) -> crate::Result<FunctionAnalysisOutput> {
                 format!("{pointer}: {e}")
             })
             .collect();
-        return Err(crate::Error::Validation(messages.join("; ")));
+        return Err(Error::Validation(messages.join("; ")));
     }
 
     serde_json::from_value(instance)
-        .map_err(|e| crate::Error::Validation(format!("deserialization failed: {e}")))
+        .map_err(|e| Error::Validation(format!("deserialization failed: {e}")))
 }
 
 // ---------------------------------------------------------------------------

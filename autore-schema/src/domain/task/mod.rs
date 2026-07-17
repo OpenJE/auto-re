@@ -7,6 +7,7 @@
 
 use std::collections::HashSet;
 
+use autore_core::{Error, Result};
 use crate::ids::{CampaignId, TaskId, WorkerRunId};
 
 // Re-export sub-module types at module level.
@@ -144,13 +145,13 @@ impl Task {
     // -----------------------------------------------------------------------
 
     /// Transitions from `Pending` → `Ready`.
-    pub fn mark_ready(&mut self) -> crate::Result<()> {
+    pub fn mark_ready(&mut self) -> Result<()> {
         match self.state {
             TaskState::Pending => {
                 self.state = TaskState::Ready;
                 Ok(())
             }
-            _ => Err(crate::Error::Validation(format!(
+            _ => Err(Error::Validation(format!(
                 "cannot mark task {:?} as ready from state {:?}",
                 self.id, self.state
             ))),
@@ -158,13 +159,13 @@ impl Task {
     }
 
     /// Transitions from `Ready` → `Leased`.
-    pub fn lease(&mut self) -> crate::Result<()> {
+    pub fn lease(&mut self) -> Result<()> {
         match self.state {
             TaskState::Ready => {
                 self.state = TaskState::Leased;
                 Ok(())
             }
-            _ => Err(crate::Error::Validation(format!(
+            _ => Err(Error::Validation(format!(
                 "cannot lease task {:?} in state {:?}",
                 self.id, self.state
             ))),
@@ -172,14 +173,14 @@ impl Task {
     }
 
     /// Transitions from `Leased` → `Running`.
-    pub fn start(&mut self) -> crate::Result<()> {
+    pub fn start(&mut self) -> Result<()> {
         match self.state {
             TaskState::Leased => {
                 self.state = TaskState::Running;
                 self.attempt_count = self.attempt_count.saturating_add(1);
                 Ok(())
             }
-            _ => Err(crate::Error::Validation(format!(
+            _ => Err(Error::Validation(format!(
                 "cannot start task {:?} in state {:?}",
                 self.id, self.state
             ))),
@@ -187,13 +188,13 @@ impl Task {
     }
 
     /// Transitions from `Running` → `Completed`.
-    pub fn complete(&mut self) -> crate::Result<()> {
+    pub fn complete(&mut self) -> Result<()> {
         match self.state {
             TaskState::Running => {
                 self.state = TaskState::Completed;
                 Ok(())
             }
-            _ => Err(crate::Error::Validation(format!(
+            _ => Err(Error::Validation(format!(
                 "cannot complete task {:?} in state {:?}",
                 self.id, self.state
             ))),
@@ -201,13 +202,13 @@ impl Task {
     }
 
     /// Transitions from `Running` → `Failed`.
-    pub fn fail(&mut self) -> crate::Result<()> {
+    pub fn fail(&mut self) -> Result<()> {
         match self.state {
             TaskState::Running => {
                 self.state = TaskState::Failed;
                 Ok(())
             }
-            _ => Err(crate::Error::Validation(format!(
+            _ => Err(Error::Validation(format!(
                 "cannot fail task {:?} in state {:?}",
                 self.id, self.state
             ))),
@@ -215,9 +216,9 @@ impl Task {
     }
 
     /// Transitions from any non-terminal state → `Cancelled`.
-    pub fn cancel(&mut self) -> crate::Result<()> {
+    pub fn cancel(&mut self) -> Result<()> {
         if self.state.is_terminal() {
-            return Err(crate::Error::Validation(format!(
+            return Err(Error::Validation(format!(
                 "cannot cancel task {:?} in terminal state {:?}",
                 self.id, self.state
             )));
@@ -227,13 +228,13 @@ impl Task {
     }
 
     /// Transitions from `Ready` or `Pending` → `Blocked`.
-    pub fn block(&mut self) -> crate::Result<()> {
+    pub fn block(&mut self) -> Result<()> {
         match self.state {
             TaskState::Pending | TaskState::Ready => {
                 self.state = TaskState::Blocked;
                 Ok(())
             }
-            _ => Err(crate::Error::Validation(format!(
+            _ => Err(Error::Validation(format!(
                 "cannot block task {:?} in state {:?}",
                 self.id, self.state
             ))),
@@ -241,13 +242,13 @@ impl Task {
     }
 
     /// Transitions from `Blocked` → `Ready`.
-    pub fn unblock(&mut self) -> crate::Result<()> {
+    pub fn unblock(&mut self) -> Result<()> {
         match self.state {
             TaskState::Blocked => {
                 self.state = TaskState::Ready;
                 Ok(())
             }
-            _ => Err(crate::Error::Validation(format!(
+            _ => Err(Error::Validation(format!(
                 "cannot unblock task {:?} in state {:?}",
                 self.id, self.state
             ))),
@@ -256,13 +257,13 @@ impl Task {
 
     /// Marks a leased task as stale (lease expired).
     /// Transitions from `Leased` → `Stale`.
-    pub fn mark_stale(&mut self) -> crate::Result<()> {
+    pub fn mark_stale(&mut self) -> Result<()> {
         match self.state {
             TaskState::Leased => {
                 self.state = TaskState::Stale;
                 Ok(())
             }
-            _ => Err(crate::Error::Validation(format!(
+            _ => Err(Error::Validation(format!(
                 "cannot mark task {:?} stale from state {:?}",
                 self.id, self.state
             ))),
@@ -270,11 +271,11 @@ impl Task {
     }
 
     /// Re-queues a stale or failed task (transitions to `Ready`).
-    pub fn requeue(&mut self) -> crate::Result<()> {
+    pub fn requeue(&mut self) -> Result<()> {
         match self.state {
             TaskState::Failed | TaskState::Stale => {
                 if self.attempt_count >= self.maximum_attempts {
-                    return Err(crate::Error::Validation(format!(
+                    return Err(Error::Validation(format!(
                         "task {:?} has exhausted its {} maximum attempts",
                         self.id, self.maximum_attempts
                     )));
@@ -282,7 +283,7 @@ impl Task {
                 self.state = TaskState::Ready;
                 Ok(())
             }
-            _ => Err(crate::Error::Validation(format!(
+            _ => Err(Error::Validation(format!(
                 "cannot requeue task {:?} in state {:?}",
                 self.id, self.state
             ))),

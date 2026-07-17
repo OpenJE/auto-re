@@ -4,6 +4,7 @@
 //! a directed analysis effort. Its state machine governs the lifecycle:
 //! `Pending → Active → Paused/Complete | Active → Complete → Archived`.
 
+use autore_core::{Error, Result};
 use crate::ids::CampaignId;
 
 /// The lifecycle state of an analysis campaign.
@@ -55,13 +56,13 @@ impl Campaign {
     }
 
     /// Transitions from `Pending` to `Active`.
-    pub fn start(&mut self) -> crate::Result<()> {
+    pub fn start(&mut self) -> Result<()> {
         match self.state {
             CampaignState::Pending => {
                 self.state = CampaignState::Active;
                 Ok(())
             }
-            _ => Err(crate::Error::Validation(format!(
+            _ => Err(Error::Validation(format!(
                 "cannot start campaign in state {:?}",
                 self.state
             ))),
@@ -69,13 +70,13 @@ impl Campaign {
     }
 
     /// Transitions from `Active` to `Paused`.
-    pub fn pause(&mut self) -> crate::Result<()> {
+    pub fn pause(&mut self) -> Result<()> {
         match self.state {
             CampaignState::Active => {
                 self.state = CampaignState::Paused;
                 Ok(())
             }
-            _ => Err(crate::Error::Validation(format!(
+            _ => Err(Error::Validation(format!(
                 "cannot pause campaign in state {:?}",
                 self.state
             ))),
@@ -83,13 +84,13 @@ impl Campaign {
     }
 
     /// Transitions from `Paused` back to `Active`.
-    pub fn resume(&mut self) -> crate::Result<()> {
+    pub fn resume(&mut self) -> Result<()> {
         match self.state {
             CampaignState::Paused => {
                 self.state = CampaignState::Active;
                 Ok(())
             }
-            _ => Err(crate::Error::Validation(format!(
+            _ => Err(Error::Validation(format!(
                 "cannot resume campaign in state {:?}",
                 self.state
             ))),
@@ -97,9 +98,9 @@ impl Campaign {
     }
 
     /// Marks the campaign as complete. Accepts any non-terminal state.
-    pub fn complete(&mut self) -> crate::Result<()> {
+    pub fn complete(&mut self) -> Result<()> {
         if self.state.is_terminal() {
-            return Err(crate::Error::Validation(format!(
+            return Err(Error::Validation(format!(
                 "cannot complete campaign already in state {:?}",
                 self.state
             )));
@@ -109,13 +110,13 @@ impl Campaign {
     }
 
     /// Blocks the campaign to indicate it cannot proceed.
-    pub fn block(&mut self) -> crate::Result<()> {
+    pub fn block(&mut self) -> Result<()> {
         match self.state {
             CampaignState::Active | CampaignState::Pending | CampaignState::Paused => {
                 self.state = CampaignState::Blocked;
                 Ok(())
             }
-            _ => Err(crate::Error::Validation(format!(
+            _ => Err(Error::Validation(format!(
                 "cannot block campaign in state {:?}",
                 self.state
             ))),
@@ -123,13 +124,13 @@ impl Campaign {
     }
 
     /// Unblocks a blocked campaign, returning it to `Active`.
-    pub fn unblock(&mut self) -> crate::Result<()> {
+    pub fn unblock(&mut self) -> Result<()> {
         match self.state {
             CampaignState::Blocked => {
                 self.state = CampaignState::Active;
                 Ok(())
             }
-            _ => Err(crate::Error::Validation(format!(
+            _ => Err(Error::Validation(format!(
                 "cannot unblock campaign in state {:?}",
                 self.state
             ))),

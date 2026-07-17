@@ -9,7 +9,7 @@ use std::sync::{Mutex, MutexGuard};
 
 // Embed migration SQL files at compile time. The path is relative to
 // `CARGO_MANIFEST_DIR` (the crate root where `Cargo.toml` lives).
-refinery::embed_migrations!("migrations");
+refinery::embed_migrations!("../migrations");
 
 /// A SQLite database with automatic schema migrations.
 ///

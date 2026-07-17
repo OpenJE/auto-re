@@ -1,0 +1,14 @@
+[package]
+name = "autore-schema"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+autore-core = { path = "../autore-core" }
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+time.workspace = true
+blake3.workspace = true
+schemars.workspace = true
+jsonschema.workspace = true

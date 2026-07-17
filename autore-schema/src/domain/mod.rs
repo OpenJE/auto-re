@@ -3,6 +3,7 @@
 //! These types are parse-don't-validate: once constructed, they
 //! are guaranteed to be valid for their domain.
 
+use autore_core::{Error, Result};
 use crate::ids::WorkerRunId;
 
 // ---------------------------------------------------------------------------
@@ -239,9 +240,9 @@ pub struct Confidence(f32);
 
 impl Confidence {
     /// Creates a new confidence score, validating it is in [0.0, 1.0].
-    pub fn new(value: f32) -> crate::Result<Self> {
+    pub fn new(value: f32) -> Result<Self> {
         if !(0.0..=1.0).contains(&value) {
-            return Err(crate::Error::Validation(
+            return Err(Error::Validation(
                 "confidence must be between 0 and 1".into(),
             ));
         }
@@ -337,7 +338,7 @@ mod tests {
     #[test]
     fn confidence_error_message() {
         match Confidence::new(42.0) {
-            Err(crate::Error::Validation(msg)) => {
+            Err(Error::Validation(msg)) => {
                 assert!(msg.contains("confidence must be between 0 and 1"));
             }
             _ => panic!("expected Validation error"),

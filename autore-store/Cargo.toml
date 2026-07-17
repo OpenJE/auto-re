@@ -1,0 +1,16 @@
+[package]
+name = "autore-store"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+autore-core = { path = "../autore-core" }
+autore-schema = { path = "../autore-schema" }
+rusqlite.workspace = true
+refinery.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+async-trait.workspace = true
+uuid.workspace = true
+time.workspace = true
