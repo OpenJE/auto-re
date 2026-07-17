@@ -22,3 +22,11 @@
 - Key RETAIN ADAPTED: `define_id!` macro (v4→v7), `ContentHash` (add HashAlgorithm), `database.rs` (atomic state+event transactions, no DB-generated IDs, migration backups), 4-panel TUI layout (remapped in 0I), repository traits (event-emitting wrappers).
 - Open questions documented: Provenance→Derivation mapping, ContentHash algorithm negotiation, atomic transaction wrapper design, EntityId opaque migration.
 - All 3 user decisions (Q1: 7-crate+stage1 deferral, Q2: UUIDv7, Q3: aggressive M1 replacement) and 7 default crate boundaries documented in the audit.
+
+## 2026-07-17 Sisyphus: task 4 dependency verification completed
+- `uuid` v1.24.0 resolved from workspace `version = "1"` — supports `v7` feature. Added `v7` alongside existing `v4` and `serde`; `v4` kept because `define_id!` macro and existing tests use `Uuid::new_v4()`.
+- `sha2` v0.10.9 resolved cleanly. Added to workspace deps and `autore-schema` deps. SHA-256 deterministic + NIST empty-input vector test passes.
+- `expectrl` v0.8.0 added as dev-dependency to `autore-tui`. Resolves `ptyprocess` v0.5 + `nix` v0.26 on Linux. The `Expect` trait must be explicitly imported (`use expectrl::Expect`) to call `.expect()` on a `Session`.
+- `refinery` embed_migrations continues working with only V1 migration. `migration_runs_v1_then_v2` verifies all 9 V1 tables after migration; when V2 is added to `migrations/`, the test will automatically pick it up.
+- All 4 smoke tests pass. Full workspace test suite: 0 failures (85 schema + 35 stage1 + 16 store + 8 events + 5 core + 4 schema-lib + 3 store-integration + 1 tui-integration).
+- Evidence log: `.omo/evidence/task-4-auto-re-stage-0-deps.log`.
