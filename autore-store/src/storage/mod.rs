@@ -8,6 +8,8 @@ pub mod entity_store;
 pub mod event_store;
 pub mod evidence_store;
 pub mod hypothesis_store;
+#[cfg(test)]
+mod kill_resume;
 pub mod operation_store;
 pub mod project_store;
 pub mod provider_store;

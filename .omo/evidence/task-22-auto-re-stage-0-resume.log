@@ -1,0 +1,18 @@
+
+running 3 tests
+test storage::kill_resume::tests::kill_resume_atomic_rollback ... ok
+test storage::kill_resume::tests::kill_resume_operation_durability ... ok
+test storage::kill_resume::tests::kill_resume_no_duplicate_events ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 155 filtered out; finished in 0.07s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

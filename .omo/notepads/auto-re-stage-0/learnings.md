@@ -167,3 +167,13 @@
 - **`EventSource` reconstructed via `parse_event_source` match**: Rather than using serde for DB round-trip, the `EventSource` enum is reconstructed from its `Display` string via a match expression. This is simpler and avoids serde overhead for a flat enum.
 - **`with_event` helper returns `Result<T>` from the closure**: The closure can return any value, which is forwarded after the event is emitted and the transaction committed. This enables patterns like `let id = with_event(db, pid, kind, source, subject, None, |txn| { insert_and_return_id(txn) })?`.
 - **`autore-events` gains `autore-schema` dependency**: The `operation_events` module now references `EVENT_KIND_OPERATION_*` constants from `autore-schema`. This is a lightweight dependency (no SQLite) and does not create circular references.
+
+## 2026-07-17 (Task 22)
+
+- **On-disk SQLite reopen pattern for durability tests**: `Database::open(path)` on an existing file re-applies migrations (idempotent) and opens the connection. Dropping the `Database` handle closes the connection. Reopening the same path proves that committed state survives process kill.
+- **`with_event` closure must use `txn.conn()` for raw SQL**: Confirmed the Task 21 lesson — calling store methods inside `with_event` would deadlock because the `Transaction` holds the `MutexGuard`. All state mutations inside the closure use raw SQL via `txn.conn()`.
+- **OperationState::Queued.transition(&Running) validates in-closure**: The core state machine validation runs inside the `with_event` closure before the SQL UPDATE. This proves the transition is legal before persisting.
+- **MutexGuard scoping prevents deadlock in reopen tests**: After reopening, querying IDs via `db.connection()` must release the guard (via scope block) before calling store methods that re-acquire the lock. Holding the guard across store calls causes deadlock.
+- **`Transaction::Drop` auto-rollback is atomic across state+event**: When `with_event`'s closure returns `Err`, the `Transaction` drops without `commit()`, triggering `ROLLBACK`. This undoes both the state UPDATE and the event INSERT in one atomic operation — no partial writes survive.
+- **`tempfile::tempdir()` for isolated on-disk tests**: Each test gets a unique temporary directory that is automatically cleaned up. The `Database::open` call creates the SQLite file inside it.
+- **WAL mode does not prevent reopen consistency**: SQLite WAL mode is enabled by `Database::open`. After dropping the connection and reopening, the WAL is checkpointed and all committed data is visible. No special WAL handling needed in tests.

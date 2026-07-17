@@ -299,3 +299,19 @@
 - `autore-events/Cargo.toml` now depends on `autore-schema` for `EVENT_KIND_OPERATION_*` constants and `NamespacedId`.
 - `transition_event_kind()` now returns `&'static NamespacedId` instead of `&'static str`, with `transition_event_kind_str()` preserved for backward compat.
 - The `emit_transition_event()` return type changed from `Result<&'static str>` to `Result<&'static NamespacedId>`.
+
+## 2026-07-17 (Task 22)
+
+### kill_resume.rs as separate test module (DESIGN NOTE)
+- Created `autore-store/src/storage/kill_resume.rs` as a `#[cfg(test)]` module rather than appending to `event_store.rs` tests.
+- Rationale: durability tests use on-disk SQLite (`tempfile::TempDir`) while existing `event_store.rs` tests use in-memory. Different lifecycle patterns warrant separate modules.
+- Registered in `mod.rs` with `#[cfg(test)] mod kill_resume;`.
+
+### kill_resume.rs LOC (INFORMATIONAL)
+- Implementation: ~195 pure LOC (all tests, no separate implementation code).
+- Well within 250 ceiling.
+
+### No deviations from task requirements
+- All three tests pass as specified.
+- No changes to public APIs, migrations, or Cargo.toml.
+- No M1 scheduler/worker references.
