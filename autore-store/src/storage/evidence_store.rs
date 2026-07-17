@@ -393,9 +393,9 @@ mod tests {
         EVIDENCE_PREDICATE_FUNCTION_NAME, EVIDENCE_PREDICATE_FUNCTION_SIGNATURE,
         PROVIDER_KIND_DECOMPILER,
     };
-    use autore_schema::domain::{ContentHash, Derivation};
+    use autore_schema::domain::Derivation;
     use autore_schema::domain::values::DerivationMethod;
-    use autore_schema::ids::{ArtifactId, ProviderId, ProviderRunId};
+    use autore_schema::ids::{ProviderId, ProviderRunId};
 
     fn test_db() -> Database {
         Database::open_in_memory().unwrap()

@@ -199,3 +199,8 @@
 - Stage 0 `EvidenceRecordId` is a new typed ID for the append-only evidence records table.
 - Both coexist; `EvidenceRecordId` is the persistence-layer identity, while M1 `EvidenceId` remains in the claim/hypothesis domain.
 - When Stage 0 fully replaces M1, `EvidenceRecordId` will subsume `EvidenceId`.
+
+### evidence_store.rs unused imports (RESOLVED)
+- Removed unused `ContentHash` and `ArtifactId` imports from test module.
+- `cargo test -p autore-store` now produces zero warnings.
+- Pre-existing clippy `-D warnings` failures in `autore-core` (e.g., `only_used_in_recursion`, `unnecessary_literal_unwrap`) are unrelated to Task 17 changes.
