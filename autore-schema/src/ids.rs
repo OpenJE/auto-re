@@ -4,14 +4,16 @@
 //! full trait support for storage, comparison, and serialization.
 //! The type system prevents mixing different ID kinds — a `ProjectId`
 //! cannot be assigned where a `TaskId` is expected.
+//!
+//! All IDs use UUIDv7 (time-ordered) for natural chronological sorting.
 
-/// Creates a strongly-typed ID newtype over `uuid::Uuid`.
+/// Creates a strongly-typed ID newtype over `uuid::Uuid` (v7, time-ordered).
 ///
 /// Generates a `#[repr(transparent)]` wrapper with:
 /// - `Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash`
 /// - `serde::Serialize, serde::Deserialize`
 /// - `new()`, `from_uuid()`, `as_uuid()`
-/// - `Default` (generates a new random UUID)
+/// - `Default` (generates a new random UUIDv7)
 /// - `Display` (delegates to the inner UUID)
 macro_rules! define_id {
     ($name:ident, $doc:literal) => {
@@ -32,9 +34,9 @@ macro_rules! define_id {
         pub struct $name(uuid::Uuid);
 
         impl $name {
-            /// Creates a new random ID.
+            /// Creates a new random UUIDv7 ID (time-ordered).
             pub fn new() -> Self {
-                $name(uuid::Uuid::new_v4())
+                $name(uuid::Uuid::now_v7())
             }
 
             /// Wraps an existing UUID into this ID type.
@@ -63,7 +65,7 @@ macro_rules! define_id {
 }
 
 // ---------------------------------------------------------------------------
-// §8 Identifiers
+// §8 Identifiers (M1 — existing)
 // ---------------------------------------------------------------------------
 
 define_id!(
@@ -120,6 +122,67 @@ define_id!(
 );
 
 // ---------------------------------------------------------------------------
+// §6 Identifiers (Stage 0 — new)
+// ---------------------------------------------------------------------------
+
+define_id!(
+    ArtifactId,
+    "Identifies a generic artifact produced or consumed by the analysis pipeline."
+);
+define_id!(
+    BinaryArtifactId,
+    "Identifies a binary artifact (compiled executable, shared library, firmware image)."
+);
+define_id!(
+    SourceArtifactId,
+    "Identifies a source-code artifact (source file, patch, translation unit)."
+);
+define_id!(
+    EntityId,
+    "Identifies a semantic entity discovered during analysis (function, variable, type, etc.)."
+);
+define_id!(
+    HypothesisId,
+    "Identifies a hypothesis generated during exploratory analysis."
+);
+define_id!(
+    ContradictionId,
+    "Identifies a contradiction detected between two or more claims or hypotheses."
+);
+define_id!(
+    ProviderId,
+    "Identifies an analysis provider (tool, model, or human contributor)."
+);
+define_id!(
+    ProviderRunId,
+    "Identifies a single execution run of an analysis provider."
+);
+define_id!(
+    NativeArtifactId,
+    "Identifies a native-format artifact specific to a toolchain or platform."
+);
+define_id!(
+    VerificationRecordId,
+    "Identifies a record of a verification step applied to a claim or artifact."
+);
+define_id!(
+    OperationId,
+    "Identifies a discrete operation within the analysis pipeline."
+);
+define_id!(
+    ProjectEventId,
+    "Identifies an event recorded within a project's event stream."
+);
+define_id!(
+    PackageId,
+    "Identifies a package — a distributable unit of analysis output."
+);
+define_id!(
+    GenerationTargetId,
+    "Identifies a target for code generation or artifact production."
+);
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -137,13 +200,9 @@ mod tests {
 
     #[test]
     fn ids_are_not_interchangeable() {
-        // Verify the type system prevents assignment.
-        // `ProjectId` and `TaskId` are distinct types even though both wrap UUID.
         let project = ProjectId::new();
         let task = TaskId::new();
-        // Inner UUIDs differ (virtually guaranteed by v4 randomness)
         assert_ne!(project.as_uuid(), task.as_uuid());
-        // Both implement Display via UUID's lower-hex format
         let _project_str = format!("{project}");
         let _task_str = format!("{task}");
     }
@@ -158,20 +217,20 @@ mod tests {
     #[test]
     fn ids_copy_works() {
         let id = BinaryId::new();
-        let copied = id; // Copy (not move)
+        let copied = id;
         assert_eq!(id, copied);
     }
 
     #[test]
     fn ids_from_uuid_roundtrip() {
-        let uuid = uuid::Uuid::new_v4();
+        let uuid = uuid::Uuid::now_v7();
         let id = CampaignId::from_uuid(uuid);
         assert_eq!(id.as_uuid(), &uuid);
     }
 
     #[test]
     fn ids_all_types_constructible() {
-        // Sanity check: all 13 types can be constructed
+        // M1 IDs
         let _ = ProjectId::new();
         let _ = BinaryId::new();
         let _ = BinaryRevisionId::new();
@@ -185,26 +244,36 @@ mod tests {
         let _ = TransactionId::new();
         let _ = ImplementationTargetId::new();
         let _ = ValidationRunId::new();
+        // Stage 0 IDs
+        let _ = ArtifactId::new();
+        let _ = BinaryArtifactId::new();
+        let _ = SourceArtifactId::new();
+        let _ = EntityId::new();
+        let _ = HypothesisId::new();
+        let _ = ContradictionId::new();
+        let _ = ProviderId::new();
+        let _ = ProviderRunId::new();
+        let _ = NativeArtifactId::new();
+        let _ = VerificationRecordId::new();
+        let _ = OperationId::new();
+        let _ = ProjectEventId::new();
+        let _ = PackageId::new();
+        let _ = GenerationTargetId::new();
     }
 
     #[test]
     fn ids_serialize_are_distinct_across_types() {
-        // Same UUID wrapped in different ID types must roundtrip correctly
-        let uuid = uuid::Uuid::new_v4();
+        let uuid = uuid::Uuid::now_v7();
         let task_id = TaskId::from_uuid(uuid);
         let json = serde_json::to_string(&task_id).unwrap();
         let deserialized: TaskId = serde_json::from_str(&json).unwrap();
         assert_eq!(task_id, deserialized);
-        // A CampaignId created from the same UUID is NOT interchangeable
         let campaign_id = CampaignId::from_uuid(uuid);
-        // (Compile-time check: comparing task_id and campaign_id would fail)
         assert_eq!(campaign_id.as_uuid(), task_id.as_uuid());
     }
 
     #[test]
     fn uuid_v7_sorts() {
-        // UUIDv7 embeds a Unix timestamp in the leading 48 bits, so two v7
-        // UUIDs generated 1ms apart MUST sort lexicographically in creation order.
         let a = uuid::Uuid::now_v7();
         std::thread::sleep(std::time::Duration::from_millis(1));
         let b = uuid::Uuid::now_v7();
@@ -218,5 +287,62 @@ mod tests {
             a.to_string() < b.to_string(),
             "UUIDv7 string form should preserve temporal ordering"
         );
+    }
+
+    #[test]
+    fn ids_stage0_roundtrip() {
+        // All 14 Stage 0 UUID newtypes round-trip through JSON.
+        fn roundtrip<
+            T: serde::Serialize + for<'de> serde::Deserialize<'de> + PartialEq + std::fmt::Debug,
+        >(
+            name: &str,
+            val: &T,
+        ) {
+            let json = serde_json::to_string(val).unwrap();
+            let back: T = serde_json::from_str(&json).unwrap();
+            assert_eq!(val, &back, "{name} failed round-trip");
+        }
+
+        roundtrip("ArtifactId", &ArtifactId::new());
+        roundtrip("BinaryArtifactId", &BinaryArtifactId::new());
+        roundtrip("SourceArtifactId", &SourceArtifactId::new());
+        roundtrip("EntityId", &EntityId::new());
+        roundtrip("HypothesisId", &HypothesisId::new());
+        roundtrip("ContradictionId", &ContradictionId::new());
+        roundtrip("ProviderId", &ProviderId::new());
+        roundtrip("ProviderRunId", &ProviderRunId::new());
+        roundtrip("NativeArtifactId", &NativeArtifactId::new());
+        roundtrip("VerificationRecordId", &VerificationRecordId::new());
+        roundtrip("OperationId", &OperationId::new());
+        roundtrip("ProjectEventId", &ProjectEventId::new());
+        roundtrip("PackageId", &PackageId::new());
+        roundtrip("GenerationTargetId", &GenerationTargetId::new());
+        // M1 IDs also verified here
+        roundtrip("ProjectId", &ProjectId::new());
+    }
+
+    #[test]
+    fn ids_v7_sort_chronologically() {
+        let a = ArtifactId::new();
+        std::thread::sleep(std::time::Duration::from_millis(1));
+        let b = ArtifactId::new();
+        assert!(a < b, "UUIDv7-based IDs should sort chronologically");
+    }
+
+    #[test]
+    fn ids_v7_lexicographic() {
+        let a = ProviderId::new();
+        std::thread::sleep(std::time::Duration::from_millis(1));
+        let b = ProviderId::new();
+        assert!(a.to_string() < b.to_string());
+        assert!(a < b);
+    }
+
+    #[test]
+    fn ids_fixture_project_id_roundtrip() {
+        let fixture = include_str!("../tests/fixtures/project_id.json");
+        let id: ProjectId = serde_json::from_str(fixture).unwrap();
+        let re_serialized = serde_json::to_string(&id).unwrap();
+        assert_eq!(fixture.trim(), re_serialized);
     }
 }
