@@ -204,3 +204,30 @@
 - Removed unused `ContentHash` and `ArtifactId` imports from test module.
 - `cargo test -p autore-store` now produces zero warnings.
 - Pre-existing clippy `-D warnings` failures in `autore-core` (e.g., `only_used_in_recursion`, `unnecessary_literal_unwrap`) are unrelated to Task 17 changes.
+
+## 2026-07-17 (Task 18)
+
+### Confidence serialization breaking change (INFORMATIONAL)
+- `Confidence` changed from transparent `f32` newtype to `{ score: f32, rationale: Option<String> }` struct.
+- Serialization format changed from bare number (`0.75`) to JSON object (`{"score":0.75,"rationale":null}`).
+- No persisted data exists yet; no migration needed.
+- `Confidence` lost `Copy` derive — one site in `claim.rs` updated to `.clone()`.
+
+### Verification test crate location (DESIGN NOTE)
+- Plan says `cargo test -p autore-core -- hypothesis_state_transitions_valid`.
+- Actual: `cargo test -p autore-schema -- hypothesis_state_transitions_valid`.
+- Reason: `HypothesisStatus` lives in `autore-schema` per the circular dependency constraint (`autore-schema` depends on `autore-core`, so `autore-core` cannot reference `HypothesisStatus`).
+- `validate_no_cycle` in `autore-core` remains independently testable with generic string IDs.
+
+### V8 migration numbering (DESIGN NOTE)
+- Plan says `V7__hypotheses.sql` but V7 is already used by `evidence.sql`.
+- V8 is the correct next migration number.
+
+### HypothesisStatus enum cannot derive Copy (INFORMATIONAL)
+- `Superseded { by: HypothesisId }` carries data. While `HypothesisId` is `Copy`, the pattern of mixing unit and data variants makes `Copy` unusual for status enums.
+- Follows `ProviderRunStatus` which also doesn't derive `Copy` (though it could, being all unit variants).
+
+### `superseded_by` self-referential FK (INFORMATIONAL)
+- `hypotheses.superseded_by BLOB NULL REFERENCES hypotheses(id)` is a self-referential FK.
+- SQLite supports this natively. The FK is checked at insert/update time.
+- Cycle rejection is enforced at the application layer via `validate_no_cycle`, not at the DB level.

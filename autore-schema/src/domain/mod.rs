@@ -513,39 +513,83 @@ impl<'de> serde::Deserialize<'de> for Provenance {
 // Confidence
 // ---------------------------------------------------------------------------
 
-/// A confidence score in the range [0.0, 1.0].
+/// A confidence score with optional rationale.
 ///
-/// Constructed via `Confidence::new(value)` which validates the range.
-/// Serializes as a bare `f32` and validates on deserialization.
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
-#[serde(transparent)]
-pub struct Confidence(f32);
+/// The score must be finite and in the range [0.0, 1.0]. Changing
+/// confidence does NOT automatically change hypothesis status (§13).
+///
+/// Constructed via `Confidence::new(score)` (no rationale) or
+/// `Confidence::with_rationale(score, rationale)`.
+/// Serializes as `{ "score": <f32>, "rationale": <Option<String>> }`.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct Confidence {
+    score: f32,
+    rationale: Option<String>,
+}
 
 impl Confidence {
-    /// Creates a new confidence score, validating it is in [0.0, 1.0].
-    pub fn new(value: f32) -> Result<Self> {
-        if !(0.0..=1.0).contains(&value) {
-            return Err(Error::Validation(
-                "confidence must be between 0 and 1".into(),
-            ));
-        }
-        Ok(Confidence(value))
+    /// Creates a new confidence score with no rationale.
+    /// Validates the score is finite and in [0.0, 1.0].
+    pub fn new(score: f32) -> Result<Self> {
+        Self::validate_score(score)?;
+        Ok(Confidence {
+            score,
+            rationale: None,
+        })
     }
 
-    /// Returns the inner f32 value.
+    /// Creates a new confidence score with a rationale.
+    /// Validates the score is finite and in [0.0, 1.0].
+    pub fn with_rationale(score: f32, rationale: impl Into<String>) -> Result<Self> {
+        Self::validate_score(score)?;
+        Ok(Confidence {
+            score,
+            rationale: Some(rationale.into()),
+        })
+    }
+
+    fn validate_score(score: f32) -> Result<()> {
+        if !score.is_finite() || !(0.0..=1.0).contains(&score) {
+            return Err(Error::Validation(
+                "confidence must be finite and between 0 and 1".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Returns the score value.
+    pub fn score(&self) -> f32 {
+        self.score
+    }
+
+    /// Returns the score value (alias for `score()`).
     pub fn value(&self) -> f32 {
-        self.0
+        self.score
+    }
+
+    /// Returns the rationale, if any.
+    pub fn rationale(&self) -> Option<&str> {
+        self.rationale.as_deref()
     }
 }
 
 impl<'de> serde::Deserialize<'de> for Confidence {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let value = f32::deserialize(deserializer)?;
-        Confidence::new(value).map_err(|_| {
-            serde::de::Error::invalid_value(
-                serde::de::Unexpected::Float(value as f64),
-                &"a value between 0.0 and 1.0",
-            )
+        #[derive(serde::Deserialize)]
+        struct ConfidenceHelper {
+            score: f32,
+            rationale: Option<String>,
+        }
+        let h = ConfidenceHelper::deserialize(deserializer)?;
+        if !h.score.is_finite() || !(0.0..=1.0).contains(&h.score) {
+            return Err(serde::de::Error::invalid_value(
+                serde::de::Unexpected::Float(h.score as f64),
+                &"a finite value between 0.0 and 1.0",
+            ));
+        }
+        Ok(Confidence {
+            score: h.score,
+            rationale: h.rationale,
         })
     }
 }
@@ -575,8 +619,8 @@ pub use values::{
 };
 pub use records::{
     Artifact, ArtifactStorage, Assumption, BinaryArtifactMetadata, Endianness, EnvironmentIdentity,
-    EvidenceLifecycleEvent, EvidenceLifecycleState, EvidenceRecord, Project,
-    Provider, ProviderEntityAlias, ProviderRun, ProviderRunStatus, NativeArtifact, SemanticEntity,
+    EvidenceLifecycleEvent, EvidenceLifecycleState, EvidenceRecord, Hypothesis, HypothesisStatus,
+    Project, Provider, ProviderEntityAlias, ProviderRun, ProviderRunStatus, NativeArtifact, SemanticEntity,
     ARTIFACT_KIND_BINARY, ARTIFACT_KIND_CONFIGURATION, ARTIFACT_KIND_GENERATED_CANDIDATE,
     ARTIFACT_KIND_LOG, ARTIFACT_KIND_NATIVE_PROVIDER_OUTPUT, ARTIFACT_KIND_SOURCE_TREE,
     ARTIFACT_KIND_TRACE, ENTITY_KIND_EXTERNAL_FUNCTION, ENTITY_KIND_FUNCTION, ENTITY_KIND_GLOBAL,
@@ -584,6 +628,9 @@ pub use records::{
     EVIDENCE_PREDICATE_CALL_TARGET, EVIDENCE_PREDICATE_CONTROL_FLOW,
     EVIDENCE_PREDICATE_FUNCTION_NAME, EVIDENCE_PREDICATE_FUNCTION_SIGNATURE,
     EVIDENCE_PREDICATE_STRING_REFERENCE, EVIDENCE_PREDICATE_TYPE_INFO,
+    HYPOTHESIS_STATUS_ACCEPTED, HYPOTHESIS_STATUS_PROPOSED,
+    HYPOTHESIS_STATUS_REJECTED, HYPOTHESIS_STATUS_SUPERSEDED,
+    HYPOTHESIS_STATUS_UNDER_INVESTIGATION,
     NATIVE_FORMAT_GDB_TRACE, NATIVE_FORMAT_GHIDRA_PCODE, NATIVE_FORMAT_IDA_HEXRAYS_PSEUDOCODE,
     NATIVE_FORMAT_IDA_MICROCODE, NATIVE_FORMAT_LLM_RAW_RESPONSE, NATIVE_FORMAT_Z3_MODEL,
     PROVIDER_KIND_DEBUGGER, PROVIDER_KIND_DECOMPILER, PROVIDER_KIND_DISASSEMBLER,
@@ -612,31 +659,49 @@ mod tests {
     #[test]
     fn confidence_accepts_boundary_values() {
         let c = Confidence::new(0.0).unwrap();
-        assert!((c.value() - 0.0).abs() < f32::EPSILON);
+        assert!((c.score() - 0.0).abs() < f32::EPSILON);
         let c = Confidence::new(1.0).unwrap();
-        assert!((c.value() - 1.0).abs() < f32::EPSILON);
+        assert!((c.score() - 1.0).abs() < f32::EPSILON);
     }
 
     #[test]
     fn confidence_valid_mid_range() {
         let c = Confidence::new(0.5).unwrap();
-        assert!((c.value() - 0.5).abs() < f32::EPSILON);
+        assert!((c.score() - 0.5).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn confidence_with_rationale() {
+        let c = Confidence::with_rationale(0.8, "strong evidence").unwrap();
+        assert!((c.score() - 0.8).abs() < f32::EPSILON);
+        assert_eq!(c.rationale(), Some("strong evidence"));
     }
 
     #[test]
     fn confidence_serialize_roundtrip() {
         let c = Confidence::new(0.75).unwrap();
         let json = serde_json::to_string(&c).unwrap();
-        assert_eq!(json, "0.75");
         let deserialized: Confidence = serde_json::from_str(&json).unwrap();
-        assert!((deserialized.value() - 0.75).abs() < f32::EPSILON);
+        assert!((deserialized.score() - 0.75).abs() < f32::EPSILON);
+        assert!(deserialized.rationale().is_none());
+    }
+
+    #[test]
+    fn confidence_with_rationale_serialize_roundtrip() {
+        let c = Confidence::with_rationale(0.9, "verified").unwrap();
+        let json = serde_json::to_string(&c).unwrap();
+        let deserialized: Confidence = serde_json::from_str(&json).unwrap();
+        assert!((deserialized.score() - 0.9).abs() < f32::EPSILON);
+        assert_eq!(deserialized.rationale(), Some("verified"));
     }
 
     #[test]
     fn confidence_deserialize_rejects_out_of_range() {
-        let result: std::result::Result<Confidence, _> = serde_json::from_str("1.5");
+        let result: std::result::Result<Confidence, _> =
+            serde_json::from_str(r#"{"score":1.5,"rationale":null}"#);
         assert!(result.is_err());
-        let result: std::result::Result<Confidence, _> = serde_json::from_str("-0.1");
+        let result: std::result::Result<Confidence, _> =
+            serde_json::from_str(r#"{"score":-0.1,"rationale":null}"#);
         assert!(result.is_err());
     }
 
@@ -644,7 +709,7 @@ mod tests {
     fn confidence_error_message() {
         match Confidence::new(42.0) {
             Err(Error::Validation(msg)) => {
-                assert!(msg.contains("confidence must be between 0 and 1"));
+                assert!(msg.contains("confidence must be finite and between 0 and 1"));
             }
             _ => panic!("expected Validation error"),
         }

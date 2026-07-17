@@ -6,8 +6,8 @@
 
 use std::path::PathBuf;
 
-use crate::domain::{ContentHash, ExtensionData, EvidenceValue, MetadataMap, NamespacedId, SchemaVersion, StableEntityKey, Timestamp};
-use crate::ids::{ArtifactId, EntityId, EvidenceRecordId, NativeArtifactId, PackageId, ProjectId, ProviderId, ProviderRunId};
+use crate::domain::{Confidence, ContentHash, ExtensionData, EvidenceValue, MetadataMap, NamespacedId, SchemaVersion, StableEntityKey, Timestamp};
+use crate::ids::{ArtifactId, EntityId, EvidenceRecordId, HypothesisId, NativeArtifactId, PackageId, ProjectId, ProviderId, ProviderRunId};
 
 // ---------------------------------------------------------------------------
 // Project
@@ -564,6 +564,162 @@ pub static EVIDENCE_PREDICATE_TYPE_INFO: std::sync::LazyLock<NamespacedId> =
 /// Evidence predicate: control flow observation.
 pub static EVIDENCE_PREDICATE_CONTROL_FLOW: std::sync::LazyLock<NamespacedId> =
     std::sync::LazyLock::new(|| NamespacedId::parse("evidence.predicate.control-flow").unwrap());
+
+// ---------------------------------------------------------------------------
+// HypothesisStatus
+// ---------------------------------------------------------------------------
+
+/// The lifecycle status of a hypothesis.
+///
+/// Valid transitions (§13):
+/// - Proposed -> UnderInvestigation
+/// - UnderInvestigation -> Accepted, Rejected
+/// - Accepted -> Superseded { by }
+/// - All other transitions are invalid.
+///
+/// Changing confidence does NOT change status (§13).
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum HypothesisStatus {
+    Proposed,
+    UnderInvestigation,
+    Accepted,
+    Rejected,
+    Superseded { by: HypothesisId },
+}
+
+impl HypothesisStatus {
+    /// Validates a state transition from `self` to `target`.
+    ///
+    /// Only the documented transitions are allowed; all others
+    /// return `Error::InvalidStateTransition`.
+    pub fn transition(&self, target: &HypothesisStatus) -> autore_core::Result<()> {
+        match (self, target) {
+            (HypothesisStatus::Proposed, HypothesisStatus::UnderInvestigation) => Ok(()),
+            (HypothesisStatus::UnderInvestigation, HypothesisStatus::Accepted) => Ok(()),
+            (HypothesisStatus::UnderInvestigation, HypothesisStatus::Rejected) => Ok(()),
+            (HypothesisStatus::Accepted, HypothesisStatus::Superseded { .. }) => Ok(()),
+            _ => Err(autore_core::Error::InvalidStateTransition(format!(
+                "{self} -> {target}"
+            ))),
+        }
+    }
+
+    /// Returns the discriminant string for database storage and filtering.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            HypothesisStatus::Proposed => "Proposed",
+            HypothesisStatus::UnderInvestigation => "UnderInvestigation",
+            HypothesisStatus::Accepted => "Accepted",
+            HypothesisStatus::Rejected => "Rejected",
+            HypothesisStatus::Superseded { .. } => "Superseded",
+        }
+    }
+
+    /// Returns `true` if this status is a terminal state.
+    pub fn is_terminal(&self) -> bool {
+        matches!(
+            self,
+            HypothesisStatus::Accepted | HypothesisStatus::Rejected | HypothesisStatus::Superseded { .. }
+        )
+    }
+}
+
+impl std::fmt::Display for HypothesisStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HypothesisStatus::Proposed => write!(f, "Proposed"),
+            HypothesisStatus::UnderInvestigation => write!(f, "UnderInvestigation"),
+            HypothesisStatus::Accepted => write!(f, "Accepted"),
+            HypothesisStatus::Rejected => write!(f, "Rejected"),
+            HypothesisStatus::Superseded { by } => write!(f, "Superseded({by})"),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Hypothesis status constants
+// ---------------------------------------------------------------------------
+
+pub static HYPOTHESIS_STATUS_PROPOSED: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("hypothesis.status.proposed").unwrap());
+
+pub static HYPOTHESIS_STATUS_UNDER_INVESTIGATION: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("hypothesis.status.under-investigation").unwrap());
+
+pub static HYPOTHESIS_STATUS_ACCEPTED: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("hypothesis.status.accepted").unwrap());
+
+pub static HYPOTHESIS_STATUS_REJECTED: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("hypothesis.status.rejected").unwrap());
+
+pub static HYPOTHESIS_STATUS_SUPERSEDED: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("hypothesis.status.superseded").unwrap());
+
+// ---------------------------------------------------------------------------
+// Hypothesis
+// ---------------------------------------------------------------------------
+
+/// A hypothesis about a semantic entity within a project.
+///
+/// Hypotheses are proposed explanations or predictions supported by
+/// evidence. They follow a state machine (Proposed → UnderInvestigation
+/// → Accepted/Rejected → Superseded). Accepting one hypothesis does NOT
+/// auto-delete competitors (§13). Supersession chains must be acyclic.
+///
+/// NOTE: `supporting_evidence` and `contradicting_evidence` use
+/// `EvidenceRecordId` (Stage 0), NOT the M1 `EvidenceId`. This is an
+/// intentional deviation from the plan text to align with Stage 0's
+/// evidence model (Task 17).
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Hypothesis {
+    pub id: HypothesisId,
+    pub project: ProjectId,
+    pub subject: EntityId,
+    pub predicate: NamespacedId,
+    pub candidate: EvidenceValue,
+    pub supporting_evidence: Vec<EvidenceRecordId>,
+    pub contradicting_evidence: Vec<EvidenceRecordId>,
+    pub derived_from: Vec<HypothesisId>,
+    pub confidence: Confidence,
+    pub status: HypothesisStatus,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
+}
+
+impl Hypothesis {
+    /// Creates a new hypothesis in `Proposed` status.
+    pub fn new(
+        project: ProjectId,
+        subject: EntityId,
+        predicate: NamespacedId,
+        candidate: EvidenceValue,
+    ) -> Self {
+        let now = Timestamp::now();
+        Hypothesis {
+            id: HypothesisId::new(),
+            project,
+            subject,
+            predicate,
+            candidate,
+            supporting_evidence: vec![],
+            contradicting_evidence: vec![],
+            derived_from: vec![],
+            confidence: Confidence::new(0.5).expect("0.5 is valid"),
+            status: HypothesisStatus::Proposed,
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
+    /// Transitions this hypothesis to the target status, validating the
+    /// state machine.
+    pub fn transition(&mut self, target: HypothesisStatus) -> autore_core::Result<()> {
+        self.status.transition(&target)?;
+        self.status = target;
+        self.updated_at = Timestamp::now();
+        Ok(())
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -1171,5 +1327,200 @@ mod tests {
         assert_eq!(EVIDENCE_PREDICATE_STRING_REFERENCE.to_string(), "evidence.predicate.string-reference");
         assert_eq!(EVIDENCE_PREDICATE_TYPE_INFO.to_string(), "evidence.predicate.type-info");
         assert_eq!(EVIDENCE_PREDICATE_CONTROL_FLOW.to_string(), "evidence.predicate.control-flow");
+    }
+
+    // -- HypothesisStatus tests --
+
+    #[test]
+    fn hypothesis_state_transitions_valid() {
+        let proposed = HypothesisStatus::Proposed;
+        assert!(proposed.transition(&HypothesisStatus::UnderInvestigation).is_ok());
+
+        let investigating = HypothesisStatus::UnderInvestigation;
+        assert!(investigating.transition(&HypothesisStatus::Accepted).is_ok());
+        assert!(investigating.transition(&HypothesisStatus::Rejected).is_ok());
+
+        let accepted = HypothesisStatus::Accepted;
+        let superseded = HypothesisStatus::Superseded { by: HypothesisId::new() };
+        assert!(accepted.transition(&superseded).is_ok());
+    }
+
+    #[test]
+    fn hypothesis_state_transitions_reject_invalid() {
+        assert!(HypothesisStatus::Proposed.transition(&HypothesisStatus::Accepted).is_err());
+        assert!(HypothesisStatus::Proposed.transition(&HypothesisStatus::Rejected).is_err());
+        assert!(HypothesisStatus::UnderInvestigation.transition(&HypothesisStatus::Proposed).is_err());
+        assert!(HypothesisStatus::Accepted.transition(&HypothesisStatus::Rejected).is_err());
+        assert!(HypothesisStatus::Accepted.transition(&HypothesisStatus::UnderInvestigation).is_err());
+        assert!(HypothesisStatus::Rejected.transition(&HypothesisStatus::Accepted).is_err());
+        assert!(HypothesisStatus::Rejected.transition(&HypothesisStatus::Proposed).is_err());
+        let s = HypothesisStatus::Superseded { by: HypothesisId::new() };
+        assert!(s.transition(&HypothesisStatus::Accepted).is_err());
+        assert!(s.transition(&HypothesisStatus::Proposed).is_err());
+    }
+
+    #[test]
+    fn hypothesis_supersession_cycle_rejected() {
+        use autore_core::validation::validate_no_cycle;
+
+        let h1 = HypothesisId::new();
+        let h2 = HypothesisId::new();
+        let h3 = HypothesisId::new();
+
+        let ids = vec![h1.to_string(), h2.to_string(), h3.to_string()];
+        let cyclic_edges = vec![(0, 1), (1, 2), (2, 0)];
+        let result = validate_no_cycle(&ids, &cyclic_edges);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("cycle detected"));
+
+        let acyclic_edges = vec![(0, 1), (1, 2)];
+        assert!(validate_no_cycle(&ids, &acyclic_edges).is_ok());
+    }
+
+    #[test]
+    fn confidence_independent_of_status() {
+        let mut h = Hypothesis::new(
+            ProjectId::new(),
+            EntityId::new(),
+            NamespacedId::parse("hypothesis.predicate.test").unwrap(),
+            EvidenceValue::String("candidate".to_string()),
+        );
+        assert_eq!(h.status, HypothesisStatus::Proposed);
+        let original_status = h.status.clone();
+
+        h.confidence = Confidence::new(0.9).unwrap();
+        assert_eq!(h.status, original_status, "changing confidence must not change status");
+
+        h.confidence = Confidence::new(0.1).unwrap();
+        assert_eq!(h.status, original_status, "changing confidence must not change status");
+    }
+
+    #[test]
+    fn hypothesis_status_display() {
+        assert_eq!(HypothesisStatus::Proposed.to_string(), "Proposed");
+        assert_eq!(HypothesisStatus::UnderInvestigation.to_string(), "UnderInvestigation");
+        assert_eq!(HypothesisStatus::Accepted.to_string(), "Accepted");
+        assert_eq!(HypothesisStatus::Rejected.to_string(), "Rejected");
+        let s = HypothesisStatus::Superseded { by: HypothesisId::new() };
+        assert!(s.to_string().starts_with("Superseded("));
+    }
+
+    #[test]
+    fn hypothesis_status_kind() {
+        assert_eq!(HypothesisStatus::Proposed.kind(), "Proposed");
+        assert_eq!(HypothesisStatus::UnderInvestigation.kind(), "UnderInvestigation");
+        assert_eq!(HypothesisStatus::Accepted.kind(), "Accepted");
+        assert_eq!(HypothesisStatus::Rejected.kind(), "Rejected");
+        let s = HypothesisStatus::Superseded { by: HypothesisId::new() };
+        assert_eq!(s.kind(), "Superseded");
+    }
+
+    #[test]
+    fn hypothesis_status_terminal() {
+        assert!(!HypothesisStatus::Proposed.is_terminal());
+        assert!(!HypothesisStatus::UnderInvestigation.is_terminal());
+        assert!(HypothesisStatus::Accepted.is_terminal());
+        assert!(HypothesisStatus::Rejected.is_terminal());
+        assert!(HypothesisStatus::Superseded { by: HypothesisId::new() }.is_terminal());
+    }
+
+    #[test]
+    fn hypothesis_status_serialize_round_trip() {
+        for status in [
+            HypothesisStatus::Proposed,
+            HypothesisStatus::UnderInvestigation,
+            HypothesisStatus::Accepted,
+            HypothesisStatus::Rejected,
+            HypothesisStatus::Superseded { by: HypothesisId::new() },
+        ] {
+            let json = serde_json::to_string(&status).unwrap();
+            let back: HypothesisStatus = serde_json::from_str(&json).unwrap();
+            assert_eq!(status, back);
+        }
+    }
+
+    #[test]
+    fn hypothesis_status_constants_registered() {
+        assert_eq!(HYPOTHESIS_STATUS_PROPOSED.to_string(), "hypothesis.status.proposed");
+        assert_eq!(HYPOTHESIS_STATUS_UNDER_INVESTIGATION.to_string(), "hypothesis.status.under-investigation");
+        assert_eq!(HYPOTHESIS_STATUS_ACCEPTED.to_string(), "hypothesis.status.accepted");
+        assert_eq!(HYPOTHESIS_STATUS_REJECTED.to_string(), "hypothesis.status.rejected");
+        assert_eq!(HYPOTHESIS_STATUS_SUPERSEDED.to_string(), "hypothesis.status.superseded");
+    }
+
+    #[test]
+    fn hypothesis_round_trip_json() {
+        let h = Hypothesis {
+            id: HypothesisId::new(),
+            project: ProjectId::new(),
+            subject: EntityId::new(),
+            predicate: NamespacedId::parse("hypothesis.predicate.test").unwrap(),
+            candidate: EvidenceValue::String("candidate".to_string()),
+            supporting_evidence: vec![EvidenceRecordId::new()],
+            contradicting_evidence: vec![],
+            derived_from: vec![HypothesisId::new()],
+            confidence: Confidence::with_rationale(0.7, "strong signal").unwrap(),
+            status: HypothesisStatus::UnderInvestigation,
+            created_at: Timestamp::now(),
+            updated_at: Timestamp::now(),
+        };
+        let json = serde_json::to_string_pretty(&h).unwrap();
+        let back: Hypothesis = serde_json::from_str(&json).unwrap();
+        assert_eq!(h.id, back.id);
+        assert_eq!(h.project, back.project);
+        assert_eq!(h.subject, back.subject);
+        assert_eq!(h.predicate, back.predicate);
+        assert_eq!(h.candidate, back.candidate);
+        assert_eq!(h.supporting_evidence, back.supporting_evidence);
+        assert_eq!(h.contradicting_evidence, back.contradicting_evidence);
+        assert_eq!(h.derived_from, back.derived_from);
+        assert_eq!(h.confidence, back.confidence);
+        assert_eq!(h.status, back.status);
+    }
+
+    #[test]
+    fn hypothesis_new_defaults() {
+        let h = Hypothesis::new(
+            ProjectId::new(),
+            EntityId::new(),
+            NamespacedId::parse("hypothesis.predicate.test").unwrap(),
+            EvidenceValue::Null,
+        );
+        assert_eq!(h.status, HypothesisStatus::Proposed);
+        assert!(h.supporting_evidence.is_empty());
+        assert!(h.contradicting_evidence.is_empty());
+        assert!(h.derived_from.is_empty());
+        assert!((h.confidence.score() - 0.5).abs() < f32::EPSILON);
+        assert!(h.confidence.rationale().is_none());
+    }
+
+    #[test]
+    fn hypothesis_transition_updates_status() {
+        let mut h = Hypothesis::new(
+            ProjectId::new(),
+            EntityId::new(),
+            NamespacedId::parse("hypothesis.predicate.test").unwrap(),
+            EvidenceValue::Null,
+        );
+        assert_eq!(h.status, HypothesisStatus::Proposed);
+
+        h.transition(HypothesisStatus::UnderInvestigation).unwrap();
+        assert_eq!(h.status, HypothesisStatus::UnderInvestigation);
+
+        h.transition(HypothesisStatus::Accepted).unwrap();
+        assert_eq!(h.status, HypothesisStatus::Accepted);
+    }
+
+    #[test]
+    fn hypothesis_transition_rejects_invalid() {
+        let mut h = Hypothesis::new(
+            ProjectId::new(),
+            EntityId::new(),
+            NamespacedId::parse("hypothesis.predicate.test").unwrap(),
+            EvidenceValue::Null,
+        );
+        let result = h.transition(HypothesisStatus::Accepted);
+        assert!(result.is_err());
+        assert_eq!(h.status, HypothesisStatus::Proposed, "status unchanged on invalid transition");
     }
 }

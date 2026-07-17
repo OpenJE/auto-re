@@ -37,9 +37,25 @@ macro_rules! impl_schema_delegate {
 // Simple newtypes delegate to their inner representation.
 impl_schema_delegate!(FunctionId, "FunctionId" => String);
 impl_schema_delegate!(SymbolName, "SymbolName" => String);
-impl_schema_delegate!(Confidence, "Confidence" => f64);
 // AddressSpace uses a custom Display/FromStr serde impl → schema is a string.
 impl_schema_delegate!(AddressSpace, "AddressSpace" => String);
+
+#[derive(JsonSchema)]
+#[schemars(rename = "Confidence")]
+#[allow(dead_code)]
+struct ConfidenceRepr {
+    score: f32,
+    rationale: Option<String>,
+}
+
+impl JsonSchema for Confidence {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("Confidence")
+    }
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        ConfidenceRepr::json_schema(generator)
+    }
+}
 
 // Complex types use private helper structs/enums that derive JsonSchema,
 // then delegate the real type's implementation to the helper.

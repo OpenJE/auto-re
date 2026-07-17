@@ -301,7 +301,7 @@ impl Claim {
                     EntityId::Function(function_id),
                     pc.predicate.clone(),
                     pc.value.clone(),
-                    pc.confidence,
+                    pc.confidence.clone(),
                     Provenance::Agent { worker_run_id },
                 )
             })
