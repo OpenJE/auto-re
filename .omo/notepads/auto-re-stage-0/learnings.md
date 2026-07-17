@@ -188,3 +188,15 @@
 - **`events_after` with `limit`**: The underlying `EventStore::events_after` returns all matching events; the service layer applies `.take(limit)` to satisfy the `ProjectEventService` trait contract without changing the store API.
 - **`ProjectEventSubscription::new` is synchronous but lazy**: The initial replay buffer is loaded on the first `next().await` call, so creating a subscription never blocks on the database.
 - **`EventBroadcaster::with_capacity` enables testable lag**: The default capacity is `EVENT_BROADCAST_CAPACITY = 256`, but a smaller capacity can be used in tests to force `RecvError::Lagged` without emitting hundreds of events.
+
+## 2026-07-17 (Task 24)
+
+- **ApplicationService belongs in `autore-app`**: It needs both `autore-schema` (request/response types) and `autore-store` (database + event helpers), so `autore-app` is the natural home.
+- **All mutating commands must use `with_event`**: The helper runs the mutation closure and then emits the event in the same SQLite transaction. Passing the event `subject` as `Some(EventSubject::...)` is required for tests that inspect the event.
+- **Raw SQL helpers inside `with_event` avoid Task 21 deadlock**: Store methods acquire their own `Mutex<Connection>` guard, so calling them inside the `with_event` closure would deadlock. The mutation helpers use `txn.conn()` directly.
+- **Store traits needed `list_by_project` for query routing**: `ArtifactStore` and `VerificationStore` lacked project-scoped list methods. Adding them lets `ApplicationService` route `ListArtifacts` and `ListVerifications` without duplicating SQL.
+- **Schema constants for cancellation were missing**: `EVENT_KIND_OPERATION_CANCELLING` and `EVENT_KIND_OPERATION_CANCELLED` were added to `autore-schema` so `CancelOperation` can emit a meaningful event.
+- **`NamespacedId` validation requires exactly one dot**: Test predicates like `hypothesis.predicate.test` are invalid; use `hypothesis.test` instead.
+- **`MetadataMap` is private in `domain::records`**: Import it from `autore_schema::domain::values` when constructing records manually.
+- **`ProjectEventService` trait does not expose `emit_event`**: Only `LocalProjectEventService` has the inherent `emit_event` method; application code should route through `with_event` for atomicity.
+- **Clippy tuple-variant `map_err`**: `map_err(|e| Error::Database(e))` can be simplified to `map_err(Error::Database)`.

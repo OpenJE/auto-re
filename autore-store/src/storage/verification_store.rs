@@ -10,6 +10,7 @@ use crate::storage::database::Database;
 pub trait VerificationStore: Send + Sync {
     fn insert(&self, record: &VerificationRecord) -> crate::Result<()>;
     fn get(&self, id: VerificationRecordId) -> crate::Result<Option<VerificationRecord>>;
+    fn list_by_project(&self, project_id: ProjectId) -> crate::Result<Vec<VerificationRecord>>;
     fn list_by_subject(
         &self,
         subject: VerificationSubject,
@@ -135,6 +136,29 @@ impl VerificationStore for SqliteVerificationStore<'_> {
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(crate::Error::Database(e.to_string())),
         }
+    }
+
+    fn list_by_project(&self, project_id: ProjectId) -> crate::Result<Vec<VerificationRecord>> {
+        let project_bytes = project_id.as_uuid().as_bytes().to_vec();
+        let conn = self.db.connection()?;
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, project_id, subject_kind, subject_id, check_kind, state, \
+                 provider_run, evidence, details, created_at \
+                 FROM verification_records \
+                 WHERE project_id = ?1 \
+                 ORDER BY created_at ASC, id ASC",
+            )
+            .map_err(|e| crate::Error::Database(e.to_string()))?;
+
+        let records = stmt
+            .query_map(rusqlite::params![project_bytes], row_to_verification_record)
+            .map_err(|e| crate::Error::Database(e.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| crate::Error::Database(e.to_string()))?;
+
+        Ok(records)
     }
 
     fn list_by_subject(

@@ -48,6 +48,9 @@ pub trait ArtifactStore: Send + Sync {
         kind: NamespacedId,
     ) -> crate::Result<Artifact>;
 
+    /// Lists all artifacts registered for a project.
+    fn list_by_project(&self, project_id: ProjectId) -> crate::Result<Vec<Artifact>>;
+
     /// Like [`register_managed`] but uses BLAKE3 hashing. Call this when the
     /// source already has a known BLAKE3 hash from V1.
     fn register_managed_blake3(
@@ -325,6 +328,26 @@ impl ArtifactStore for SqliteArtifactStore<'_> {
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(crate::Error::Database(e.to_string())),
         }
+    }
+
+    fn list_by_project(&self, project_id: ProjectId) -> crate::Result<Vec<Artifact>> {
+        let project_bytes = project_id.as_uuid().as_bytes().to_vec();
+        let conn = self.db.connection()?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, project_id, kind, hash_algorithm, hash_digest, size, \
+                 storage_kind, storage_path, created_at, metadata \
+                 FROM stage0_artifacts \
+                 WHERE project_id = ?1 \
+                 ORDER BY created_at ASC, id ASC",
+            )
+            .map_err(|e| crate::Error::Database(e.to_string()))?;
+        let artifacts = stmt
+            .query_map(rusqlite::params![project_bytes], row_to_artifact)
+            .map_err(|e| crate::Error::Database(e.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| crate::Error::Database(e.to_string()))?;
+        Ok(artifacts)
     }
 }
 

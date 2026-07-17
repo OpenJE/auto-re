@@ -150,7 +150,10 @@ dependencies = [
  "autore-store",
  "autore-tui",
  "rusqlite",
+ "serde_json",
  "tempfile",
+ "time",
+ "uuid",
 ]
 
 [[package]]

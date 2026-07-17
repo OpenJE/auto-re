@@ -338,3 +338,31 @@
 - The acceptance-criteria test injects a gap (sequences `[1, 3, 5]`) and asserts the subscriber detects it.
 - After receiving sequence 1, the next event is 3, which is a gap. The subscription resyncs from `events_after(1)`. Since the emulator still returns 3 as the first event, the gap is unrecoverable and the subscription returns `Error::Subscription("unrecoverable sequence gap ...")`.
 - This satisfies "subscriber detects and rebuilds" in the sense that the subscriber attempts to rebuild via resync; when the authoritative store is inconsistent, it reports the failure rather than silently skipping events.
+
+## 2026-07-17 (Task 24)
+
+### Provider commands intentionally omit events (DESIGN NOTE)
+- Stage 0 event-kind constants do not include provider-specific events (`core.provider.registered`, `core.provider.run-started`, etc.).
+- `RegisterProvider` and `StartProviderRun` therefore execute store operations directly without calling `with_event`.
+- Per the task specification, this is acceptable for Stage 0; provider events can be added in a later stage when the event vocabulary is defined.
+
+### Missing operation cancellation event constants (RESOLVED)
+- `CancelOperation` needs a meaningful event kind, but `EVENT_KIND_OPERATION_CANCELLING` did not exist in `autore-schema`.
+- Added `EVENT_KIND_OPERATION_CANCELLING` and `EVENT_KIND_OPERATION_CANCELLED` in `autore-schema/src/domain/records.rs` and re-exported them in `domain/mod.rs`.
+- `autore-events` still maps `Cancelling` to `EVENT_KIND_OPERATION_PROGRESS` in its convenience helper; the application layer uses the explicit new constant instead.
+
+### `ApplicationService` re-exports from `autore-store` (RESOLVED)
+- `ApplicationService` needs `HypothesisStore` as a trait object, but it was not re-exported from `autore-store/src/lib.rs`.
+- Added `HypothesisStore` to the public re-export list.
+
+### `create_project` must use `with_event` (RESOLVED)
+- The initial implementation called `LocalProjectEventService::emit_event` directly, but the trait object field only exposes `ProjectEventService` methods.
+- Refactored `create_project` to use `with_event` with a raw `muts::insert_project` helper, making the project insert and event emission atomic.
+
+### `MetadataMap` import path (RESOLVED)
+- `domain::records` re-uses `MetadataMap` internally without a public `pub use`.
+- The application layer imports it from `autore_schema::domain::values` directly.
+
+### Test predicates needed valid NamespacedIds (RESOLVED)
+- Early tests used `hypothesis.predicate.test` as a predicate, which fails the one-dot validation rule.
+- Changed test predicates to `hypothesis.test` so validation and confidence checks run in the correct order.

@@ -1445,6 +1445,12 @@ pub static EVENT_KIND_OPERATION_COMPLETED: std::sync::LazyLock<NamespacedId> =
 pub static EVENT_KIND_OPERATION_FAILED: std::sync::LazyLock<NamespacedId> =
     std::sync::LazyLock::new(|| NamespacedId::parse("core.operation.failed").unwrap());
 
+pub static EVENT_KIND_OPERATION_CANCELLING: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.operation.cancelling").unwrap());
+
+pub static EVENT_KIND_OPERATION_CANCELLED: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.operation.cancelled").unwrap());
+
 pub static EVENT_KIND_PROJECT_VALIDATION_FAILED: std::sync::LazyLock<NamespacedId> =
     std::sync::LazyLock::new(|| NamespacedId::parse("core.project.validation-failed").unwrap());
 

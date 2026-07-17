@@ -10,3 +10,10 @@ pub mod lifecycle;
 mod operation;
 
 pub use lifecycle::{close_project, create_project, open_project};
+
+pub mod application_service;
+
+pub use application_service::{
+    ApplicationCommand, ApplicationQuery, ApplicationService, AutoReClient, CommandResult, QueryResult,
+};
+
