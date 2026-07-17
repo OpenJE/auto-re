@@ -1,0 +1,39 @@
+# Task 21: ProjectEvent + EventStore with Atomic State+Event Transactions
+# Date: 2026-07-17
+
+## Summary
+Implemented ProjectEvent domain type, V11 migration, EventStore trait + SqliteEventStore,
+with_event atomic helper, and 17 event kind constants.
+
+## Files Changed
+- autore-schema/src/domain/records.rs: Added ProjectEvent struct + 17 EVENT_KIND_* constants + 4 unit tests
+- autore-schema/src/domain/mod.rs: Added re-exports for ProjectEvent and all event kind constants
+- migrations/V11__events.sql: Created project_events table with UNIQUE(project_id, sequence), BLOB PK, index
+- autore-store/src/storage/event_store.rs: EventStore trait, SqliteEventStore, emit_in_tx, next_project_event_sequence (in-tx), with_event helper + 6 integration tests
+- autore-store/src/storage/mod.rs: Added event_store module + re-exports
+- autore-store/src/lib.rs: Added EventStore, SqliteEventStore, emit_in_tx, next_project_event_sequence, with_event exports
+- autore-store/src/storage/database.rs: Updated tests for V11 project_events table (FK-aware insert, table existence check)
+- autore-events/Cargo.toml: Added autore-schema dependency
+- autore-events/src/lib.rs: Updated operation_events to use real NamespacedId constants from records.rs
+
+## Test Results
+- cargo build --workspace: PASS
+- cargo test -p autore-schema: 248 passed, 0 failed
+- cargo test -p autore-store: 155 passed, 0 failed (+ 1 migration smoke test)
+- cargo test -p autore-events: 3 passed, 0 failed
+- cargo test -p autore-core: all pass
+- cargo test -p autore-app: 7 passed, 0 failed
+- cargo clippy --workspace --exclude autore-stage1 --all-targets -- -D warnings: CLEAN
+
+## Required Test Verification
+- event_sequence_monotonic_per_project: PASS
+- event_sequence_unique_per_project: PASS
+- atomic_state_plus_event_rollback: PASS
+- event_emitted_with_state_change_in_same_tx: PASS
+
+## Key Design Decisions
+- Per-project monotonic sequence computed inside Transaction (not Database) to avoid Mutex re-acquisition
+- with_event helper pattern: begin tx -> closure -> compute seq -> emit event -> commit
+- OperationStore methods cannot be called inside with_event closure (Mutex deadlock) - closure must use txn.conn() directly
+- V11 uses project_event_id BLOB as global PK + UNIQUE(project_id, sequence) composite
+- EventSource reconstructed from Display string in row_to_event (not serde)

@@ -203,6 +203,7 @@ mod tests {
         assert!(tables.contains(&"native_artifacts".to_string()));
         assert!(tables.contains(&"contradictions".to_string()));
         assert!(tables.contains(&"verification_records".to_string()));
+        assert!(tables.contains(&"project_events".to_string()));
     }
 
     #[test]
@@ -438,25 +439,41 @@ mod tests {
     #[test]
     fn next_project_event_sequence_with_table() {
         let db = Database::open_in_memory().unwrap();
+
         let conn = db.connection().unwrap();
+        let pid_bytes = uuid::Uuid::now_v7();
         conn.execute(
-            "CREATE TABLE project_events (\
-                project_id BLOB NOT NULL, \
-                sequence INTEGER NOT NULL, \
-                PRIMARY KEY (project_id, sequence))",
-            [],
+            "INSERT INTO projects (id, name, schema_version, created_at, updated_at, metadata) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                pid_bytes.as_bytes().as_slice(),
+                "test",
+                "2.0",
+                "2026-01-01T00:00:00Z",
+                "2026-01-01T00:00:00Z",
+                "{}",
+            ],
         )
         .unwrap();
         drop(conn);
 
-        let pid = ProjectId::new();
+        let pid = ProjectId::from_uuid(pid_bytes);
         let seq1 = db.next_project_event_sequence(pid).unwrap();
         assert_eq!(seq1, 1);
 
         let conn = db.connection().unwrap();
         conn.execute(
-            "INSERT INTO project_events (project_id, sequence) VALUES (?1, ?2)",
-            rusqlite::params![pid.as_uuid().as_bytes().as_slice(), 1i64],
+            "INSERT INTO project_events \
+             (project_event_id, project_id, sequence, kind, source, created_at) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                uuid::Uuid::now_v7().as_bytes().as_slice(),
+                pid.as_uuid().as_bytes().as_slice(),
+                1i64,
+                "core.project.created",
+                "Project",
+                "2026-01-01T00:00:00Z",
+            ],
         )
         .unwrap();
         drop(conn);

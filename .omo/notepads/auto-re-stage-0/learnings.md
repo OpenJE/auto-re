@@ -158,3 +158,12 @@
 - **`OperationFailure` stored as JSON TEXT**: Same pattern as `ContradictionResolution` — complex type serialized to a TEXT column. NULL until the operation transitions to `Failed`.
 - **V10 migration numbering**: Plan text says `V9__operations.sql` but V9 is already used by `contradictions_verification.sql`. V10 is the correct next migration number. Task brief correctly flagged this.
 - **`autore-events::operation_events` module**: Created as a bridge module with `transition_event_kind()` and `emit_transition_event()` functions. Task 21 will wire these to actual `ProjectEvent` records. The event kind format is `core.operation.<state>` (e.g., `core.operation.started` for Running).
+
+## 2026-07-17 (Task 21)
+
+- **`Transaction` Mutex deadlock with store methods**: `Database` wraps `Connection` in `Mutex`. `begin_transaction()` acquires the lock. Store methods like `OperationStore::transition()` call `self.db.connection()` which tries to lock the same Mutex → deadlock. Inside `with_event` closures, state mutations must use `txn.conn()` directly (raw SQL) rather than going through store methods.
+- **`next_project_event_sequence` must run inside the transaction**: Computing `MAX(sequence) + 1` outside the transaction risks two concurrent writers getting the same sequence. The in-transaction version takes `&Transaction` (not `&Database`), ensuring the sequence is computed while the lock is held.
+- **`V11 project_events` has FK to `projects(id)`**: Tests that insert events must first insert a project row. The `next_project_event_sequence_with_table` test in database.rs needed updating to insert a project before inserting an event.
+- **`EventSource` reconstructed via `parse_event_source` match**: Rather than using serde for DB round-trip, the `EventSource` enum is reconstructed from its `Display` string via a match expression. This is simpler and avoids serde overhead for a flat enum.
+- **`with_event` helper returns `Result<T>` from the closure**: The closure can return any value, which is forwarded after the event is emitted and the transaction committed. This enables patterns like `let id = with_event(db, pid, kind, source, subject, None, |txn| { insert_and_return_id(txn) })?`.
+- **`autore-events` gains `autore-schema` dependency**: The `operation_events` module now references `EVENT_KIND_OPERATION_*` constants from `autore-schema`. This is a lightweight dependency (no SQLite) and does not create circular references.

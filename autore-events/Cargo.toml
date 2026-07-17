@@ -6,3 +6,4 @@ edition.workspace = true
 [dependencies]
 crossterm.workspace = true
 autore-core = { path = "../autore-core" }
+autore-schema = { path = "../autore-schema" }

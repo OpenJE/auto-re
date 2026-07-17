@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use autore_core::operation::OperationState;
 
 use crate::domain::{Confidence, ContentHash, ExtensionData, EvidenceValue, MetadataMap, NamespacedId, SchemaVersion, StableEntityKey, Timestamp};
-use crate::ids::{ArtifactId, ContradictionId, EntityId, EvidenceRecordId, GenerationTargetId, HypothesisId, NativeArtifactId, OperationId, PackageId, ProjectId, ProviderId, ProviderRunId, VerificationRecordId};
+use crate::ids::{ArtifactId, ContradictionId, EntityId, EvidenceRecordId, GenerationTargetId, HypothesisId, NativeArtifactId, OperationId, PackageId, ProjectEventId, ProjectId, ProviderId, ProviderRunId, VerificationRecordId};
 
 // ---------------------------------------------------------------------------
 // Project
@@ -1334,6 +1334,114 @@ pub static OPERATION_KIND_EXTERNAL_ARTIFACT_CHECK: std::sync::LazyLock<Namespace
     });
 
 // ---------------------------------------------------------------------------
+// ProjectEvent
+// ---------------------------------------------------------------------------
+
+/// An append-only event in a project's event stream.
+///
+/// Every meaningful state change emits a `ProjectEvent` in the same
+/// SQLite transaction as the state mutation. Events are ordered by a
+/// monotonic per-project `sequence` number (not by timestamp).
+///
+/// `kind` is a `NamespacedId` describing what happened (e.g.
+/// `core.project.created`). `subject` identifies the record affected.
+/// `source` says which domain entity triggered the event. `payload`
+/// carries optional structured extension data.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ProjectEvent {
+    pub id: ProjectEventId,
+    pub project: ProjectId,
+    pub sequence: u64,
+    pub kind: NamespacedId,
+    pub subject: Option<EventSubject>,
+    pub source: EventSource,
+    pub payload: Option<ExtensionData>,
+    pub created_at: Timestamp,
+}
+
+impl ProjectEvent {
+    /// Creates a new project event.
+    ///
+    /// The `sequence` must be computed inside the transaction that
+    /// inserts it (via `next_project_event_sequence`). Pass 0 as a
+    /// placeholder if the sequence will be overwritten before insert.
+    pub fn new(
+        project: ProjectId,
+        sequence: u64,
+        kind: NamespacedId,
+        source: EventSource,
+        subject: Option<EventSubject>,
+        payload: Option<ExtensionData>,
+    ) -> Self {
+        ProjectEvent {
+            id: ProjectEventId::new(),
+            project,
+            sequence,
+            kind,
+            subject,
+            source,
+            payload,
+            created_at: Timestamp::now(),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Stage 0 project event kind constants
+// ---------------------------------------------------------------------------
+
+pub static EVENT_KIND_PROJECT_CREATED: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.project.created").unwrap());
+
+pub static EVENT_KIND_ARTIFACT_REGISTERED: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.artifact.registered").unwrap());
+
+pub static EVENT_KIND_ARTIFACT_EXTERNAL_CHANGED: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.artifact.external-changed").unwrap());
+
+pub static EVENT_KIND_ENTITY_CREATED: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.entity.created").unwrap());
+
+pub static EVENT_KIND_EVIDENCE_ADDED: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.evidence.added").unwrap());
+
+pub static EVENT_KIND_EVIDENCE_INVALIDATED: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.evidence.invalidated").unwrap());
+
+pub static EVENT_KIND_HYPOTHESIS_PROPOSED: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.hypothesis.proposed").unwrap());
+
+pub static EVENT_KIND_HYPOTHESIS_ACCEPTED: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.hypothesis.accepted").unwrap());
+
+pub static EVENT_KIND_HYPOTHESIS_REJECTED: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.hypothesis.rejected").unwrap());
+
+pub static EVENT_KIND_CONTRADICTION_CREATED: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.contradiction.created").unwrap());
+
+pub static EVENT_KIND_VERIFICATION_RECORDED: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.verification.recorded").unwrap());
+
+pub static EVENT_KIND_OPERATION_QUEUED: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.operation.queued").unwrap());
+
+pub static EVENT_KIND_OPERATION_STARTED: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.operation.started").unwrap());
+
+pub static EVENT_KIND_OPERATION_PROGRESS: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.operation.progress").unwrap());
+
+pub static EVENT_KIND_OPERATION_COMPLETED: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.operation.completed").unwrap());
+
+pub static EVENT_KIND_OPERATION_FAILED: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.operation.failed").unwrap());
+
+pub static EVENT_KIND_PROJECT_VALIDATION_FAILED: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.project.validation-failed").unwrap());
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -2628,5 +2736,96 @@ mod tests {
             OPERATION_KIND_EXTERNAL_ARTIFACT_CHECK.to_string(),
             "core.project.external-artifact-check"
         );
+    }
+
+    // -- ProjectEvent tests --
+
+    use super::{
+        ProjectEvent, EVENT_KIND_ARTIFACT_EXTERNAL_CHANGED, EVENT_KIND_ARTIFACT_REGISTERED,
+        EVENT_KIND_CONTRADICTION_CREATED, EVENT_KIND_ENTITY_CREATED,
+        EVENT_KIND_EVIDENCE_ADDED, EVENT_KIND_EVIDENCE_INVALIDATED,
+        EVENT_KIND_HYPOTHESIS_ACCEPTED, EVENT_KIND_HYPOTHESIS_PROPOSED,
+        EVENT_KIND_HYPOTHESIS_REJECTED, EVENT_KIND_OPERATION_COMPLETED,
+        EVENT_KIND_OPERATION_FAILED, EVENT_KIND_OPERATION_PROGRESS,
+        EVENT_KIND_OPERATION_QUEUED, EVENT_KIND_OPERATION_STARTED,
+        EVENT_KIND_PROJECT_CREATED, EVENT_KIND_PROJECT_VALIDATION_FAILED,
+        EVENT_KIND_VERIFICATION_RECORDED,
+    };
+
+    #[test]
+    fn project_event_new_defaults() {
+        let ev = ProjectEvent::new(
+            ProjectId::new(),
+            1,
+            EVENT_KIND_PROJECT_CREATED.clone(),
+            EventSource::Project,
+            None,
+            None,
+        );
+        assert_eq!(ev.sequence, 1);
+        assert_eq!(ev.kind, *EVENT_KIND_PROJECT_CREATED);
+        assert_eq!(ev.source, EventSource::Project);
+        assert!(ev.subject.is_none());
+        assert!(ev.payload.is_none());
+    }
+
+    #[test]
+    fn project_event_round_trip_json() {
+        let pid = ProjectId::new();
+        let schema = NamespacedId::parse("core.event.details").unwrap();
+        let ev = ProjectEvent::new(
+            pid,
+            42,
+            EVENT_KIND_ARTIFACT_REGISTERED.clone(),
+            EventSource::Artifact,
+            Some(EventSubject::Project(pid)),
+            Some(ExtensionData::new(schema, 1, serde_json::json!({"key": "val"}))),
+        );
+        let json = serde_json::to_string_pretty(&ev).unwrap();
+        let back: ProjectEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(ev.id, back.id);
+        assert_eq!(ev.project, back.project);
+        assert_eq!(ev.sequence, back.sequence);
+        assert_eq!(ev.kind, back.kind);
+        assert_eq!(ev.subject, back.subject);
+        assert_eq!(ev.source, back.source);
+        assert_eq!(ev.payload, back.payload);
+    }
+
+    #[test]
+    fn project_event_kind_constants_registered() {
+        assert_eq!(EVENT_KIND_PROJECT_CREATED.to_string(), "core.project.created");
+        assert_eq!(EVENT_KIND_ARTIFACT_REGISTERED.to_string(), "core.artifact.registered");
+        assert_eq!(EVENT_KIND_ARTIFACT_EXTERNAL_CHANGED.to_string(), "core.artifact.external-changed");
+        assert_eq!(EVENT_KIND_ENTITY_CREATED.to_string(), "core.entity.created");
+        assert_eq!(EVENT_KIND_EVIDENCE_ADDED.to_string(), "core.evidence.added");
+        assert_eq!(EVENT_KIND_EVIDENCE_INVALIDATED.to_string(), "core.evidence.invalidated");
+        assert_eq!(EVENT_KIND_HYPOTHESIS_PROPOSED.to_string(), "core.hypothesis.proposed");
+        assert_eq!(EVENT_KIND_HYPOTHESIS_ACCEPTED.to_string(), "core.hypothesis.accepted");
+        assert_eq!(EVENT_KIND_HYPOTHESIS_REJECTED.to_string(), "core.hypothesis.rejected");
+        assert_eq!(EVENT_KIND_CONTRADICTION_CREATED.to_string(), "core.contradiction.created");
+        assert_eq!(EVENT_KIND_VERIFICATION_RECORDED.to_string(), "core.verification.recorded");
+        assert_eq!(EVENT_KIND_OPERATION_QUEUED.to_string(), "core.operation.queued");
+        assert_eq!(EVENT_KIND_OPERATION_STARTED.to_string(), "core.operation.started");
+        assert_eq!(EVENT_KIND_OPERATION_PROGRESS.to_string(), "core.operation.progress");
+        assert_eq!(EVENT_KIND_OPERATION_COMPLETED.to_string(), "core.operation.completed");
+        assert_eq!(EVENT_KIND_OPERATION_FAILED.to_string(), "core.operation.failed");
+        assert_eq!(EVENT_KIND_PROJECT_VALIDATION_FAILED.to_string(), "core.project.validation-failed");
+    }
+
+    #[test]
+    fn project_event_with_subject_and_source() {
+        let pid = ProjectId::new();
+        let op_id = OperationId::new();
+        let ev = ProjectEvent::new(
+            pid,
+            5,
+            EVENT_KIND_OPERATION_STARTED.clone(),
+            EventSource::Operation,
+            Some(EventSubject::Operation(op_id)),
+            None,
+        );
+        assert_eq!(ev.source, EventSource::Operation);
+        assert_eq!(ev.subject, Some(EventSubject::Operation(op_id)));
     }
 }

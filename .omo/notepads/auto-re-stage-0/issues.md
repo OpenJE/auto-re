@@ -272,3 +272,30 @@
 ### `Operation.parent` self-referential FK (INFORMATIONAL)
 - Same pattern as `hypotheses.superseded_by` — self-referential FK supported natively by SQLite.
 - Cycle rejection is enforced at the application layer via `validate_no_cycle`.
+
+## 2026-07-17 (Task 21)
+
+### V11 migration numbering (DESIGN NOTE)
+- Plan text says `V10__events.sql` but V10 is already used by `operations.sql`.
+- V11 is the correct next migration number; task brief correctly flagged this.
+
+### `Transaction` Mutex prevents nested store calls (DESIGN NOTE)
+- `Database` wraps `Connection` in `Mutex`. `begin_transaction()` acquires the lock.
+- Store methods (e.g., `OperationStore::transition`) call `self.db.connection()` which tries to re-lock → deadlock.
+- Inside `with_event` closures, state mutations must use `txn.conn()` directly.
+- Future stores could accept `&Transaction` as a parameter to enable composable store-within-transaction patterns.
+
+### event_store.rs LOC (INFORMATIONAL)
+- Implementation: ~130 pure LOC + ~250 LOC tests = ~380 total.
+- Implementation LOC is well within the 250 ceiling.
+- Co-located unit tests per Rust convention.
+
+### records.rs growth (Task 21) (INFORMATIONAL)
+- Added `ProjectEvent` struct (~30 LOC) + 17 event kind constants (~50 LOC) + 4 tests (~80 LOC).
+- records.rs now ~630 pure LOC implementation + ~800 LOC tests = ~1430 total.
+- Implementation LOC exceeds 250 ceiling but contains 13+ struct/enum definitions, 47+ constants, and tests — well-separated sections following established pattern.
+
+### autore-events gains autore-schema dependency (DESIGN NOTE)
+- `autore-events/Cargo.toml` now depends on `autore-schema` for `EVENT_KIND_OPERATION_*` constants and `NamespacedId`.
+- `transition_event_kind()` now returns `&'static NamespacedId` instead of `&'static str`, with `transition_event_kind_str()` preserved for backward compat.
+- The `emit_transition_event()` return type changed from `Result<&'static str>` to `Result<&'static NamespacedId>`.
