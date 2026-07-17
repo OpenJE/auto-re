@@ -20,11 +20,7 @@ pub trait ProviderStore: Send + Sync {
     fn list_providers(&self) -> crate::Result<Vec<Provider>>;
 
     fn start_run(&self, run: &ProviderRun) -> crate::Result<()>;
-    fn complete_run(
-        &self,
-        run_id: ProviderRunId,
-        target: ProviderRunStatus,
-    ) -> crate::Result<()>;
+    fn complete_run(&self, run_id: ProviderRunId, target: ProviderRunStatus) -> crate::Result<()>;
     fn get_run(&self, id: ProviderRunId) -> crate::Result<Option<ProviderRun>>;
     fn list_runs(&self, query: RunQuery) -> crate::Result<Vec<ProviderRun>>;
 }
@@ -75,9 +71,7 @@ fn content_hash_from_json(s: &str) -> Result<ContentHash, String> {
 }
 
 fn content_hash_to_db(ch: &Option<ContentHash>) -> crate::Result<Option<String>> {
-    ch.as_ref()
-        .map(content_hash_to_json)
-        .transpose()
+    ch.as_ref().map(content_hash_to_json).transpose()
 }
 
 fn artifact_ids_to_json(ids: &[ArtifactId]) -> crate::Result<String> {
@@ -207,11 +201,7 @@ impl ProviderStore for SqliteProviderStore<'_> {
         Ok(())
     }
 
-    fn complete_run(
-        &self,
-        run_id: ProviderRunId,
-        target: ProviderRunStatus,
-    ) -> crate::Result<()> {
+    fn complete_run(&self, run_id: ProviderRunId, target: ProviderRunStatus) -> crate::Result<()> {
         let id_bytes = run_id.as_uuid().as_bytes().to_vec();
         let conn = self.db.connection()?;
 
@@ -228,8 +218,7 @@ impl ProviderStore for SqliteProviderStore<'_> {
                 other => crate::Error::Database(other.to_string()),
             })?;
 
-        let current = str_to_status(&current_status_str)
-            .map_err(crate::Error::Serialization)?;
+        let current = str_to_status(&current_status_str).map_err(crate::Error::Serialization)?;
 
         current.transition(target)?;
 
@@ -268,9 +257,8 @@ impl ProviderStore for SqliteProviderStore<'_> {
         let conn = self.db.connection()?;
 
         let mut conditions = vec!["project_id = ?1".to_string()];
-        let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = vec![
-            Box::new(query.project_id.as_uuid().as_bytes().to_vec()),
-        ];
+        let mut params: Vec<Box<dyn rusqlite::types::ToSql>> =
+            vec![Box::new(query.project_id.as_uuid().as_bytes().to_vec())];
         let mut idx = 2;
 
         if let Some(status) = &query.status_filter {
@@ -296,7 +284,8 @@ impl ProviderStore for SqliteProviderStore<'_> {
             idx + 1,
         );
 
-        let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+        let param_refs: Vec<&dyn rusqlite::types::ToSql> =
+            params.iter().map(|p| p.as_ref()).collect();
         let mut all_params: Vec<&dyn rusqlite::types::ToSql> = param_refs;
         all_params.push(&query.limit);
         all_params.push(&query.offset);
@@ -323,25 +312,38 @@ fn row_to_provider(row: &rusqlite::Row<'_>) -> rusqlite::Result<Provider> {
     let version: String = row.get(4)?;
     let exec_hash_str: Option<String> = row.get(5)?;
 
-    let id_uuid = uuid::Uuid::from_slice(&id_bytes)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e)))?;
+    let id_uuid = uuid::Uuid::from_slice(&id_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e))
+    })?;
     let id = ProviderId::from_uuid(id_uuid);
 
     let package_id = package_bytes
         .map(|bytes| {
-            let uuid = uuid::Uuid::from_slice(&bytes)
-                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e)))?;
+            let uuid = uuid::Uuid::from_slice(&bytes).map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    1,
+                    rusqlite::types::Type::Blob,
+                    Box::new(e),
+                )
+            })?;
             Ok::<_, rusqlite::Error>(autore_schema::ids::PackageId::from_uuid(uuid))
         })
         .transpose()?;
 
-    let kind = NamespacedId::parse(&kind_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Text, Box::new(e)))?;
+    let kind = NamespacedId::parse(&kind_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Text, Box::new(e))
+    })?;
 
     let executable_hash = exec_hash_str
         .map(|s| content_hash_from_json(&s))
         .transpose()
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+        .map_err(|e| {
+            rusqlite::Error::FromSqlConversionFailure(
+                5,
+                rusqlite::types::Type::Text,
+                Box::new(ParseError(e)),
+            )
+        })?;
 
     Ok(Provider {
         id,
@@ -366,49 +368,83 @@ fn row_to_provider_run(row: &rusqlite::Row<'_>) -> rusqlite::Result<ProviderRun>
     let completed_at_str: Option<String> = row.get(9)?;
     let status_str: String = row.get(10)?;
 
-    let id = ProviderRunId::from_uuid(
-        uuid::Uuid::from_slice(&id_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
-    let project = ProjectId::from_uuid(
-        uuid::Uuid::from_slice(&project_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
-    let provider = ProviderId::from_uuid(
-        uuid::Uuid::from_slice(&provider_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
+    let id = ProviderRunId::from_uuid(uuid::Uuid::from_slice(&id_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e))
+    })?);
+    let project = ProjectId::from_uuid(uuid::Uuid::from_slice(&project_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e))
+    })?);
+    let provider = ProviderId::from_uuid(uuid::Uuid::from_slice(&provider_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Blob, Box::new(e))
+    })?);
 
-    let operation = NamespacedId::parse(&operation_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Text, Box::new(e)))?;
+    let operation = NamespacedId::parse(&operation_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Text, Box::new(e))
+    })?;
 
-    let input_artifacts = artifact_ids_from_json(&input_json)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let input_artifacts = artifact_ids_from_json(&input_json).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            4,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
     let configuration_artifact = config_artifact_bytes
         .map(|bytes| {
-            let uuid = uuid::Uuid::from_slice(&bytes)
-                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Blob, Box::new(e)))?;
+            let uuid = uuid::Uuid::from_slice(&bytes).map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    5,
+                    rusqlite::types::Type::Blob,
+                    Box::new(e),
+                )
+            })?;
             Ok::<_, rusqlite::Error>(ArtifactId::from_uuid(uuid))
         })
         .transpose()?;
 
-    let configuration_hash = content_hash_from_json(&config_hash_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(6, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let configuration_hash = content_hash_from_json(&config_hash_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            6,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
-    let environment = env_from_json(&env_json)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(7, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let environment = env_from_json(&env_json).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            7,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
-    let started_at = parse_timestamp(&started_at_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(8, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let started_at = parse_timestamp(&started_at_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            8,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
     let completed_at = completed_at_str
         .map(|s| parse_timestamp(&s))
         .transpose()
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(9, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+        .map_err(|e| {
+            rusqlite::Error::FromSqlConversionFailure(
+                9,
+                rusqlite::types::Type::Text,
+                Box::new(ParseError(e)),
+            )
+        })?;
 
-    let status = str_to_status(&status_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(10, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let status = str_to_status(&status_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            10,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
     Ok(ProviderRun {
         id,
@@ -439,9 +475,7 @@ impl std::error::Error for ParseError {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use autore_schema::domain::records::{
-        PROVIDER_KIND_DECOMPILER, PROVIDER_KIND_DISASSEMBLER,
-    };
+    use autore_schema::domain::records::{PROVIDER_KIND_DECOMPILER, PROVIDER_KIND_DISASSEMBLER};
 
     fn test_db() -> Database {
         Database::open_in_memory().unwrap()
@@ -567,7 +601,9 @@ mod tests {
         let run = test_run(pid, p.id);
         store.start_run(&run).unwrap();
 
-        store.complete_run(run.id, ProviderRunStatus::Completed).unwrap();
+        store
+            .complete_run(run.id, ProviderRunStatus::Completed)
+            .unwrap();
 
         let fetched = store.get_run(run.id).unwrap().unwrap();
         assert_eq!(fetched.status, ProviderRunStatus::Completed);
@@ -585,19 +621,27 @@ mod tests {
 
         let run1 = test_run(pid, p.id);
         store.start_run(&run1).unwrap();
-        store.complete_run(run1.id, ProviderRunStatus::Completed).unwrap();
+        store
+            .complete_run(run1.id, ProviderRunStatus::Completed)
+            .unwrap();
 
         let run2 = test_run(pid, p.id);
         store.start_run(&run2).unwrap();
-        store.complete_run(run2.id, ProviderRunStatus::Failed).unwrap();
+        store
+            .complete_run(run2.id, ProviderRunStatus::Failed)
+            .unwrap();
 
         let run3 = test_run(pid, p.id);
         store.start_run(&run3).unwrap();
-        store.complete_run(run3.id, ProviderRunStatus::Cancelled).unwrap();
+        store
+            .complete_run(run3.id, ProviderRunStatus::Cancelled)
+            .unwrap();
 
         let run4 = test_run(pid, p.id);
         store.start_run(&run4).unwrap();
-        store.complete_run(run4.id, ProviderRunStatus::Inconclusive).unwrap();
+        store
+            .complete_run(run4.id, ProviderRunStatus::Inconclusive)
+            .unwrap();
     }
 
     #[test]
@@ -611,7 +655,9 @@ mod tests {
 
         let run = test_run(pid, p.id);
         store.start_run(&run).unwrap();
-        store.complete_run(run.id, ProviderRunStatus::Completed).unwrap();
+        store
+            .complete_run(run.id, ProviderRunStatus::Completed)
+            .unwrap();
 
         let result = store.complete_run(run.id, ProviderRunStatus::Failed);
         assert!(result.is_err(), "completed -> failed should be rejected");
@@ -626,7 +672,10 @@ mod tests {
         let fake_provider = ProviderId::new();
         let run = test_run(pid, fake_provider);
         let result = store.start_run(&run);
-        assert!(result.is_err(), "FK violation for non-existent provider should fail");
+        assert!(
+            result.is_err(),
+            "FK violation for non-existent provider should fail"
+        );
     }
 
     #[test]
@@ -640,7 +689,10 @@ mod tests {
         let fake_project = ProjectId::new();
         let run = test_run(fake_project, p.id);
         let result = store.start_run(&run);
-        assert!(result.is_err(), "FK violation for non-existent project should fail");
+        assert!(
+            result.is_err(),
+            "FK violation for non-existent project should fail"
+        );
     }
 
     #[test]
@@ -654,7 +706,9 @@ mod tests {
 
         let run1 = test_run(pid, p.id);
         store.start_run(&run1).unwrap();
-        store.complete_run(run1.id, ProviderRunStatus::Completed).unwrap();
+        store
+            .complete_run(run1.id, ProviderRunStatus::Completed)
+            .unwrap();
 
         let run2 = test_run(pid, p.id);
         store.start_run(&run2).unwrap();
@@ -758,7 +812,10 @@ mod tests {
         let result = store.complete_run(ProviderRunId::new(), ProviderRunStatus::Completed);
         assert!(result.is_err());
         let msg = format!("{}", result.unwrap_err());
-        assert!(msg.contains("not found"), "error should mention not found: {msg}");
+        assert!(
+            msg.contains("not found"),
+            "error should mention not found: {msg}"
+        );
     }
 
     #[test]

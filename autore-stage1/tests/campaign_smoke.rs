@@ -16,8 +16,8 @@ use tokio_util::sync::CancellationToken;
 use autore_stage1::analysis::{
     AnalysisBackend, AnalysisCapability, MockAnalysisBackend, MockPacketBuilder, PacketBuilder,
 };
-use autore_stage1::domain::*;
 use autore_stage1::domain::EntityId;
+use autore_stage1::domain::*;
 use autore_stage1::ids::*;
 use autore_stage1::model::*;
 use autore_stage1::scheduler::*;
@@ -137,7 +137,10 @@ fn task_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
 
 #[async_trait]
 impl SchedulerQueries for SqliteQueries {
-    async fn find_tasks_by_campaign(&self, campaign_id: CampaignId) -> autore_stage1::Result<Vec<Task>> {
+    async fn find_tasks_by_campaign(
+        &self,
+        campaign_id: CampaignId,
+    ) -> autore_stage1::Result<Vec<Task>> {
         let conn = self.database.connection()?;
         let mut stmt = conn
             .prepare(
@@ -164,7 +167,11 @@ impl SchedulerQueries for SqliteQueries {
         Ok(vec![])
     }
 
-    async fn update_task_state(&self, task_id: TaskId, state: TaskState) -> autore_stage1::Result<()> {
+    async fn update_task_state(
+        &self,
+        task_id: TaskId,
+        state: TaskState,
+    ) -> autore_stage1::Result<()> {
         let conn = self.database.connection()?;
         conn.execute(
             "UPDATE tasks SET state = ?1 WHERE id = ?2",
@@ -193,7 +200,11 @@ impl CampaignRepository for StubCampaignRepo {
     async fn find_by_id(&self, _id: CampaignId) -> autore_core::Result<Option<Campaign>> {
         Ok(None)
     }
-    async fn update_state(&self, _id: CampaignId, _state: CampaignState) -> autore_core::Result<()> {
+    async fn update_state(
+        &self,
+        _id: CampaignId,
+        _state: CampaignState,
+    ) -> autore_core::Result<()> {
         Ok(())
     }
 }

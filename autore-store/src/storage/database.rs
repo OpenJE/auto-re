@@ -418,8 +418,7 @@ mod tests {
                     rusqlite::params!["err-1", "error-campaign", "Pending"],
                 )
                 .unwrap();
-            let res: crate::Result<()> =
-                Err(crate::Error::Validation("simulated failure".into()));
+            let res: crate::Result<()> = Err(crate::Error::Validation("simulated failure".into()));
             res
         };
 

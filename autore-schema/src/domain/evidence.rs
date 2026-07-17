@@ -4,12 +4,12 @@
 //! evidence records *what* kind of data it is, *where* it came from
 //! (address, file path, provenance), and an optional artifact reference.
 
-use autore_core::Result;
 use crate::domain::{Address, Provenance};
 use crate::ids::{
     BinaryRevisionId, CampaignId, ClaimId, EvidenceId, FunctionId, ModuleId, TaskId, WorkerRunId,
 };
 use crate::worker_output::{FunctionAnalysisOutput, ProposedEvidence};
+use autore_core::Result;
 
 use uuid::Uuid;
 

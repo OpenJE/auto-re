@@ -7,8 +7,8 @@
 
 use std::collections::HashSet;
 
-use autore_core::{Error, Result};
 use crate::ids::{CampaignId, TaskId, WorkerRunId};
+use autore_core::{Error, Result};
 
 // Re-export sub-module types at module level.
 pub use kind::TaskKind;

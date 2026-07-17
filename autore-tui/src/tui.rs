@@ -442,7 +442,8 @@ mod tests {
     fn tui_startup_renders_empty() {
         let tui = Tui::new();
         let backend = ratatui::backend::TestBackend::new(80, 24);
-        let mut terminal = ratatui::Terminal::new(backend).expect("terminal creation must not fail");
+        let mut terminal =
+            ratatui::Terminal::new(backend).expect("terminal creation must not fail");
         // Must not panic — this is the primary assertion for a cold start.
         terminal
             .draw(|frame| tui.render(frame))
@@ -475,12 +476,7 @@ mod tests {
         let output = render_to_string(&tui, 80, 24);
 
         // All four panel titles must be present in a single render pass.
-        let expected_titles = [
-            "Campaigns",
-            "Campaign Status",
-            "Tasks",
-            "Claims Progress",
-        ];
+        let expected_titles = ["Campaigns", "Campaign Status", "Tasks", "Claims Progress"];
         for title in expected_titles {
             assert!(
                 output.contains(title),
@@ -504,25 +500,35 @@ mod tests {
 
         // 'j' moves selection down (0 → 1).
         tui.handle_key_event(j).unwrap();
-        assert_eq!(tui.state().selected_campaign, 1, "'j' must move selection down");
+        assert_eq!(
+            tui.state().selected_campaign,
+            1,
+            "'j' must move selection down"
+        );
 
         // Down arrow wraps around (1 → 0, since there are 2 campaigns).
         tui.handle_key_event(down).unwrap();
         assert_eq!(
-            tui.state().selected_campaign, 0,
+            tui.state().selected_campaign,
+            0,
             "Down arrow must wrap from last to first"
         );
 
         // 'k' moves selection up, wrapping to the end (0 → 1).
         tui.handle_key_event(k).unwrap();
         assert_eq!(
-            tui.state().selected_campaign, 1,
+            tui.state().selected_campaign,
+            1,
             "'k' must wrap from first to last"
         );
 
         // Up arrow moves selection up (1 → 0).
         tui.handle_key_event(up).unwrap();
-        assert_eq!(tui.state().selected_campaign, 0, "Up arrow must move selection up");
+        assert_eq!(
+            tui.state().selected_campaign,
+            0,
+            "Up arrow must move selection up"
+        );
     }
 
     /// `q` quits; no other common key should signal quit.

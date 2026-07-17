@@ -51,7 +51,11 @@ pub async fn status(db: Arc<Database>, id: Option<String>) -> crate::Result<()> 
             Err(rusqlite::Error::QueryReturnedNoRows) => {
                 println!("No campaign found with ID: {id_str}");
             }
-            Err(e) => return Err(crate::Error::from(autore_core::Error::Database(e.to_string()))),
+            Err(e) => {
+                return Err(crate::Error::from(autore_core::Error::Database(
+                    e.to_string(),
+                )));
+            }
         }
     } else {
         let mut stmt = conn

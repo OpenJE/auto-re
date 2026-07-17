@@ -13,8 +13,8 @@ use std::panic;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 
-use tracing::field::{Field, Visit};
 use tracing::Event;
+use tracing::field::{Field, Visit};
 use tracing_subscriber::fmt::format::Writer;
 use tracing_subscriber::fmt::{FmtContext, FormatEvent, FormatFields};
 use tracing_subscriber::layer::SubscriberExt;
@@ -55,7 +55,8 @@ pub fn install_panic_hook() {
 
     panic::set_hook(Box::new(move |info| {
         if let Ok(guard) = restore_hook.lock()
-            && let Some(ref restore_fn) = *guard {
+            && let Some(ref restore_fn) = *guard
+        {
             restore_fn();
         }
         original_hook(info);
@@ -113,26 +114,34 @@ impl Visit for RedactingFieldVisitor {
 
     fn record_i64(&mut self, field: &Field, value: i64) {
         let name = field.name();
-        self.fields
-            .push((name.to_string(), redact_if_sensitive(name, &value.to_string())));
+        self.fields.push((
+            name.to_string(),
+            redact_if_sensitive(name, &value.to_string()),
+        ));
     }
 
     fn record_u64(&mut self, field: &Field, value: u64) {
         let name = field.name();
-        self.fields
-            .push((name.to_string(), redact_if_sensitive(name, &value.to_string())));
+        self.fields.push((
+            name.to_string(),
+            redact_if_sensitive(name, &value.to_string()),
+        ));
     }
 
     fn record_bool(&mut self, field: &Field, value: bool) {
         let name = field.name();
-        self.fields
-            .push((name.to_string(), redact_if_sensitive(name, &value.to_string())));
+        self.fields.push((
+            name.to_string(),
+            redact_if_sensitive(name, &value.to_string()),
+        ));
     }
 
     fn record_f64(&mut self, field: &Field, value: f64) {
         let name = field.name();
-        self.fields
-            .push((name.to_string(), redact_if_sensitive(name, &value.to_string())));
+        self.fields.push((
+            name.to_string(),
+            redact_if_sensitive(name, &value.to_string()),
+        ));
     }
 }
 
@@ -154,9 +163,7 @@ where
         let level = metadata.level();
         let target = metadata.target();
 
-        let mut visitor = RedactingFieldVisitor {
-            fields: Vec::new(),
-        };
+        let mut visitor = RedactingFieldVisitor { fields: Vec::new() };
         event.record(&mut visitor);
 
         write!(writer, "{} {}: ", level, target)?;
@@ -193,9 +200,7 @@ where
     ) -> fmt::Result {
         let metadata = event.metadata();
 
-        let mut visitor = RedactingFieldVisitor {
-            fields: Vec::new(),
-        };
+        let mut visitor = RedactingFieldVisitor { fields: Vec::new() };
         event.record(&mut visitor);
 
         // Build JSON object manually with redacted fields
@@ -223,8 +228,7 @@ where
 /// - The log file cannot be opened
 /// - The logging system has already been initialized
 pub fn init_logging(config: LoggingConfig) -> crate::Result<()> {
-    let env_filter =
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     match config.log_file {
         Some(path) => {
@@ -248,9 +252,7 @@ pub fn init_logging(config: LoggingConfig) -> crate::Result<()> {
                 Registry::default()
                     .with(layer)
                     .try_init()
-                    .map_err(|e| {
-                        Error::Operation(format!("logging already initialized: {}", e))
-                    })?;
+                    .map_err(|e| Error::Operation(format!("logging already initialized: {}", e)))?;
             } else {
                 let layer = tracing_subscriber::fmt::layer()
                     .event_format(RedactingFormatter)
@@ -260,9 +262,7 @@ pub fn init_logging(config: LoggingConfig) -> crate::Result<()> {
                 Registry::default()
                     .with(layer)
                     .try_init()
-                    .map_err(|e| {
-                        Error::Operation(format!("logging already initialized: {}", e))
-                    })?;
+                    .map_err(|e| Error::Operation(format!("logging already initialized: {}", e)))?;
             }
         }
         None => {
@@ -275,9 +275,7 @@ pub fn init_logging(config: LoggingConfig) -> crate::Result<()> {
                 Registry::default()
                     .with(layer)
                     .try_init()
-                    .map_err(|e| {
-                        Error::Operation(format!("logging already initialized: {}", e))
-                    })?;
+                    .map_err(|e| Error::Operation(format!("logging already initialized: {}", e)))?;
             } else {
                 let layer = tracing_subscriber::fmt::layer()
                     .event_format(RedactingFormatter)
@@ -287,9 +285,7 @@ pub fn init_logging(config: LoggingConfig) -> crate::Result<()> {
                 Registry::default()
                     .with(layer)
                     .try_init()
-                    .map_err(|e| {
-                        Error::Operation(format!("logging already initialized: {}", e))
-                    })?;
+                    .map_err(|e| Error::Operation(format!("logging already initialized: {}", e)))?;
             }
         }
     }

@@ -163,7 +163,11 @@ impl CampaignRepository for NoopCampaignRepo {
     async fn find_by_id(&self, _id: CampaignId) -> autore_core::Result<Option<Campaign>> {
         Ok(None)
     }
-    async fn update_state(&self, _id: CampaignId, _state: CampaignState) -> autore_core::Result<()> {
+    async fn update_state(
+        &self,
+        _id: CampaignId,
+        _state: CampaignState,
+    ) -> autore_core::Result<()> {
         Ok(())
     }
 }

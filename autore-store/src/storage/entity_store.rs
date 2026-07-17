@@ -65,8 +65,7 @@ impl EntityStore for SqliteEntityStore<'_> {
             .stable_key
             .as_ref()
             .map(|k| {
-                serde_json::to_string(k)
-                    .map_err(|e| crate::Error::Serialization(e.to_string()))
+                serde_json::to_string(k).map_err(|e| crate::Error::Serialization(e.to_string()))
             })
             .transpose()?;
         let created_at = entity.created_at.to_string();
@@ -201,10 +200,7 @@ impl EntityStore for SqliteEntityStore<'_> {
 
         let entities = stmt
             .query_map(
-                rusqlite::params![
-                    project_id.as_uuid().as_bytes().as_slice(),
-                    key_json,
-                ],
+                rusqlite::params![project_id.as_uuid().as_bytes().as_slice(), key_json,],
                 row_to_entity,
             )
             .map_err(|e| crate::Error::Database(e.to_string()))?
@@ -226,10 +222,7 @@ impl EntityStore for SqliteEntityStore<'_> {
             .query_row(
                 "SELECT COUNT(*) FROM semantic_entities \
                  WHERE project_id = ?1 AND kind = ?2",
-                rusqlite::params![
-                    project_id.as_uuid().as_bytes().as_slice(),
-                    kind_str,
-                ],
+                rusqlite::params![project_id.as_uuid().as_bytes().as_slice(), kind_str,],
                 |row| row.get(0),
             )
             .map_err(|e| crate::Error::Database(e.to_string()))?;
@@ -247,29 +240,43 @@ fn row_to_entity(row: &rusqlite::Row<'_>) -> rusqlite::Result<SemanticEntity> {
     let created_at_str: String = row.get(5)?;
     let metadata_str: String = row.get(6)?;
 
-    let id_uuid = uuid::Uuid::from_slice(&id_bytes)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e)))?;
+    let id_uuid = uuid::Uuid::from_slice(&id_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e))
+    })?;
     let id = EntityId::from_uuid(id_uuid);
 
-    let project_uuid = uuid::Uuid::from_slice(&project_bytes)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e)))?;
+    let project_uuid = uuid::Uuid::from_slice(&project_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e))
+    })?;
     let project = ProjectId::from_uuid(project_uuid);
 
-    let kind = NamespacedId::parse(&kind_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, Box::new(e)))?;
+    let kind = NamespacedId::parse(&kind_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, Box::new(e))
+    })?;
 
     let stable_key = stable_key_json
         .map(|json| {
-            serde_json::from_str::<StableEntityKey>(&json)
-                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Text, Box::new(e)))
+            serde_json::from_str::<StableEntityKey>(&json).map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    3,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
+            })
         })
         .transpose()?;
 
-    let created_at = parse_timestamp(&created_at_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let created_at = parse_timestamp(&created_at_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            5,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
-    let metadata: MetadataMap = serde_json::from_str(&metadata_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(6, rusqlite::types::Type::Text, Box::new(e)))?;
+    let metadata: MetadataMap = serde_json::from_str(&metadata_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(6, rusqlite::types::Type::Text, Box::new(e))
+    })?;
 
     Ok(SemanticEntity {
         id,
@@ -302,11 +309,11 @@ fn parse_timestamp(s: &str) -> Result<Timestamp, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use autore_schema::domain::ContentHash;
     use autore_schema::domain::records::{
         ENTITY_KIND_EXTERNAL_FUNCTION, ENTITY_KIND_FUNCTION, ENTITY_KIND_STRING, ENTITY_KIND_TYPE,
     };
     use autore_schema::domain::values::{BinaryLocation, ModuleIdentity};
-    use autore_schema::domain::ContentHash;
     use autore_schema::ids::BinaryArtifactId;
 
     fn test_db() -> Database {
@@ -386,7 +393,9 @@ mod tests {
         store.insert(&e1).unwrap();
         store.insert(&e2).unwrap();
 
-        let count = store.count_by_project_kind(pid, &ENTITY_KIND_STRING).unwrap();
+        let count = store
+            .count_by_project_kind(pid, &ENTITY_KIND_STRING)
+            .unwrap();
         assert_eq!(count, 2);
     }
 
@@ -412,7 +421,10 @@ mod tests {
 
         store.insert(&e1).unwrap();
         let result = store.insert(&e2);
-        assert!(result.is_err(), "duplicate stable_key should fail with Conflict");
+        assert!(
+            result.is_err(),
+            "duplicate stable_key should fail with Conflict"
+        );
         let err_msg = format!("{}", result.unwrap_err());
         assert!(
             err_msg.contains("duplicate") || err_msg.contains("Conflict"),
@@ -485,12 +497,7 @@ mod tests {
         let store = SqliteEntityStore::new(&db);
 
         for name in ["alpha", "beta", "gamma"] {
-            let e = SemanticEntity::new(
-                pid,
-                ENTITY_KIND_FUNCTION.clone(),
-                None,
-                Some(name.into()),
-            );
+            let e = SemanticEntity::new(pid, ENTITY_KIND_FUNCTION.clone(), None, Some(name.into()));
             store.insert(&e).unwrap();
         }
         let e = SemanticEntity::new(pid, ENTITY_KIND_TYPE.clone(), None, Some("MyType".into()));
@@ -630,10 +637,14 @@ mod tests {
             store.insert(&e).unwrap();
         }
 
-        let fn_count = store.count_by_project_kind(pid, &ENTITY_KIND_FUNCTION).unwrap();
+        let fn_count = store
+            .count_by_project_kind(pid, &ENTITY_KIND_FUNCTION)
+            .unwrap();
         assert_eq!(fn_count, 3);
 
-        let ext_count = store.count_by_project_kind(pid, &ENTITY_KIND_EXTERNAL_FUNCTION).unwrap();
+        let ext_count = store
+            .count_by_project_kind(pid, &ENTITY_KIND_EXTERNAL_FUNCTION)
+            .unwrap();
         assert_eq!(ext_count, 2);
 
         let zero_count = store.count_by_project_kind(pid, &ENTITY_KIND_TYPE).unwrap();

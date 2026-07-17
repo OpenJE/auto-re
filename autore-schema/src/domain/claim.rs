@@ -4,10 +4,10 @@
 //! `ClaimPredicate` about a `ClaimSubject` with a `ClaimValue`, supported
 //! by `Evidence` and tracked through its `ClaimState`.
 
-use autore_core::{Error, Result};
 use crate::domain::{Confidence, EntityId, Provenance};
 use crate::ids::{ClaimId, EvidenceId, FunctionId, WorkerRunId};
 use crate::worker_output::{FunctionAnalysisOutput, ProposedClaim};
+use autore_core::{Error, Result};
 
 // ---------------------------------------------------------------------------
 // ClaimState
@@ -575,9 +575,12 @@ mod tests {
         let function_id = output.function_id;
         let worker_run_id = WorkerRunId::new();
 
-        let evidence =
-            crate::domain::evidence::Evidence::from_worker_output(function_id, &output, worker_run_id)
-                .unwrap();
+        let evidence = crate::domain::evidence::Evidence::from_worker_output(
+            function_id,
+            &output,
+            worker_run_id,
+        )
+        .unwrap();
 
         assert_eq!(evidence.len(), 1);
         assert_eq!(evidence[0].kind, EvidenceKind::Disassembly);

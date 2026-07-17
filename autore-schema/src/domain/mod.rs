@@ -3,8 +3,8 @@
 //! These types are parse-don't-validate: once constructed, they
 //! are guaranteed to be valid for their domain.
 
-use autore_core::{Error, Result};
 use crate::ids::WorkerRunId;
+use autore_core::{Error, Result};
 
 // ---------------------------------------------------------------------------
 // Address
@@ -128,10 +128,7 @@ impl std::fmt::Display for HashAlgorithm {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct ContentHash {
     pub algorithm: HashAlgorithm,
-    #[serde(
-        serialize_with = "serialize_hex",
-        deserialize_with = "deserialize_hex"
-    )]
+    #[serde(serialize_with = "serialize_hex", deserialize_with = "deserialize_hex")]
     pub digest: Vec<u8>,
 }
 
@@ -159,9 +156,7 @@ fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, String> {
     }
     (0..hex.len())
         .step_by(2)
-        .map(|i| {
-            u8::from_str_radix(&hex[i..i + 2], 16).map_err(|e| format!("invalid hex: {e}"))
-        })
+        .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).map_err(|e| format!("invalid hex: {e}")))
         .collect()
 }
 
@@ -256,9 +251,7 @@ impl NamespacedId {
             return Err(NamespacedIdError("empty string".into()));
         }
         if s.starts_with('.') || s.ends_with('.') {
-            return Err(NamespacedIdError(
-                "leading or trailing dot".into(),
-            ));
+            return Err(NamespacedIdError("leading or trailing dot".into()));
         }
         if s.contains('/') || s.contains('\\') {
             return Err(NamespacedIdError("path separator not allowed".into()));
@@ -270,7 +263,10 @@ impl NamespacedId {
             if segment.is_empty() {
                 return Err(NamespacedIdError("empty segment".into()));
             }
-            if segment.chars().any(|c| !c.is_ascii_lowercase() && !c.is_ascii_digit() && c != '_' && c != '-') {
+            if segment
+                .chars()
+                .any(|c| !c.is_ascii_lowercase() && !c.is_ascii_digit() && c != '_' && c != '-')
+            {
                 return Err(NamespacedIdError(format!(
                     "segment '{segment}' contains invalid characters (must be lowercase ASCII, digits, underscores, or hyphens)"
                 )));
@@ -394,11 +390,8 @@ impl serde::Serialize for Timestamp {
 impl<'de> serde::Deserialize<'de> for Timestamp {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let s = String::deserialize(deserializer)?;
-        let dt = time::OffsetDateTime::parse(
-            &s,
-            &time::format_description::well_known::Rfc3339,
-        )
-        .map_err(serde::de::Error::custom)?;
+        let dt = time::OffsetDateTime::parse(&s, &time::format_description::well_known::Rfc3339)
+            .map_err(serde::de::Error::custom)?;
         Ok(Timestamp(dt))
     }
 }
@@ -612,50 +605,43 @@ pub use campaign::{Campaign, CampaignState};
 pub use claim::{Claim, ClaimPredicate, ClaimState, ClaimValue};
 pub use evidence::{ArtifactId, EntityId, Evidence, EvidenceKind, EvidenceLocation};
 pub use function::Function;
+pub use records::{
+    ARTIFACT_KIND_BINARY, ARTIFACT_KIND_CONFIGURATION, ARTIFACT_KIND_GENERATED_CANDIDATE,
+    ARTIFACT_KIND_LOG, ARTIFACT_KIND_NATIVE_PROVIDER_OUTPUT, ARTIFACT_KIND_SOURCE_TREE,
+    ARTIFACT_KIND_TRACE, Artifact, ArtifactStorage, Assumption, BinaryArtifactMetadata,
+    CONTRADICTION_STATUS_DEFERRED, CONTRADICTION_STATUS_INVESTIGATING, CONTRADICTION_STATUS_OPEN,
+    CONTRADICTION_STATUS_RESOLVED, CancellationRequest, Contradiction, ContradictionResolution,
+    ContradictionStatus, ENTITY_KIND_EXTERNAL_FUNCTION, ENTITY_KIND_FUNCTION, ENTITY_KIND_GLOBAL,
+    ENTITY_KIND_SOURCE_SYMBOL, ENTITY_KIND_STRING, ENTITY_KIND_TYPE,
+    EVENT_KIND_ARTIFACT_EXTERNAL_CHANGED, EVENT_KIND_ARTIFACT_REGISTERED,
+    EVENT_KIND_CONTRADICTION_CREATED, EVENT_KIND_ENTITY_CREATED, EVENT_KIND_EVIDENCE_ADDED,
+    EVENT_KIND_EVIDENCE_INVALIDATED, EVENT_KIND_HYPOTHESIS_ACCEPTED,
+    EVENT_KIND_HYPOTHESIS_PROPOSED, EVENT_KIND_HYPOTHESIS_REJECTED, EVENT_KIND_OPERATION_COMPLETED,
+    EVENT_KIND_OPERATION_FAILED, EVENT_KIND_OPERATION_PROGRESS, EVENT_KIND_OPERATION_QUEUED,
+    EVENT_KIND_OPERATION_STARTED, EVENT_KIND_PROJECT_CREATED, EVENT_KIND_PROJECT_VALIDATION_FAILED,
+    EVENT_KIND_VERIFICATION_RECORDED, EVIDENCE_PREDICATE_CALL_TARGET,
+    EVIDENCE_PREDICATE_CONTROL_FLOW, EVIDENCE_PREDICATE_FUNCTION_NAME,
+    EVIDENCE_PREDICATE_FUNCTION_SIGNATURE, EVIDENCE_PREDICATE_STRING_REFERENCE,
+    EVIDENCE_PREDICATE_TYPE_INFO, Endianness, EnvironmentIdentity, EventSource, EventSubject,
+    EvidenceLifecycleEvent, EvidenceLifecycleState, EvidenceRecord, HYPOTHESIS_STATUS_ACCEPTED,
+    HYPOTHESIS_STATUS_PROPOSED, HYPOTHESIS_STATUS_REJECTED, HYPOTHESIS_STATUS_SUPERSEDED,
+    HYPOTHESIS_STATUS_UNDER_INVESTIGATION, Hypothesis, HypothesisStatus, MetricMap,
+    NATIVE_FORMAT_GDB_TRACE, NATIVE_FORMAT_GHIDRA_PCODE, NATIVE_FORMAT_IDA_HEXRAYS_PSEUDOCODE,
+    NATIVE_FORMAT_IDA_MICROCODE, NATIVE_FORMAT_LLM_RAW_RESPONSE, NATIVE_FORMAT_Z3_MODEL,
+    NativeArtifact, OPERATION_KIND_ARTIFACT_IMPORT, OPERATION_KIND_EXTERNAL_ARTIFACT_CHECK,
+    OPERATION_KIND_PROJECT_MIGRATION, OPERATION_KIND_PROJECT_REBUILD_INDEXES,
+    OPERATION_KIND_PROJECT_VALIDATION, Operation, OperationFailure, PROVIDER_KIND_DEBUGGER,
+    PROVIDER_KIND_DECOMPILER, PROVIDER_KIND_DISASSEMBLER, PROVIDER_KIND_HUMAN, PROVIDER_KIND_LLM,
+    PROVIDER_KIND_SYMBOLIC_EXECUTOR, ProgressUpdate, Project, ProjectEvent, Provider,
+    ProviderEntityAlias, ProviderRun, ProviderRunStatus, SemanticEntity,
+    VERIFICATION_CHECK_ABI_LAYOUT, VERIFICATION_CHECK_ARTIFACT_HASH, VERIFICATION_CHECK_BUILD,
+    VERIFICATION_CHECK_DIFFERENTIAL_BEHAVIOR, VERIFICATION_CHECK_PROJECT_INTEGRITY,
+    VerificationRecord, VerificationState, VerificationSubject,
+};
 pub use task::{RequiredCapabilities, Task, TaskKind, TaskPriority, TaskState, TaskSubject};
 pub use values::{
     BinaryLocation, Derivation, DerivationMethod, EvidenceValue, ExtensionData, MetadataMap,
     ModuleIdentity, StableEntityKey,
-};
-pub use records::{
-    Artifact, ArtifactStorage, Assumption, BinaryArtifactMetadata, CancellationRequest,
-    Contradiction, ContradictionResolution, ContradictionStatus, Endianness, EnvironmentIdentity,
-    EventSource, EventSubject, EvidenceLifecycleEvent, EvidenceLifecycleState, EvidenceRecord,
-    Hypothesis, HypothesisStatus, MetricMap, Operation, OperationFailure, ProgressUpdate,
-    Project, ProjectEvent, Provider, ProviderEntityAlias, ProviderRun, ProviderRunStatus, NativeArtifact, SemanticEntity,
-    VerificationRecord, VerificationState, VerificationSubject,
-    ARTIFACT_KIND_BINARY, ARTIFACT_KIND_CONFIGURATION, ARTIFACT_KIND_GENERATED_CANDIDATE,
-    ARTIFACT_KIND_LOG, ARTIFACT_KIND_NATIVE_PROVIDER_OUTPUT, ARTIFACT_KIND_SOURCE_TREE,
-    ARTIFACT_KIND_TRACE,
-    CONTRADICTION_STATUS_DEFERRED, CONTRADICTION_STATUS_INVESTIGATING,
-    CONTRADICTION_STATUS_OPEN, CONTRADICTION_STATUS_RESOLVED,
-    ENTITY_KIND_EXTERNAL_FUNCTION, ENTITY_KIND_FUNCTION, ENTITY_KIND_GLOBAL,
-    ENTITY_KIND_SOURCE_SYMBOL, ENTITY_KIND_STRING, ENTITY_KIND_TYPE,
-    EVENT_KIND_ARTIFACT_EXTERNAL_CHANGED, EVENT_KIND_ARTIFACT_REGISTERED,
-    EVENT_KIND_CONTRADICTION_CREATED, EVENT_KIND_ENTITY_CREATED,
-    EVENT_KIND_EVIDENCE_ADDED, EVENT_KIND_EVIDENCE_INVALIDATED,
-    EVENT_KIND_HYPOTHESIS_ACCEPTED, EVENT_KIND_HYPOTHESIS_PROPOSED,
-    EVENT_KIND_HYPOTHESIS_REJECTED, EVENT_KIND_OPERATION_COMPLETED,
-    EVENT_KIND_OPERATION_FAILED, EVENT_KIND_OPERATION_PROGRESS,
-    EVENT_KIND_OPERATION_QUEUED, EVENT_KIND_OPERATION_STARTED,
-    EVENT_KIND_PROJECT_CREATED, EVENT_KIND_PROJECT_VALIDATION_FAILED,
-    EVENT_KIND_VERIFICATION_RECORDED,
-    EVIDENCE_PREDICATE_CALL_TARGET, EVIDENCE_PREDICATE_CONTROL_FLOW,
-    EVIDENCE_PREDICATE_FUNCTION_NAME, EVIDENCE_PREDICATE_FUNCTION_SIGNATURE,
-    EVIDENCE_PREDICATE_STRING_REFERENCE, EVIDENCE_PREDICATE_TYPE_INFO,
-    HYPOTHESIS_STATUS_ACCEPTED, HYPOTHESIS_STATUS_PROPOSED,
-    HYPOTHESIS_STATUS_REJECTED, HYPOTHESIS_STATUS_SUPERSEDED,
-    HYPOTHESIS_STATUS_UNDER_INVESTIGATION,
-    NATIVE_FORMAT_GDB_TRACE, NATIVE_FORMAT_GHIDRA_PCODE, NATIVE_FORMAT_IDA_HEXRAYS_PSEUDOCODE,
-    NATIVE_FORMAT_IDA_MICROCODE, NATIVE_FORMAT_LLM_RAW_RESPONSE, NATIVE_FORMAT_Z3_MODEL,
-    OPERATION_KIND_ARTIFACT_IMPORT, OPERATION_KIND_EXTERNAL_ARTIFACT_CHECK,
-    OPERATION_KIND_PROJECT_MIGRATION, OPERATION_KIND_PROJECT_REBUILD_INDEXES,
-    OPERATION_KIND_PROJECT_VALIDATION,
-    PROVIDER_KIND_DEBUGGER, PROVIDER_KIND_DECOMPILER, PROVIDER_KIND_DISASSEMBLER,
-    PROVIDER_KIND_HUMAN, PROVIDER_KIND_LLM, PROVIDER_KIND_SYMBOLIC_EXECUTOR,
-    VERIFICATION_CHECK_ABI_LAYOUT, VERIFICATION_CHECK_ARTIFACT_HASH,
-    VERIFICATION_CHECK_BUILD, VERIFICATION_CHECK_DIFFERENTIAL_BEHAVIOR,
-    VERIFICATION_CHECK_PROJECT_INTEGRITY,
 };
 
 // ---------------------------------------------------------------------------
@@ -929,8 +915,7 @@ mod tests {
 
     #[test]
     fn namespaced_id_deserialize_rejects_invalid() {
-        let result: std::result::Result<NamespacedId, _> =
-            serde_json::from_str("\"Core.Bad\"");
+        let result: std::result::Result<NamespacedId, _> = serde_json::from_str("\"Core.Bad\"");
         assert!(result.is_err());
     }
 

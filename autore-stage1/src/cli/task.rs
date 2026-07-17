@@ -73,8 +73,11 @@ pub async fn list(db: Arc<Database>) -> crate::Result<()> {
 
 /// Executes the `task status <id>` subcommand.
 pub async fn status(db: Arc<Database>, id_str: String) -> crate::Result<()> {
-    let uuid = uuid::Uuid::parse_str(&id_str)
-        .map_err(|e| crate::Error::from(autore_core::Error::Validation(format!("invalid task ID '{id_str}': {e}"))))?;
+    let uuid = uuid::Uuid::parse_str(&id_str).map_err(|e| {
+        crate::Error::from(autore_core::Error::Validation(format!(
+            "invalid task ID '{id_str}': {e}"
+        )))
+    })?;
     let _task_id = crate::TaskId::from_uuid(uuid);
 
     let conn = db.connection()?;
@@ -119,7 +122,11 @@ pub async fn status(db: Arc<Database>, id_str: String) -> crate::Result<()> {
                 "task not found: {id_str}"
             ))));
         }
-        Err(e) => return Err(crate::Error::from(autore_core::Error::Database(e.to_string()))),
+        Err(e) => {
+            return Err(crate::Error::from(autore_core::Error::Database(
+                e.to_string(),
+            )));
+        }
     }
 
     Ok(())

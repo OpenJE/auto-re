@@ -117,20 +117,37 @@ fn row_to_project(row: &rusqlite::Row<'_>) -> rusqlite::Result<Project> {
     let updated_at_str: String = row.get(4)?;
     let metadata_str: String = row.get(5)?;
 
-    let uuid = uuid::Uuid::from_slice(&id_bytes)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e)))?;
+    let uuid = uuid::Uuid::from_slice(&id_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e))
+    })?;
     let id = ProjectId::from_uuid(uuid);
 
-    let schema_version = parse_schema_version(&schema_version_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let schema_version = parse_schema_version(&schema_version_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            2,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
-    let created_at = parse_timestamp(&created_at_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
-    let updated_at = parse_timestamp(&updated_at_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let created_at = parse_timestamp(&created_at_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            3,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
+    let updated_at = parse_timestamp(&updated_at_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            4,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
-    let metadata: MetadataMap = serde_json::from_str(&metadata_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(e)))?;
+    let metadata: MetadataMap = serde_json::from_str(&metadata_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(e))
+    })?;
 
     Ok(Project {
         id,

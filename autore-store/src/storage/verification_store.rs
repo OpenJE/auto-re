@@ -1,6 +1,4 @@
-use autore_schema::domain::records::{
-    VerificationRecord, VerificationState, VerificationSubject,
-};
+use autore_schema::domain::records::{VerificationRecord, VerificationState, VerificationSubject};
 use autore_schema::domain::{ExtensionData, NamespacedId, Timestamp};
 use autore_schema::ids::{
     ArtifactId, EntityId, EvidenceRecordId, GenerationTargetId, HypothesisId, ProjectId,
@@ -63,7 +61,9 @@ fn subject_from_db(kind: &str, id_bytes: Vec<u8>) -> Result<VerificationSubject,
         .map_err(|e| format!("invalid UUID bytes for verification subject: {e}"))?;
     match kind {
         "Entity" => Ok(VerificationSubject::Entity(EntityId::from_uuid(uuid))),
-        "Hypothesis" => Ok(VerificationSubject::Hypothesis(HypothesisId::from_uuid(uuid))),
+        "Hypothesis" => Ok(VerificationSubject::Hypothesis(HypothesisId::from_uuid(
+            uuid,
+        ))),
         "Artifact" => Ok(VerificationSubject::Artifact(ArtifactId::from_uuid(uuid))),
         "GenerationTarget" => Ok(VerificationSubject::GenerationTarget(
             GenerationTargetId::from_uuid(uuid),
@@ -80,7 +80,9 @@ impl VerificationStore for SqliteVerificationStore<'_> {
         let subject_id = record.subject.id_uuid().as_bytes().to_vec();
         let check_str = record.check.to_string();
         let state_str = record.state.kind();
-        let provider_run_bytes = record.provider_run.map(|id| id.as_uuid().as_bytes().to_vec());
+        let provider_run_bytes = record
+            .provider_run
+            .map(|id| id.as_uuid().as_bytes().to_vec());
         let evidence_json = evidence_record_ids_to_json(&record.evidence)?;
         let details_json = record.details.as_ref().map(details_to_json).transpose()?;
         let created_at = record.created_at.to_string();
@@ -154,7 +156,10 @@ impl VerificationStore for SqliteVerificationStore<'_> {
             .map_err(|e| crate::Error::Database(e.to_string()))?;
 
         let records = stmt
-            .query_map(rusqlite::params![subject_kind, subject_id], row_to_verification_record)
+            .query_map(
+                rusqlite::params![subject_kind, subject_id],
+                row_to_verification_record,
+            )
             .map_err(|e| crate::Error::Database(e.to_string()))?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| crate::Error::Database(e.to_string()))?;
@@ -202,44 +207,64 @@ fn row_to_verification_record(row: &rusqlite::Row<'_>) -> rusqlite::Result<Verif
     let details_json: Option<String> = row.get(8)?;
     let created_at_str: String = row.get(9)?;
 
-    let id = VerificationRecordId::from_uuid(
-        uuid::Uuid::from_slice(&id_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
+    let id = VerificationRecordId::from_uuid(uuid::Uuid::from_slice(&id_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e))
+    })?);
 
-    let project = ProjectId::from_uuid(
-        uuid::Uuid::from_slice(&project_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
+    let project = ProjectId::from_uuid(uuid::Uuid::from_slice(&project_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e))
+    })?);
 
-    let subject = subject_from_db(&subject_kind, subject_id_bytes)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let subject = subject_from_db(&subject_kind, subject_id_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            2,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
-    let check = NamespacedId::parse(&check_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(e)))?;
+    let check = NamespacedId::parse(&check_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(e))
+    })?;
 
-    let state = state_from_db(&state_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let state = state_from_db(&state_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            5,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
     let provider_run = provider_run_bytes.map(|bytes| {
-        ProviderRunId::from_uuid(
-            uuid::Uuid::from_slice(&bytes).expect("valid UUID bytes from DB"),
-        )
+        ProviderRunId::from_uuid(uuid::Uuid::from_slice(&bytes).expect("valid UUID bytes from DB"))
     });
 
-    let evidence = evidence_record_ids_from_json(&evidence_json)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(7, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let evidence = evidence_record_ids_from_json(&evidence_json).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            7,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
     let details = match details_json {
-        Some(json) => Some(
-            details_from_json(&json)
-                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(8, rusqlite::types::Type::Text, Box::new(ParseError(e))))?,
-        ),
+        Some(json) => Some(details_from_json(&json).map_err(|e| {
+            rusqlite::Error::FromSqlConversionFailure(
+                8,
+                rusqlite::types::Type::Text,
+                Box::new(ParseError(e)),
+            )
+        })?),
         None => None,
     };
 
-    let created_at = parse_timestamp(&created_at_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(9, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let created_at = parse_timestamp(&created_at_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            9,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
     Ok(VerificationRecord {
         id,
@@ -502,7 +527,11 @@ mod tests {
         let for_entity = store
             .list_by_subject(VerificationSubject::Entity(entity_id))
             .unwrap();
-        assert_eq!(for_entity.len(), 3, "all three checks must coexist for the same subject");
+        assert_eq!(
+            for_entity.len(),
+            3,
+            "all three checks must coexist for the same subject"
+        );
 
         let checks: Vec<String> = for_entity.iter().map(|r| r.check.to_string()).collect();
         assert!(checks.contains(&"core.artifact.hash".to_string()));
@@ -537,10 +566,14 @@ mod tests {
         store.insert(&r2).unwrap();
         store.insert(&r3).unwrap();
 
-        let build_checks = store.list_by_check(&VERIFICATION_CHECK_BUILD.clone()).unwrap();
+        let build_checks = store
+            .list_by_check(&VERIFICATION_CHECK_BUILD.clone())
+            .unwrap();
         assert_eq!(build_checks.len(), 2);
 
-        let hash_checks = store.list_by_check(&VERIFICATION_CHECK_ARTIFACT_HASH.clone()).unwrap();
+        let hash_checks = store
+            .list_by_check(&VERIFICATION_CHECK_ARTIFACT_HASH.clone())
+            .unwrap();
         assert_eq!(hash_checks.len(), 1);
         assert_eq!(hash_checks[0].id, r3.id);
     }
@@ -559,7 +592,10 @@ mod tests {
         );
         rec.project = ProjectId::new();
         let result = store.insert(&rec);
-        assert!(result.is_err(), "FK violation for non-existent project should fail");
+        assert!(
+            result.is_err(),
+            "FK violation for non-existent project should fail"
+        );
     }
 
     #[test]
@@ -579,7 +615,11 @@ mod tests {
         );
         rec.state = VerificationState::Passed;
         rec.evidence = vec![ev1, ev2];
-        rec.details = Some(ExtensionData::new(schema, 1, serde_json::json!({"notes": "ok"})));
+        rec.details = Some(ExtensionData::new(
+            schema,
+            1,
+            serde_json::json!({"notes": "ok"}),
+        ));
         store.insert(&rec).unwrap();
 
         let fetched = store.get(rec.id).unwrap().unwrap();

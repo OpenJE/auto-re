@@ -13,8 +13,8 @@ use tokio_util::sync::CancellationToken;
 use crate::analysis::{
     AnalysisBackend, AnalysisCapability, MockAnalysisBackend, MockPacketBuilder, PacketBuilder,
 };
-use crate::domain::*;
 use crate::domain::EntityId;
+use crate::domain::*;
 use crate::ids::*;
 use crate::model::*;
 use crate::scheduler::*;
@@ -209,8 +209,8 @@ fn get_or_create_campaign(db: &Database) -> crate::Result<CampaignId> {
         .map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
 
     if let Some(id_str) = existing {
-        let uuid =
-            uuid::Uuid::parse_str(&id_str).map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
+        let uuid = uuid::Uuid::parse_str(&id_str)
+            .map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
         return Ok(CampaignId::from_uuid(uuid));
     }
 
@@ -227,8 +227,8 @@ fn get_or_create_campaign(db: &Database) -> crate::Result<CampaignId> {
         .map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
 
     if let Some(id_str) = with_leases {
-        let uuid =
-            uuid::Uuid::parse_str(&id_str).map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
+        let uuid = uuid::Uuid::parse_str(&id_str)
+            .map_err(|e| crate::Error::from(autore_core::Error::Database(e.to_string())))?;
         return Ok(CampaignId::from_uuid(uuid));
     }
 

@@ -1,18 +1,24 @@
-use autore_schema::domain::records::{NativeArtifact, ProviderEntityAlias};
 use autore_schema::domain::NamespacedId;
+use autore_schema::domain::records::{NativeArtifact, ProviderEntityAlias};
 use autore_schema::ids::{ArtifactId, EntityId, NativeArtifactId, ProviderRunId};
 
 use crate::storage::database::Database;
 
 pub trait ProviderAliasStore: Send + Sync {
     fn insert_alias(&self, alias: &ProviderEntityAlias) -> crate::Result<()>;
-    fn list_aliases_for_run(&self, run_id: ProviderRunId) -> crate::Result<Vec<ProviderEntityAlias>>;
+    fn list_aliases_for_run(
+        &self,
+        run_id: ProviderRunId,
+    ) -> crate::Result<Vec<ProviderEntityAlias>>;
     fn find_alias(
         &self,
         run_id: ProviderRunId,
         provider_identifier: &str,
     ) -> crate::Result<Option<ProviderEntityAlias>>;
-    fn list_aliases_for_entity(&self, entity_id: EntityId) -> crate::Result<Vec<ProviderEntityAlias>>;
+    fn list_aliases_for_entity(
+        &self,
+        entity_id: EntityId,
+    ) -> crate::Result<Vec<ProviderEntityAlias>>;
 }
 
 pub trait NativeArtifactStore: Send + Sync {
@@ -51,12 +57,7 @@ impl ProviderAliasStore for SqliteAliasStore<'_> {
             "INSERT INTO provider_entity_aliases \
              (provider_run, provider_kind, provider_identifier, entity) \
              VALUES (?1, ?2, ?3, ?4)",
-            rusqlite::params![
-                run_bytes,
-                kind,
-                alias.provider_identifier,
-                entity_bytes,
-            ],
+            rusqlite::params![run_bytes, kind, alias.provider_identifier, entity_bytes,],
         )
         .map_err(|e| {
             let msg = e.to_string();
@@ -243,17 +244,19 @@ impl NativeArtifactStore for SqliteAliasStore<'_> {
                 Ok((na, ()))
             })
             .map_err(|e| crate::Error::Database(e.to_string()))?
-            .filter_map(|result| {
-                match result {
-                    Ok((na, ())) => {
-                        if na.subject_entities.iter().any(|e| *e.as_uuid() == target_uuid) {
-                            Some(Ok(na))
-                        } else {
-                            None
-                        }
+            .filter_map(|result| match result {
+                Ok((na, ())) => {
+                    if na
+                        .subject_entities
+                        .iter()
+                        .any(|e| *e.as_uuid() == target_uuid)
+                    {
+                        Some(Ok(na))
+                    } else {
+                        None
                     }
-                    Err(e) => Some(Err(e)),
                 }
+                Err(e) => Some(Err(e)),
             })
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| crate::Error::Database(e.to_string()))?;
@@ -268,18 +271,18 @@ fn row_to_alias(row: &rusqlite::Row<'_>) -> rusqlite::Result<ProviderEntityAlias
     let identifier: String = row.get(2)?;
     let entity_bytes: Vec<u8> = row.get(3)?;
 
-    let provider_run = ProviderRunId::from_uuid(
-        uuid::Uuid::from_slice(&run_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
+    let provider_run =
+        ProviderRunId::from_uuid(uuid::Uuid::from_slice(&run_bytes).map_err(|e| {
+            rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e))
+        })?);
 
-    let provider_kind = NamespacedId::parse(&kind_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Text, Box::new(e)))?;
+    let provider_kind = NamespacedId::parse(&kind_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Text, Box::new(e))
+    })?;
 
-    let entity = EntityId::from_uuid(
-        uuid::Uuid::from_slice(&entity_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
+    let entity = EntityId::from_uuid(uuid::Uuid::from_slice(&entity_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Blob, Box::new(e))
+    })?);
 
     Ok(ProviderEntityAlias {
         provider_run,
@@ -297,26 +300,30 @@ fn row_to_native_artifact(row: &rusqlite::Row<'_>) -> rusqlite::Result<NativeArt
     let entities_json: String = row.get(4)?;
     let description: Option<String> = row.get(5)?;
 
-    let id = NativeArtifactId::from_uuid(
-        uuid::Uuid::from_slice(&id_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
+    let id = NativeArtifactId::from_uuid(uuid::Uuid::from_slice(&id_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e))
+    })?);
 
-    let provider_run = ProviderRunId::from_uuid(
-        uuid::Uuid::from_slice(&run_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
+    let provider_run =
+        ProviderRunId::from_uuid(uuid::Uuid::from_slice(&run_bytes).map_err(|e| {
+            rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e))
+        })?);
 
-    let artifact = ArtifactId::from_uuid(
-        uuid::Uuid::from_slice(&art_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
+    let artifact = ArtifactId::from_uuid(uuid::Uuid::from_slice(&art_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Blob, Box::new(e))
+    })?);
 
-    let format = NamespacedId::parse(&format_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Text, Box::new(e)))?;
+    let format = NamespacedId::parse(&format_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Text, Box::new(e))
+    })?;
 
-    let subject_entities = entity_ids_from_json(&entities_json)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let subject_entities = entity_ids_from_json(&entities_json).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            4,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
     Ok(NativeArtifact {
         id,
@@ -342,11 +349,10 @@ impl std::error::Error for ParseError {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use autore_schema::domain::records::{
-        NATIVE_FORMAT_IDA_HEXRAYS_PSEUDOCODE, NATIVE_FORMAT_IDA_MICROCODE,
-        PROVIDER_KIND_DECOMPILER,
-    };
     use autore_schema::domain::ContentHash;
+    use autore_schema::domain::records::{
+        NATIVE_FORMAT_IDA_HEXRAYS_PSEUDOCODE, NATIVE_FORMAT_IDA_MICROCODE, PROVIDER_KIND_DECOMPILER,
+    };
     use autore_schema::ids::{ArtifactId, ProjectId, ProviderId, ProviderRunId};
 
     fn test_db() -> Database {
@@ -607,7 +613,10 @@ mod tests {
             entity: entity_id,
         };
         let result = store.insert_alias(&alias);
-        assert!(result.is_err(), "FK violation for non-existent run should fail");
+        assert!(
+            result.is_err(),
+            "FK violation for non-existent run should fail"
+        );
     }
 
     #[test]
@@ -625,7 +634,10 @@ mod tests {
             entity: EntityId::new(),
         };
         let result = store.insert_alias(&alias);
-        assert!(result.is_err(), "FK violation for non-existent entity should fail");
+        assert!(
+            result.is_err(),
+            "FK violation for non-existent entity should fail"
+        );
     }
 
     // -- NativeArtifactStore tests --
@@ -756,7 +768,10 @@ mod tests {
             description: None,
         };
         let result = store.insert(&na);
-        assert!(result.is_err(), "FK violation for non-existent run should fail");
+        assert!(
+            result.is_err(),
+            "FK violation for non-existent run should fail"
+        );
     }
 
     #[test]
@@ -776,7 +791,10 @@ mod tests {
             description: None,
         };
         let result = store.insert(&na);
-        assert!(result.is_err(), "FK violation for non-existent artifact should fail");
+        assert!(
+            result.is_err(),
+            "FK violation for non-existent artifact should fail"
+        );
     }
 
     #[test]

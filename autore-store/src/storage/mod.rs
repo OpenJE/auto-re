@@ -16,14 +16,14 @@ pub mod provider_store;
 pub mod repositories;
 pub mod verification_store;
 
-pub use alias_store::{
-    NativeArtifactStore, ProviderAliasStore, SqliteAliasStore,
-};
+pub use alias_store::{NativeArtifactStore, ProviderAliasStore, SqliteAliasStore};
 pub use artifact_store::{ArtifactIntegrity, ArtifactStore, SqliteArtifactStore};
 pub use contradiction_store::{ContradictionStore, SqliteContradictionStore};
 pub use database::{Database, Transaction};
 pub use entity_store::{EntityColumn, EntityPage, EntityStore, SqliteEntityStore};
-pub use event_store::{emit_in_tx, next_project_event_sequence, with_event, EventStore, SqliteEventStore};
+pub use event_store::{
+    EventStore, SqliteEventStore, emit_in_tx, next_project_event_sequence, with_event,
+};
 pub use evidence_store::{EvidenceStore, SqliteEvidenceStore};
 pub use hypothesis_store::{HypothesisStore, SqliteHypothesisStore};
 pub use operation_store::{OperationStore, SqliteOperationStore};

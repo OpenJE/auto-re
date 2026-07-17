@@ -4,8 +4,8 @@
 //! a directed analysis effort. Its state machine governs the lifecycle:
 //! `Pending → Active → Paused/Complete | Active → Complete → Archived`.
 
-use autore_core::{Error, Result};
 use crate::ids::CampaignId;
+use autore_core::{Error, Result};
 
 /// The lifecycle state of an analysis campaign.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]

@@ -187,10 +187,7 @@ pub fn validate_confidence_range(value: f64, context: &str) -> crate::Result<()>
 /// let cyclic_edges = vec![(0, 1), (1, 2), (2, 0)]; // a -> b -> c -> a (cycle!)
 /// assert!(validate_no_cycle(&ids, &cyclic_edges).is_err());
 /// ```
-pub fn validate_no_cycle<T: AsRef<str>>(
-    ids: &[T],
-    edges: &[(usize, usize)],
-) -> crate::Result<()> {
+pub fn validate_no_cycle<T: AsRef<str>>(ids: &[T], edges: &[(usize, usize)]) -> crate::Result<()> {
     if ids.is_empty() {
         return Ok(());
     }
@@ -233,7 +230,9 @@ pub fn validate_no_cycle<T: AsRef<str>>(
                     return Some(cycle);
                 }
 
-                if colors[next] == 0 && let Some(cycle) = dfs(next, adjacency, colors, path, _ids) {
+                if colors[next] == 0
+                    && let Some(cycle) = dfs(next, adjacency, colors, path, _ids)
+                {
                     return Some(cycle);
                 }
             }
@@ -246,11 +245,10 @@ pub fn validate_no_cycle<T: AsRef<str>>(
 
     // Check all nodes (handles disconnected components)
     for start in 0..ids.len() {
-        if colors[start] == 0 && let Some(cycle) = dfs(start, &adjacency, &mut colors, &mut path, ids) {
-            let cycle_str: Vec<&str> = cycle
-                .iter()
-                .map(|&idx| ids[idx].as_ref())
-                .collect();
+        if colors[start] == 0
+            && let Some(cycle) = dfs(start, &adjacency, &mut colors, &mut path, ids)
+        {
+            let cycle_str: Vec<&str> = cycle.iter().map(|&idx| ids[idx].as_ref()).collect();
             return Err(Error::Validation(format!(
                 "cycle detected: {}",
                 cycle_str.join(" -> ")
@@ -529,7 +527,9 @@ mod tests {
         let ids = vec!["a", "b", "c", "d", "e"];
         let edges = vec![
             (0, 1), // a -> b (no cycle)
-            (2, 3), (3, 4), (4, 2), // c -> d -> e -> c (cycle!)
+            (2, 3),
+            (3, 4),
+            (4, 2), // c -> d -> e -> c (cycle!)
         ];
         let result = validate_no_cycle(&ids, &edges);
         assert!(result.is_err());
@@ -542,7 +542,12 @@ mod tests {
         let edges = vec![(0, 5)]; // Index 5 doesn't exist
         let result = validate_no_cycle(&ids, &edges);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("non-existent node"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("non-existent node")
+        );
     }
 
     // -----------------------------------------------------------------------

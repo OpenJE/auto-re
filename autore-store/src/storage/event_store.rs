@@ -24,7 +24,10 @@ impl<'a> SqliteEventStore<'a> {
     }
 }
 
-pub fn next_project_event_sequence(txn: &Transaction<'_>, project_id: ProjectId) -> crate::Result<u64> {
+pub fn next_project_event_sequence(
+    txn: &Transaction<'_>,
+    project_id: ProjectId,
+) -> crate::Result<u64> {
     let next: u64 = txn
         .conn()
         .query_row(
@@ -152,40 +155,59 @@ fn row_to_event(row: &rusqlite::Row<'_>) -> rusqlite::Result<ProjectEvent> {
     let payload_json: Option<String> = row.get(6)?;
     let created_at_str: String = row.get(7)?;
 
-    let id = ProjectEventId::from_uuid(
-        uuid::Uuid::from_slice(&id_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
+    let id = ProjectEventId::from_uuid(uuid::Uuid::from_slice(&id_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e))
+    })?);
 
-    let project = ProjectId::from_uuid(
-        uuid::Uuid::from_slice(&project_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
+    let project = ProjectId::from_uuid(uuid::Uuid::from_slice(&project_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e))
+    })?);
 
-    let kind = parse_namespaced_id(&kind_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let kind = parse_namespaced_id(&kind_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            3,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
     let subject = match subject_json {
-        Some(json) => Some(
-            subject_from_json(&json)
-                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(ParseError(e))))?,
-        ),
+        Some(json) => Some(subject_from_json(&json).map_err(|e| {
+            rusqlite::Error::FromSqlConversionFailure(
+                4,
+                rusqlite::types::Type::Text,
+                Box::new(ParseError(e)),
+            )
+        })?),
         None => None,
     };
 
-    let source = parse_event_source(&source_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let source = parse_event_source(&source_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            5,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
     let payload = match payload_json {
-        Some(json) => Some(
-            payload_from_json(&json)
-                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(6, rusqlite::types::Type::Text, Box::new(ParseError(e))))?,
-        ),
+        Some(json) => Some(payload_from_json(&json).map_err(|e| {
+            rusqlite::Error::FromSqlConversionFailure(
+                6,
+                rusqlite::types::Type::Text,
+                Box::new(ParseError(e)),
+            )
+        })?),
         None => None,
     };
 
-    let created_at = parse_timestamp(&created_at_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(7, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let created_at = parse_timestamp(&created_at_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            7,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
     Ok(ProjectEvent {
         id,
@@ -238,14 +260,14 @@ impl EventStore for SqliteEventStore<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use autore_schema::domain::records::{
-        EVENT_KIND_OPERATION_COMPLETED, EVENT_KIND_OPERATION_STARTED,
-        EVENT_KIND_PROJECT_CREATED, OPERATION_KIND_ARTIFACT_IMPORT,
-    };
     use crate::storage::operation_store::{OperationStore, SqliteOperationStore};
     use crate::storage::project_store::{ProjectStore, SqliteProjectStore};
-    use autore_schema::domain::records::{Operation, Project};
     use autore_core::operation::OperationState;
+    use autore_schema::domain::records::{
+        EVENT_KIND_OPERATION_COMPLETED, EVENT_KIND_OPERATION_STARTED, EVENT_KIND_PROJECT_CREATED,
+        OPERATION_KIND_ARTIFACT_IMPORT,
+    };
+    use autore_schema::domain::records::{Operation, Project};
 
     fn test_db() -> Database {
         Database::open_in_memory().unwrap()
@@ -371,14 +393,12 @@ mod tests {
             Some(EventSubject::Operation(op.id)),
             None,
             |txn| {
-                txn.conn().execute(
-                    "UPDATE operations SET state = ?1, updated_at = ?2 WHERE id = ?3",
-                    rusqlite::params![
-                        "Completed",
-                        "2026-07-17T00:00:00Z",
-                        op_id_bytes,
-                    ],
-                ).map_err(|e| crate::Error::Database(e.to_string()))?;
+                txn.conn()
+                    .execute(
+                        "UPDATE operations SET state = ?1, updated_at = ?2 WHERE id = ?3",
+                        rusqlite::params!["Completed", "2026-07-17T00:00:00Z", op_id_bytes,],
+                    )
+                    .map_err(|e| crate::Error::Database(e.to_string()))?;
                 Ok(())
             },
         );

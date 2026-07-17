@@ -71,12 +71,18 @@ pub trait ArtifactStore: Send + Sync {
     /// to the stored value. Returns `Ok(ArtifactIntegrity)` with the details,
     /// `Err(NotFound)` if the file is missing, or `Err(HashMismatch)` when
     /// the content has changed.
-    fn verify_artifact(&self, project_id: ProjectId, artifact: &Artifact)
-        -> crate::Result<ArtifactIntegrity>;
+    fn verify_artifact(
+        &self,
+        project_id: ProjectId,
+        artifact: &Artifact,
+    ) -> crate::Result<ArtifactIntegrity>;
 
     /// Reads the raw bytes of a managed blob from disk.
-    fn read_managed_blob(&self, project_id: ProjectId, artifact: &Artifact)
-        -> crate::Result<Vec<u8>>;
+    fn read_managed_blob(
+        &self,
+        project_id: ProjectId,
+        artifact: &Artifact,
+    ) -> crate::Result<Vec<u8>>;
 
     /// Retrieves a persisted artifact by ID.
     fn get_artifact(&self, id: ArtifactId) -> crate::Result<Option<Artifact>>;
@@ -160,12 +166,14 @@ impl<'a> SqliteArtifactStore<'a> {
         let digest = a.content_hash.digest.clone();
         let size = a.size as i64;
         let (storage_kind, storage_path) = match &a.storage {
-            ArtifactStorage::ManagedBlob { relative_path } => {
-                ("managed".to_string(), relative_path.to_string_lossy().to_string())
-            }
-            ArtifactStorage::ExternalFile { canonical_path } => {
-                ("external".to_string(), canonical_path.to_string_lossy().to_string())
-            }
+            ArtifactStorage::ManagedBlob { relative_path } => (
+                "managed".to_string(),
+                relative_path.to_string_lossy().to_string(),
+            ),
+            ArtifactStorage::ExternalFile { canonical_path } => (
+                "external".to_string(),
+                canonical_path.to_string_lossy().to_string(),
+            ),
         };
         let created_at = a.created_at.to_string();
         let metadata = serde_json::to_string(&a.metadata)
@@ -352,13 +360,16 @@ fn row_to_artifact(row: &rusqlite::Row<'_>) -> rusqlite::Result<Artifact> {
     let created_at_str: String = row.get(8)?;
     let metadata_str: String = row.get(9)?;
 
-    let id_uuid = uuid::Uuid::from_slice(&id_bytes)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e)))?;
-    let project_uuid = uuid::Uuid::from_slice(&project_bytes)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e)))?;
+    let id_uuid = uuid::Uuid::from_slice(&id_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e))
+    })?;
+    let project_uuid = uuid::Uuid::from_slice(&project_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e))
+    })?;
 
-    let kind = NamespacedId::parse(&kind_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, Box::new(e)))?;
+    let kind = NamespacedId::parse(&kind_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, Box::new(e))
+    })?;
 
     let algorithm = match algo_str.as_str() {
         "sha256" => HashAlgorithm::Sha256,
@@ -372,10 +383,7 @@ fn row_to_artifact(row: &rusqlite::Row<'_>) -> rusqlite::Result<Artifact> {
         }
     };
 
-    let content_hash = ContentHash {
-        algorithm,
-        digest,
-    };
+    let content_hash = ContentHash { algorithm, digest };
 
     let storage = match storage_kind.as_str() {
         "managed" => ArtifactStorage::ManagedBlob {
@@ -393,11 +401,17 @@ fn row_to_artifact(row: &rusqlite::Row<'_>) -> rusqlite::Result<Artifact> {
         }
     };
 
-    let created_at = parse_timestamp(&created_at_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(8, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let created_at = parse_timestamp(&created_at_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            8,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
-    let metadata: MetadataMap = serde_json::from_str(&metadata_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(9, rusqlite::types::Type::Text, Box::new(e)))?;
+    let metadata: MetadataMap = serde_json::from_str(&metadata_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(9, rusqlite::types::Type::Text, Box::new(e))
+    })?;
 
     Ok(Artifact {
         id: ArtifactId::from_uuid(id_uuid),
@@ -435,9 +449,9 @@ impl std::error::Error for ParseError {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use autore_schema::domain::records::Project;
-    use autore_schema::domain::ARTIFACT_KIND_BINARY;
     use crate::storage::project_store::{ProjectStore, SqliteProjectStore};
+    use autore_schema::domain::ARTIFACT_KIND_BINARY;
+    use autore_schema::domain::records::Project;
 
     fn setup() -> (tempfile::TempDir, Database) {
         let tmp = tempfile::tempdir().unwrap();
@@ -719,7 +733,10 @@ mod tests {
             .join("blake3")
             .join(prefix)
             .join(&digest_hex);
-        assert!(blob_path.exists(), "BLAKE3 blob should exist at {blob_path:?}");
+        assert!(
+            blob_path.exists(),
+            "BLAKE3 blob should exist at {blob_path:?}"
+        );
     }
 
     // -- Additional: trait object safety --

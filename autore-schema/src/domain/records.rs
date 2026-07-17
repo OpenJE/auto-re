@@ -9,8 +9,15 @@ use std::path::PathBuf;
 
 use autore_core::operation::OperationState;
 
-use crate::domain::{Confidence, ContentHash, ExtensionData, EvidenceValue, MetadataMap, NamespacedId, SchemaVersion, StableEntityKey, Timestamp};
-use crate::ids::{ArtifactId, ContradictionId, EntityId, EvidenceRecordId, GenerationTargetId, HypothesisId, NativeArtifactId, OperationId, PackageId, ProjectEventId, ProjectId, ProviderId, ProviderRunId, VerificationRecordId};
+use crate::domain::{
+    Confidence, ContentHash, EvidenceValue, ExtensionData, MetadataMap, NamespacedId,
+    SchemaVersion, StableEntityKey, Timestamp,
+};
+use crate::ids::{
+    ArtifactId, ContradictionId, EntityId, EvidenceRecordId, GenerationTargetId, HypothesisId,
+    NativeArtifactId, OperationId, PackageId, ProjectEventId, ProjectId, ProviderId, ProviderRunId,
+    VerificationRecordId,
+};
 
 // ---------------------------------------------------------------------------
 // Project
@@ -550,7 +557,9 @@ pub static EVIDENCE_PREDICATE_FUNCTION_NAME: std::sync::LazyLock<NamespacedId> =
 
 /// Evidence predicate: the signature of a function.
 pub static EVIDENCE_PREDICATE_FUNCTION_SIGNATURE: std::sync::LazyLock<NamespacedId> =
-    std::sync::LazyLock::new(|| NamespacedId::parse("evidence.predicate.function-signature").unwrap());
+    std::sync::LazyLock::new(|| {
+        NamespacedId::parse("evidence.predicate.function-signature").unwrap()
+    });
 
 /// Evidence predicate: a call target reference.
 pub static EVIDENCE_PREDICATE_CALL_TARGET: std::sync::LazyLock<NamespacedId> =
@@ -558,7 +567,9 @@ pub static EVIDENCE_PREDICATE_CALL_TARGET: std::sync::LazyLock<NamespacedId> =
 
 /// Evidence predicate: a string reference.
 pub static EVIDENCE_PREDICATE_STRING_REFERENCE: std::sync::LazyLock<NamespacedId> =
-    std::sync::LazyLock::new(|| NamespacedId::parse("evidence.predicate.string-reference").unwrap());
+    std::sync::LazyLock::new(|| {
+        NamespacedId::parse("evidence.predicate.string-reference").unwrap()
+    });
 
 /// Evidence predicate: type information.
 pub static EVIDENCE_PREDICATE_TYPE_INFO: std::sync::LazyLock<NamespacedId> =
@@ -622,7 +633,9 @@ impl HypothesisStatus {
     pub fn is_terminal(&self) -> bool {
         matches!(
             self,
-            HypothesisStatus::Accepted | HypothesisStatus::Rejected | HypothesisStatus::Superseded { .. }
+            HypothesisStatus::Accepted
+                | HypothesisStatus::Rejected
+                | HypothesisStatus::Superseded { .. }
         )
     }
 }
@@ -647,7 +660,9 @@ pub static HYPOTHESIS_STATUS_PROPOSED: std::sync::LazyLock<NamespacedId> =
     std::sync::LazyLock::new(|| NamespacedId::parse("hypothesis.status.proposed").unwrap());
 
 pub static HYPOTHESIS_STATUS_UNDER_INVESTIGATION: std::sync::LazyLock<NamespacedId> =
-    std::sync::LazyLock::new(|| NamespacedId::parse("hypothesis.status.under-investigation").unwrap());
+    std::sync::LazyLock::new(|| {
+        NamespacedId::parse("hypothesis.status.under-investigation").unwrap()
+    });
 
 pub static HYPOTHESIS_STATUS_ACCEPTED: std::sync::LazyLock<NamespacedId> =
     std::sync::LazyLock::new(|| NamespacedId::parse("hypothesis.status.accepted").unwrap());
@@ -1075,11 +1090,7 @@ pub struct VerificationRecord {
 
 impl VerificationRecord {
     /// Creates a new verification record in `NotChecked` state.
-    pub fn new(
-        project: ProjectId,
-        subject: VerificationSubject,
-        check: NamespacedId,
-    ) -> Self {
+    pub fn new(project: ProjectId, subject: VerificationSubject, check: NamespacedId) -> Self {
         VerificationRecord {
             id: VerificationRecordId::new(),
             project,
@@ -1205,11 +1216,7 @@ pub struct Operation {
 
 impl Operation {
     /// Creates a new operation in `Queued` state.
-    pub fn new(
-        project: ProjectId,
-        kind: NamespacedId,
-        requested_by: impl Into<String>,
-    ) -> Self {
+    pub fn new(project: ProjectId, kind: NamespacedId, requested_by: impl Into<String>) -> Self {
         let now = Timestamp::now();
         Operation {
             id: OperationId::new(),
@@ -1556,7 +1563,10 @@ mod tests {
             ARTIFACT_KIND_NATIVE_PROVIDER_OUTPUT.to_string(),
             "core.native-provider-output"
         );
-        assert_eq!(ARTIFACT_KIND_CONFIGURATION.to_string(), "core.configuration");
+        assert_eq!(
+            ARTIFACT_KIND_CONFIGURATION.to_string(),
+            "core.configuration"
+        );
         assert_eq!(ARTIFACT_KIND_LOG.to_string(), "core.log");
         assert_eq!(ARTIFACT_KIND_TRACE.to_string(), "core.trace");
         assert_eq!(
@@ -1663,7 +1673,9 @@ mod tests {
             content_hash: ContentHash::sha256(b"fixture binary content"),
             size: 2048,
             storage: ArtifactStorage::ManagedBlob {
-                relative_path: PathBuf::from("sha256/b9/4d27b993456789abcdef0123456789abcdef0123456789abcdef01234567"),
+                relative_path: PathBuf::from(
+                    "sha256/b9/4d27b993456789abcdef0123456789abcdef0123456789abcdef01234567",
+                ),
             },
             created_at: ts,
             metadata: MetadataMap::new(),
@@ -1672,7 +1684,9 @@ mod tests {
         eprintln!("=== artifact_managed.json ===\n{managed_json}\n=== end ===");
 
         let artifact_external = Artifact {
-            id: ArtifactId::from_uuid(Uuid::parse_str("01906789-abcd-7000-8000-000000000003").unwrap()),
+            id: ArtifactId::from_uuid(
+                Uuid::parse_str("01906789-abcd-7000-8000-000000000003").unwrap(),
+            ),
             project: project_id,
             kind: ARTIFACT_KIND_SOURCE_TREE.clone(),
             content_hash: ContentHash::sha256(b"external source tree"),
@@ -1743,7 +1757,10 @@ mod tests {
         assert_eq!(ENTITY_KIND_TYPE.to_string(), "core.type");
         assert_eq!(ENTITY_KIND_GLOBAL.to_string(), "core.global");
         assert_eq!(ENTITY_KIND_STRING.to_string(), "core.string");
-        assert_eq!(ENTITY_KIND_EXTERNAL_FUNCTION.to_string(), "core.external-function");
+        assert_eq!(
+            ENTITY_KIND_EXTERNAL_FUNCTION.to_string(),
+            "core.external-function"
+        );
         assert_eq!(ENTITY_KIND_SOURCE_SYMBOL.to_string(), "core.source-symbol");
     }
 
@@ -1758,11 +1775,31 @@ mod tests {
 
     #[test]
     fn provider_run_status_invalid_transitions() {
-        assert!(ProviderRunStatus::Completed.transition(ProviderRunStatus::Running).is_err());
-        assert!(ProviderRunStatus::Failed.transition(ProviderRunStatus::Completed).is_err());
-        assert!(ProviderRunStatus::Cancelled.transition(ProviderRunStatus::Failed).is_err());
-        assert!(ProviderRunStatus::Inconclusive.transition(ProviderRunStatus::Running).is_err());
-        assert!(ProviderRunStatus::Running.transition(ProviderRunStatus::Running).is_err());
+        assert!(
+            ProviderRunStatus::Completed
+                .transition(ProviderRunStatus::Running)
+                .is_err()
+        );
+        assert!(
+            ProviderRunStatus::Failed
+                .transition(ProviderRunStatus::Completed)
+                .is_err()
+        );
+        assert!(
+            ProviderRunStatus::Cancelled
+                .transition(ProviderRunStatus::Failed)
+                .is_err()
+        );
+        assert!(
+            ProviderRunStatus::Inconclusive
+                .transition(ProviderRunStatus::Running)
+                .is_err()
+        );
+        assert!(
+            ProviderRunStatus::Running
+                .transition(ProviderRunStatus::Running)
+                .is_err()
+        );
     }
 
     #[test]
@@ -1793,21 +1830,23 @@ mod tests {
 
     #[test]
     fn provider_kinds_registered() {
-        assert_eq!(PROVIDER_KIND_DISASSEMBLER.to_string(), "provider.disassembler");
+        assert_eq!(
+            PROVIDER_KIND_DISASSEMBLER.to_string(),
+            "provider.disassembler"
+        );
         assert_eq!(PROVIDER_KIND_DECOMPILER.to_string(), "provider.decompiler");
         assert_eq!(PROVIDER_KIND_DEBUGGER.to_string(), "provider.debugger");
-        assert_eq!(PROVIDER_KIND_SYMBOLIC_EXECUTOR.to_string(), "provider.symbolic-executor");
+        assert_eq!(
+            PROVIDER_KIND_SYMBOLIC_EXECUTOR.to_string(),
+            "provider.symbolic-executor"
+        );
         assert_eq!(PROVIDER_KIND_LLM.to_string(), "provider.llm");
         assert_eq!(PROVIDER_KIND_HUMAN.to_string(), "provider.human");
     }
 
     #[test]
     fn provider_round_trip_json() {
-        let p = Provider::new(
-            "IDA Pro",
-            PROVIDER_KIND_DECOMPILER.clone(),
-            "8.3",
-        );
+        let p = Provider::new("IDA Pro", PROVIDER_KIND_DECOMPILER.clone(), "8.3");
         let json = serde_json::to_string_pretty(&p).unwrap();
         let back: Provider = serde_json::from_str(&json).unwrap();
         assert_eq!(p.id, back.id);
@@ -1941,20 +1980,32 @@ mod tests {
 
     #[test]
     fn native_format_constants_registered() {
-        assert_eq!(NATIVE_FORMAT_IDA_HEXRAYS_PSEUDOCODE.to_string(), "ida.hexrays.pseudocode");
+        assert_eq!(
+            NATIVE_FORMAT_IDA_HEXRAYS_PSEUDOCODE.to_string(),
+            "ida.hexrays.pseudocode"
+        );
         assert_eq!(NATIVE_FORMAT_IDA_MICROCODE.to_string(), "ida.microcode");
         assert_eq!(NATIVE_FORMAT_GHIDRA_PCODE.to_string(), "ghidra.pcode");
         assert_eq!(NATIVE_FORMAT_GDB_TRACE.to_string(), "gdb.trace");
         assert_eq!(NATIVE_FORMAT_Z3_MODEL.to_string(), "z3.model");
-        assert_eq!(NATIVE_FORMAT_LLM_RAW_RESPONSE.to_string(), "llm.raw-response");
+        assert_eq!(
+            NATIVE_FORMAT_LLM_RAW_RESPONSE.to_string(),
+            "llm.raw-response"
+        );
     }
 
     #[test]
     fn evidence_lifecycle_state_display() {
         assert_eq!(EvidenceLifecycleState::Active.to_string(), "Active");
         assert_eq!(EvidenceLifecycleState::Superseded.to_string(), "Superseded");
-        assert_eq!(EvidenceLifecycleState::Invalidated.to_string(), "Invalidated");
-        assert_eq!(EvidenceLifecycleState::Unavailable.to_string(), "Unavailable");
+        assert_eq!(
+            EvidenceLifecycleState::Invalidated.to_string(),
+            "Invalidated"
+        );
+        assert_eq!(
+            EvidenceLifecycleState::Unavailable.to_string(),
+            "Unavailable"
+        );
     }
 
     #[test]
@@ -2041,12 +2092,30 @@ mod tests {
 
     #[test]
     fn evidence_predicate_constants_registered() {
-        assert_eq!(EVIDENCE_PREDICATE_FUNCTION_NAME.to_string(), "evidence.predicate.function-name");
-        assert_eq!(EVIDENCE_PREDICATE_FUNCTION_SIGNATURE.to_string(), "evidence.predicate.function-signature");
-        assert_eq!(EVIDENCE_PREDICATE_CALL_TARGET.to_string(), "evidence.predicate.call-target");
-        assert_eq!(EVIDENCE_PREDICATE_STRING_REFERENCE.to_string(), "evidence.predicate.string-reference");
-        assert_eq!(EVIDENCE_PREDICATE_TYPE_INFO.to_string(), "evidence.predicate.type-info");
-        assert_eq!(EVIDENCE_PREDICATE_CONTROL_FLOW.to_string(), "evidence.predicate.control-flow");
+        assert_eq!(
+            EVIDENCE_PREDICATE_FUNCTION_NAME.to_string(),
+            "evidence.predicate.function-name"
+        );
+        assert_eq!(
+            EVIDENCE_PREDICATE_FUNCTION_SIGNATURE.to_string(),
+            "evidence.predicate.function-signature"
+        );
+        assert_eq!(
+            EVIDENCE_PREDICATE_CALL_TARGET.to_string(),
+            "evidence.predicate.call-target"
+        );
+        assert_eq!(
+            EVIDENCE_PREDICATE_STRING_REFERENCE.to_string(),
+            "evidence.predicate.string-reference"
+        );
+        assert_eq!(
+            EVIDENCE_PREDICATE_TYPE_INFO.to_string(),
+            "evidence.predicate.type-info"
+        );
+        assert_eq!(
+            EVIDENCE_PREDICATE_CONTROL_FLOW.to_string(),
+            "evidence.predicate.control-flow"
+        );
     }
 
     // -- HypothesisStatus tests --
@@ -2054,27 +2123,71 @@ mod tests {
     #[test]
     fn hypothesis_state_transitions_valid() {
         let proposed = HypothesisStatus::Proposed;
-        assert!(proposed.transition(&HypothesisStatus::UnderInvestigation).is_ok());
+        assert!(
+            proposed
+                .transition(&HypothesisStatus::UnderInvestigation)
+                .is_ok()
+        );
 
         let investigating = HypothesisStatus::UnderInvestigation;
-        assert!(investigating.transition(&HypothesisStatus::Accepted).is_ok());
-        assert!(investigating.transition(&HypothesisStatus::Rejected).is_ok());
+        assert!(
+            investigating
+                .transition(&HypothesisStatus::Accepted)
+                .is_ok()
+        );
+        assert!(
+            investigating
+                .transition(&HypothesisStatus::Rejected)
+                .is_ok()
+        );
 
         let accepted = HypothesisStatus::Accepted;
-        let superseded = HypothesisStatus::Superseded { by: HypothesisId::new() };
+        let superseded = HypothesisStatus::Superseded {
+            by: HypothesisId::new(),
+        };
         assert!(accepted.transition(&superseded).is_ok());
     }
 
     #[test]
     fn hypothesis_state_transitions_reject_invalid() {
-        assert!(HypothesisStatus::Proposed.transition(&HypothesisStatus::Accepted).is_err());
-        assert!(HypothesisStatus::Proposed.transition(&HypothesisStatus::Rejected).is_err());
-        assert!(HypothesisStatus::UnderInvestigation.transition(&HypothesisStatus::Proposed).is_err());
-        assert!(HypothesisStatus::Accepted.transition(&HypothesisStatus::Rejected).is_err());
-        assert!(HypothesisStatus::Accepted.transition(&HypothesisStatus::UnderInvestigation).is_err());
-        assert!(HypothesisStatus::Rejected.transition(&HypothesisStatus::Accepted).is_err());
-        assert!(HypothesisStatus::Rejected.transition(&HypothesisStatus::Proposed).is_err());
-        let s = HypothesisStatus::Superseded { by: HypothesisId::new() };
+        assert!(
+            HypothesisStatus::Proposed
+                .transition(&HypothesisStatus::Accepted)
+                .is_err()
+        );
+        assert!(
+            HypothesisStatus::Proposed
+                .transition(&HypothesisStatus::Rejected)
+                .is_err()
+        );
+        assert!(
+            HypothesisStatus::UnderInvestigation
+                .transition(&HypothesisStatus::Proposed)
+                .is_err()
+        );
+        assert!(
+            HypothesisStatus::Accepted
+                .transition(&HypothesisStatus::Rejected)
+                .is_err()
+        );
+        assert!(
+            HypothesisStatus::Accepted
+                .transition(&HypothesisStatus::UnderInvestigation)
+                .is_err()
+        );
+        assert!(
+            HypothesisStatus::Rejected
+                .transition(&HypothesisStatus::Accepted)
+                .is_err()
+        );
+        assert!(
+            HypothesisStatus::Rejected
+                .transition(&HypothesisStatus::Proposed)
+                .is_err()
+        );
+        let s = HypothesisStatus::Superseded {
+            by: HypothesisId::new(),
+        };
         assert!(s.transition(&HypothesisStatus::Accepted).is_err());
         assert!(s.transition(&HypothesisStatus::Proposed).is_err());
     }
@@ -2109,29 +2222,45 @@ mod tests {
         let original_status = h.status.clone();
 
         h.confidence = Confidence::new(0.9).unwrap();
-        assert_eq!(h.status, original_status, "changing confidence must not change status");
+        assert_eq!(
+            h.status, original_status,
+            "changing confidence must not change status"
+        );
 
         h.confidence = Confidence::new(0.1).unwrap();
-        assert_eq!(h.status, original_status, "changing confidence must not change status");
+        assert_eq!(
+            h.status, original_status,
+            "changing confidence must not change status"
+        );
     }
 
     #[test]
     fn hypothesis_status_display() {
         assert_eq!(HypothesisStatus::Proposed.to_string(), "Proposed");
-        assert_eq!(HypothesisStatus::UnderInvestigation.to_string(), "UnderInvestigation");
+        assert_eq!(
+            HypothesisStatus::UnderInvestigation.to_string(),
+            "UnderInvestigation"
+        );
         assert_eq!(HypothesisStatus::Accepted.to_string(), "Accepted");
         assert_eq!(HypothesisStatus::Rejected.to_string(), "Rejected");
-        let s = HypothesisStatus::Superseded { by: HypothesisId::new() };
+        let s = HypothesisStatus::Superseded {
+            by: HypothesisId::new(),
+        };
         assert!(s.to_string().starts_with("Superseded("));
     }
 
     #[test]
     fn hypothesis_status_kind() {
         assert_eq!(HypothesisStatus::Proposed.kind(), "Proposed");
-        assert_eq!(HypothesisStatus::UnderInvestigation.kind(), "UnderInvestigation");
+        assert_eq!(
+            HypothesisStatus::UnderInvestigation.kind(),
+            "UnderInvestigation"
+        );
         assert_eq!(HypothesisStatus::Accepted.kind(), "Accepted");
         assert_eq!(HypothesisStatus::Rejected.kind(), "Rejected");
-        let s = HypothesisStatus::Superseded { by: HypothesisId::new() };
+        let s = HypothesisStatus::Superseded {
+            by: HypothesisId::new(),
+        };
         assert_eq!(s.kind(), "Superseded");
     }
 
@@ -2141,7 +2270,12 @@ mod tests {
         assert!(!HypothesisStatus::UnderInvestigation.is_terminal());
         assert!(HypothesisStatus::Accepted.is_terminal());
         assert!(HypothesisStatus::Rejected.is_terminal());
-        assert!(HypothesisStatus::Superseded { by: HypothesisId::new() }.is_terminal());
+        assert!(
+            HypothesisStatus::Superseded {
+                by: HypothesisId::new()
+            }
+            .is_terminal()
+        );
     }
 
     #[test]
@@ -2151,7 +2285,9 @@ mod tests {
             HypothesisStatus::UnderInvestigation,
             HypothesisStatus::Accepted,
             HypothesisStatus::Rejected,
-            HypothesisStatus::Superseded { by: HypothesisId::new() },
+            HypothesisStatus::Superseded {
+                by: HypothesisId::new(),
+            },
         ] {
             let json = serde_json::to_string(&status).unwrap();
             let back: HypothesisStatus = serde_json::from_str(&json).unwrap();
@@ -2161,11 +2297,26 @@ mod tests {
 
     #[test]
     fn hypothesis_status_constants_registered() {
-        assert_eq!(HYPOTHESIS_STATUS_PROPOSED.to_string(), "hypothesis.status.proposed");
-        assert_eq!(HYPOTHESIS_STATUS_UNDER_INVESTIGATION.to_string(), "hypothesis.status.under-investigation");
-        assert_eq!(HYPOTHESIS_STATUS_ACCEPTED.to_string(), "hypothesis.status.accepted");
-        assert_eq!(HYPOTHESIS_STATUS_REJECTED.to_string(), "hypothesis.status.rejected");
-        assert_eq!(HYPOTHESIS_STATUS_SUPERSEDED.to_string(), "hypothesis.status.superseded");
+        assert_eq!(
+            HYPOTHESIS_STATUS_PROPOSED.to_string(),
+            "hypothesis.status.proposed"
+        );
+        assert_eq!(
+            HYPOTHESIS_STATUS_UNDER_INVESTIGATION.to_string(),
+            "hypothesis.status.under-investigation"
+        );
+        assert_eq!(
+            HYPOTHESIS_STATUS_ACCEPTED.to_string(),
+            "hypothesis.status.accepted"
+        );
+        assert_eq!(
+            HYPOTHESIS_STATUS_REJECTED.to_string(),
+            "hypothesis.status.rejected"
+        );
+        assert_eq!(
+            HYPOTHESIS_STATUS_SUPERSEDED.to_string(),
+            "hypothesis.status.superseded"
+        );
     }
 
     #[test]
@@ -2241,7 +2392,11 @@ mod tests {
         );
         let result = h.transition(HypothesisStatus::Accepted);
         assert!(result.is_err());
-        assert_eq!(h.status, HypothesisStatus::Proposed, "status unchanged on invalid transition");
+        assert_eq!(
+            h.status,
+            HypothesisStatus::Proposed,
+            "status unchanged on invalid transition"
+        );
     }
 
     #[test]
@@ -2252,8 +2407,16 @@ mod tests {
         assert!(open.transition(&ContradictionStatus::Deferred).is_ok());
 
         let investigating = ContradictionStatus::Investigating;
-        assert!(investigating.transition(&ContradictionStatus::Resolved).is_ok());
-        assert!(investigating.transition(&ContradictionStatus::Deferred).is_ok());
+        assert!(
+            investigating
+                .transition(&ContradictionStatus::Resolved)
+                .is_ok()
+        );
+        assert!(
+            investigating
+                .transition(&ContradictionStatus::Deferred)
+                .is_ok()
+        );
 
         let deferred = ContradictionStatus::Deferred;
         assert!(deferred.transition(&ContradictionStatus::Open).is_ok());
@@ -2261,14 +2424,46 @@ mod tests {
 
     #[test]
     fn contradiction_status_transitions_reject_invalid() {
-        assert!(ContradictionStatus::Resolved.transition(&ContradictionStatus::Open).is_err());
-        assert!(ContradictionStatus::Resolved.transition(&ContradictionStatus::Investigating).is_err());
-        assert!(ContradictionStatus::Resolved.transition(&ContradictionStatus::Deferred).is_err());
-        assert!(ContradictionStatus::Deferred.transition(&ContradictionStatus::Resolved).is_err());
-        assert!(ContradictionStatus::Deferred.transition(&ContradictionStatus::Investigating).is_err());
-        assert!(ContradictionStatus::Investigating.transition(&ContradictionStatus::Open).is_err());
-        assert!(ContradictionStatus::Investigating.transition(&ContradictionStatus::Investigating).is_err());
-        assert!(ContradictionStatus::Open.transition(&ContradictionStatus::Open).is_err());
+        assert!(
+            ContradictionStatus::Resolved
+                .transition(&ContradictionStatus::Open)
+                .is_err()
+        );
+        assert!(
+            ContradictionStatus::Resolved
+                .transition(&ContradictionStatus::Investigating)
+                .is_err()
+        );
+        assert!(
+            ContradictionStatus::Resolved
+                .transition(&ContradictionStatus::Deferred)
+                .is_err()
+        );
+        assert!(
+            ContradictionStatus::Deferred
+                .transition(&ContradictionStatus::Resolved)
+                .is_err()
+        );
+        assert!(
+            ContradictionStatus::Deferred
+                .transition(&ContradictionStatus::Investigating)
+                .is_err()
+        );
+        assert!(
+            ContradictionStatus::Investigating
+                .transition(&ContradictionStatus::Open)
+                .is_err()
+        );
+        assert!(
+            ContradictionStatus::Investigating
+                .transition(&ContradictionStatus::Investigating)
+                .is_err()
+        );
+        assert!(
+            ContradictionStatus::Open
+                .transition(&ContradictionStatus::Open)
+                .is_err()
+        );
     }
 
     #[test]
@@ -2290,7 +2485,10 @@ mod tests {
     #[test]
     fn contradiction_status_display() {
         assert_eq!(ContradictionStatus::Open.to_string(), "Open");
-        assert_eq!(ContradictionStatus::Investigating.to_string(), "Investigating");
+        assert_eq!(
+            ContradictionStatus::Investigating.to_string(),
+            "Investigating"
+        );
         assert_eq!(ContradictionStatus::Resolved.to_string(), "Resolved");
         assert_eq!(ContradictionStatus::Deferred.to_string(), "Deferred");
     }
@@ -2311,10 +2509,22 @@ mod tests {
 
     #[test]
     fn contradiction_status_constants_registered() {
-        assert_eq!(CONTRADICTION_STATUS_OPEN.to_string(), "contradiction.status.open");
-        assert_eq!(CONTRADICTION_STATUS_INVESTIGATING.to_string(), "contradiction.status.investigating");
-        assert_eq!(CONTRADICTION_STATUS_RESOLVED.to_string(), "contradiction.status.resolved");
-        assert_eq!(CONTRADICTION_STATUS_DEFERRED.to_string(), "contradiction.status.deferred");
+        assert_eq!(
+            CONTRADICTION_STATUS_OPEN.to_string(),
+            "contradiction.status.open"
+        );
+        assert_eq!(
+            CONTRADICTION_STATUS_INVESTIGATING.to_string(),
+            "contradiction.status.investigating"
+        );
+        assert_eq!(
+            CONTRADICTION_STATUS_RESOLVED.to_string(),
+            "contradiction.status.resolved"
+        );
+        assert_eq!(
+            CONTRADICTION_STATUS_DEFERRED.to_string(),
+            "contradiction.status.deferred"
+        );
     }
 
     #[test]
@@ -2343,7 +2553,11 @@ mod tests {
         );
         let result = c.transition(ContradictionStatus::Resolved, None);
         assert!(result.is_err());
-        assert_eq!(c.status, ContradictionStatus::Open, "status unchanged on failed transition");
+        assert_eq!(
+            c.status,
+            ContradictionStatus::Open,
+            "status unchanged on failed transition"
+        );
     }
 
     #[test]
@@ -2381,7 +2595,8 @@ mod tests {
             chosen,
             rationale: "preferred hypothesis supported by stronger evidence".into(),
         };
-        c.transition(ContradictionStatus::Resolved, Some(resolution)).unwrap();
+        c.transition(ContradictionStatus::Resolved, Some(resolution))
+            .unwrap();
         assert_eq!(c.status, ContradictionStatus::Resolved);
         assert!(c.resolution.is_some());
     }
@@ -2402,7 +2617,8 @@ mod tests {
             chosen,
             rationale: "chosen".into(),
         };
-        c.transition(ContradictionStatus::Resolved, Some(resolution)).unwrap();
+        c.transition(ContradictionStatus::Resolved, Some(resolution))
+            .unwrap();
         let json = serde_json::to_string_pretty(&c).unwrap();
         let back: Contradiction = serde_json::from_str(&json).unwrap();
         assert_eq!(c.id, back.id);
@@ -2417,9 +2633,18 @@ mod tests {
 
     #[test]
     fn verification_subject_kinds() {
-        assert_eq!(VerificationSubject::Entity(EntityId::new()).kind(), "Entity");
-        assert_eq!(VerificationSubject::Hypothesis(HypothesisId::new()).kind(), "Hypothesis");
-        assert_eq!(VerificationSubject::Artifact(ArtifactId::new()).kind(), "Artifact");
+        assert_eq!(
+            VerificationSubject::Entity(EntityId::new()).kind(),
+            "Entity"
+        );
+        assert_eq!(
+            VerificationSubject::Hypothesis(HypothesisId::new()).kind(),
+            "Hypothesis"
+        );
+        assert_eq!(
+            VerificationSubject::Artifact(ArtifactId::new()).kind(),
+            "Artifact"
+        );
         assert_eq!(
             VerificationSubject::GenerationTarget(GenerationTargetId::new()).kind(),
             "GenerationTarget"
@@ -2458,13 +2683,41 @@ mod tests {
 
     #[test]
     fn verification_state_transitions_reject_invalid() {
-        assert!(VerificationState::Passed.transition(&VerificationState::Failed).is_err());
-        assert!(VerificationState::Failed.transition(&VerificationState::Passed).is_err());
-        assert!(VerificationState::Inconclusive.transition(&VerificationState::Pending).is_err());
-        assert!(VerificationState::NotChecked.transition(&VerificationState::Passed).is_err());
-        assert!(VerificationState::NotChecked.transition(&VerificationState::Failed).is_err());
-        assert!(VerificationState::Blocked.transition(&VerificationState::Passed).is_err());
-        assert!(VerificationState::Pending.transition(&VerificationState::NotChecked).is_err());
+        assert!(
+            VerificationState::Passed
+                .transition(&VerificationState::Failed)
+                .is_err()
+        );
+        assert!(
+            VerificationState::Failed
+                .transition(&VerificationState::Passed)
+                .is_err()
+        );
+        assert!(
+            VerificationState::Inconclusive
+                .transition(&VerificationState::Pending)
+                .is_err()
+        );
+        assert!(
+            VerificationState::NotChecked
+                .transition(&VerificationState::Passed)
+                .is_err()
+        );
+        assert!(
+            VerificationState::NotChecked
+                .transition(&VerificationState::Failed)
+                .is_err()
+        );
+        assert!(
+            VerificationState::Blocked
+                .transition(&VerificationState::Passed)
+                .is_err()
+        );
+        assert!(
+            VerificationState::Pending
+                .transition(&VerificationState::NotChecked)
+                .is_err()
+        );
     }
 
     #[test]
@@ -2505,10 +2758,19 @@ mod tests {
 
     #[test]
     fn verification_check_constants_registered() {
-        assert_eq!(VERIFICATION_CHECK_ARTIFACT_HASH.to_string(), "core.artifact.hash");
-        assert_eq!(VERIFICATION_CHECK_PROJECT_INTEGRITY.to_string(), "core.project.integrity");
+        assert_eq!(
+            VERIFICATION_CHECK_ARTIFACT_HASH.to_string(),
+            "core.artifact.hash"
+        );
+        assert_eq!(
+            VERIFICATION_CHECK_PROJECT_INTEGRITY.to_string(),
+            "core.project.integrity"
+        );
         assert_eq!(VERIFICATION_CHECK_BUILD.to_string(), "verification.build");
-        assert_eq!(VERIFICATION_CHECK_ABI_LAYOUT.to_string(), "verification.abi.layout");
+        assert_eq!(
+            VERIFICATION_CHECK_ABI_LAYOUT.to_string(),
+            "verification.abi.layout"
+        );
         assert_eq!(
             VERIFICATION_CHECK_DIFFERENTIAL_BEHAVIOR.to_string(),
             "verification.differential.behavior"
@@ -2539,7 +2801,11 @@ mod tests {
             state: VerificationState::Passed,
             provider_run: Some(ProviderRunId::new()),
             evidence: vec![EvidenceRecordId::new(), EvidenceRecordId::new()],
-            details: Some(ExtensionData::new(schema, 1, serde_json::json!({"notes": "ok"}))),
+            details: Some(ExtensionData::new(
+                schema,
+                1,
+                serde_json::json!({"notes": "ok"}),
+            )),
             created_at: Timestamp::now(),
         };
         let json = serde_json::to_string_pretty(&rec).unwrap();
@@ -2587,10 +2853,10 @@ mod tests {
     // -- Operation tests --
 
     use super::{
-        CancellationRequest, EventSource, EventSubject, MetricMap, Operation, OperationFailure,
-        ProgressUpdate, OPERATION_KIND_ARTIFACT_IMPORT, OPERATION_KIND_EXTERNAL_ARTIFACT_CHECK,
-        OPERATION_KIND_PROJECT_MIGRATION, OPERATION_KIND_PROJECT_REBUILD_INDEXES,
-        OPERATION_KIND_PROJECT_VALIDATION,
+        CancellationRequest, EventSource, EventSubject, MetricMap, OPERATION_KIND_ARTIFACT_IMPORT,
+        OPERATION_KIND_EXTERNAL_ARTIFACT_CHECK, OPERATION_KIND_PROJECT_MIGRATION,
+        OPERATION_KIND_PROJECT_REBUILD_INDEXES, OPERATION_KIND_PROJECT_VALIDATION, Operation,
+        OperationFailure, ProgressUpdate,
     };
     use autore_core::operation::OperationState;
 
@@ -2681,10 +2947,7 @@ mod tests {
     #[test]
     fn progress_update_round_trip() {
         let mut metrics: MetricMap = BTreeMap::new();
-        metrics.insert(
-            NamespacedId::parse("progress.percent").unwrap(),
-            42.5,
-        );
+        metrics.insert(NamespacedId::parse("progress.percent").unwrap(), 42.5);
         let pu = ProgressUpdate::new(OperationId::new(), 0, "analyzing", metrics.clone());
         let json = serde_json::to_string(&pu).unwrap();
         let back: ProgressUpdate = serde_json::from_str(&json).unwrap();
@@ -2696,11 +2959,8 @@ mod tests {
 
     #[test]
     fn cancellation_request_round_trip() {
-        let cr = CancellationRequest::new(
-            OperationId::new(),
-            "user",
-            Some("no longer needed".into()),
-        );
+        let cr =
+            CancellationRequest::new(OperationId::new(), "user", Some("no longer needed".into()));
         let json = serde_json::to_string(&cr).unwrap();
         let back: CancellationRequest = serde_json::from_str(&json).unwrap();
         assert_eq!(cr.id, back.id);
@@ -2725,9 +2985,18 @@ mod tests {
 
     #[test]
     fn operation_kind_constants() {
-        assert_eq!(OPERATION_KIND_ARTIFACT_IMPORT.to_string(), "core.artifact.import");
-        assert_eq!(OPERATION_KIND_PROJECT_VALIDATION.to_string(), "core.project.validation");
-        assert_eq!(OPERATION_KIND_PROJECT_MIGRATION.to_string(), "core.project.migration");
+        assert_eq!(
+            OPERATION_KIND_ARTIFACT_IMPORT.to_string(),
+            "core.artifact.import"
+        );
+        assert_eq!(
+            OPERATION_KIND_PROJECT_VALIDATION.to_string(),
+            "core.project.validation"
+        );
+        assert_eq!(
+            OPERATION_KIND_PROJECT_MIGRATION.to_string(),
+            "core.project.migration"
+        );
         assert_eq!(
             OPERATION_KIND_PROJECT_REBUILD_INDEXES.to_string(),
             "core.project.rebuild-indexes"
@@ -2741,15 +3010,13 @@ mod tests {
     // -- ProjectEvent tests --
 
     use super::{
-        ProjectEvent, EVENT_KIND_ARTIFACT_EXTERNAL_CHANGED, EVENT_KIND_ARTIFACT_REGISTERED,
-        EVENT_KIND_CONTRADICTION_CREATED, EVENT_KIND_ENTITY_CREATED,
-        EVENT_KIND_EVIDENCE_ADDED, EVENT_KIND_EVIDENCE_INVALIDATED,
-        EVENT_KIND_HYPOTHESIS_ACCEPTED, EVENT_KIND_HYPOTHESIS_PROPOSED,
-        EVENT_KIND_HYPOTHESIS_REJECTED, EVENT_KIND_OPERATION_COMPLETED,
-        EVENT_KIND_OPERATION_FAILED, EVENT_KIND_OPERATION_PROGRESS,
-        EVENT_KIND_OPERATION_QUEUED, EVENT_KIND_OPERATION_STARTED,
-        EVENT_KIND_PROJECT_CREATED, EVENT_KIND_PROJECT_VALIDATION_FAILED,
-        EVENT_KIND_VERIFICATION_RECORDED,
+        EVENT_KIND_ARTIFACT_EXTERNAL_CHANGED, EVENT_KIND_ARTIFACT_REGISTERED,
+        EVENT_KIND_CONTRADICTION_CREATED, EVENT_KIND_ENTITY_CREATED, EVENT_KIND_EVIDENCE_ADDED,
+        EVENT_KIND_EVIDENCE_INVALIDATED, EVENT_KIND_HYPOTHESIS_ACCEPTED,
+        EVENT_KIND_HYPOTHESIS_PROPOSED, EVENT_KIND_HYPOTHESIS_REJECTED,
+        EVENT_KIND_OPERATION_COMPLETED, EVENT_KIND_OPERATION_FAILED, EVENT_KIND_OPERATION_PROGRESS,
+        EVENT_KIND_OPERATION_QUEUED, EVENT_KIND_OPERATION_STARTED, EVENT_KIND_PROJECT_CREATED,
+        EVENT_KIND_PROJECT_VALIDATION_FAILED, EVENT_KIND_VERIFICATION_RECORDED, ProjectEvent,
     };
 
     #[test]
@@ -2779,7 +3046,11 @@ mod tests {
             EVENT_KIND_ARTIFACT_REGISTERED.clone(),
             EventSource::Artifact,
             Some(EventSubject::Project(pid)),
-            Some(ExtensionData::new(schema, 1, serde_json::json!({"key": "val"}))),
+            Some(ExtensionData::new(
+                schema,
+                1,
+                serde_json::json!({"key": "val"}),
+            )),
         );
         let json = serde_json::to_string_pretty(&ev).unwrap();
         let back: ProjectEvent = serde_json::from_str(&json).unwrap();
@@ -2794,23 +3065,68 @@ mod tests {
 
     #[test]
     fn project_event_kind_constants_registered() {
-        assert_eq!(EVENT_KIND_PROJECT_CREATED.to_string(), "core.project.created");
-        assert_eq!(EVENT_KIND_ARTIFACT_REGISTERED.to_string(), "core.artifact.registered");
-        assert_eq!(EVENT_KIND_ARTIFACT_EXTERNAL_CHANGED.to_string(), "core.artifact.external-changed");
+        assert_eq!(
+            EVENT_KIND_PROJECT_CREATED.to_string(),
+            "core.project.created"
+        );
+        assert_eq!(
+            EVENT_KIND_ARTIFACT_REGISTERED.to_string(),
+            "core.artifact.registered"
+        );
+        assert_eq!(
+            EVENT_KIND_ARTIFACT_EXTERNAL_CHANGED.to_string(),
+            "core.artifact.external-changed"
+        );
         assert_eq!(EVENT_KIND_ENTITY_CREATED.to_string(), "core.entity.created");
         assert_eq!(EVENT_KIND_EVIDENCE_ADDED.to_string(), "core.evidence.added");
-        assert_eq!(EVENT_KIND_EVIDENCE_INVALIDATED.to_string(), "core.evidence.invalidated");
-        assert_eq!(EVENT_KIND_HYPOTHESIS_PROPOSED.to_string(), "core.hypothesis.proposed");
-        assert_eq!(EVENT_KIND_HYPOTHESIS_ACCEPTED.to_string(), "core.hypothesis.accepted");
-        assert_eq!(EVENT_KIND_HYPOTHESIS_REJECTED.to_string(), "core.hypothesis.rejected");
-        assert_eq!(EVENT_KIND_CONTRADICTION_CREATED.to_string(), "core.contradiction.created");
-        assert_eq!(EVENT_KIND_VERIFICATION_RECORDED.to_string(), "core.verification.recorded");
-        assert_eq!(EVENT_KIND_OPERATION_QUEUED.to_string(), "core.operation.queued");
-        assert_eq!(EVENT_KIND_OPERATION_STARTED.to_string(), "core.operation.started");
-        assert_eq!(EVENT_KIND_OPERATION_PROGRESS.to_string(), "core.operation.progress");
-        assert_eq!(EVENT_KIND_OPERATION_COMPLETED.to_string(), "core.operation.completed");
-        assert_eq!(EVENT_KIND_OPERATION_FAILED.to_string(), "core.operation.failed");
-        assert_eq!(EVENT_KIND_PROJECT_VALIDATION_FAILED.to_string(), "core.project.validation-failed");
+        assert_eq!(
+            EVENT_KIND_EVIDENCE_INVALIDATED.to_string(),
+            "core.evidence.invalidated"
+        );
+        assert_eq!(
+            EVENT_KIND_HYPOTHESIS_PROPOSED.to_string(),
+            "core.hypothesis.proposed"
+        );
+        assert_eq!(
+            EVENT_KIND_HYPOTHESIS_ACCEPTED.to_string(),
+            "core.hypothesis.accepted"
+        );
+        assert_eq!(
+            EVENT_KIND_HYPOTHESIS_REJECTED.to_string(),
+            "core.hypothesis.rejected"
+        );
+        assert_eq!(
+            EVENT_KIND_CONTRADICTION_CREATED.to_string(),
+            "core.contradiction.created"
+        );
+        assert_eq!(
+            EVENT_KIND_VERIFICATION_RECORDED.to_string(),
+            "core.verification.recorded"
+        );
+        assert_eq!(
+            EVENT_KIND_OPERATION_QUEUED.to_string(),
+            "core.operation.queued"
+        );
+        assert_eq!(
+            EVENT_KIND_OPERATION_STARTED.to_string(),
+            "core.operation.started"
+        );
+        assert_eq!(
+            EVENT_KIND_OPERATION_PROGRESS.to_string(),
+            "core.operation.progress"
+        );
+        assert_eq!(
+            EVENT_KIND_OPERATION_COMPLETED.to_string(),
+            "core.operation.completed"
+        );
+        assert_eq!(
+            EVENT_KIND_OPERATION_FAILED.to_string(),
+            "core.operation.failed"
+        );
+        assert_eq!(
+            EVENT_KIND_PROJECT_VALIDATION_FAILED.to_string(),
+            "core.project.validation-failed"
+        );
     }
 
     #[test]

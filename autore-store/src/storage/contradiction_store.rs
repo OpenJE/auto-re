@@ -1,6 +1,4 @@
-use autore_schema::domain::records::{
-    Contradiction, ContradictionResolution, ContradictionStatus,
-};
+use autore_schema::domain::records::{Contradiction, ContradictionResolution, ContradictionStatus};
 use autore_schema::domain::{NamespacedId, Timestamp};
 use autore_schema::ids::{ContradictionId, EntityId, EvidenceRecordId, HypothesisId, ProjectId};
 
@@ -199,7 +197,10 @@ impl ContradictionStore for SqliteContradictionStore<'_> {
             .map_err(|e| crate::Error::Database(e.to_string()))?;
 
         let records = stmt
-            .query_map(rusqlite::params![project_bytes, status_kind], row_to_contradiction)
+            .query_map(
+                rusqlite::params![project_bytes, status_kind],
+                row_to_contradiction,
+            )
             .map_err(|e| crate::Error::Database(e.to_string()))?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| crate::Error::Database(e.to_string()))?;
@@ -228,8 +229,7 @@ impl ContradictionStore for SqliteContradictionStore<'_> {
                 _ => crate::Error::Database(e.to_string()),
             })?;
 
-        let current_status =
-            status_from_db(&current_status_str).map_err(crate::Error::Database)?;
+        let current_status = status_from_db(&current_status_str).map_err(crate::Error::Database)?;
 
         current_status.transition(&ContradictionStatus::Resolved)?;
 
@@ -264,46 +264,72 @@ fn row_to_contradiction(row: &rusqlite::Row<'_>) -> rusqlite::Result<Contradicti
     let created_at_str: String = row.get(8)?;
     let updated_at_str: String = row.get(9)?;
 
-    let id = ContradictionId::from_uuid(
-        uuid::Uuid::from_slice(&id_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
+    let id = ContradictionId::from_uuid(uuid::Uuid::from_slice(&id_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e))
+    })?);
 
-    let project = ProjectId::from_uuid(
-        uuid::Uuid::from_slice(&project_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
+    let project = ProjectId::from_uuid(uuid::Uuid::from_slice(&project_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e))
+    })?);
 
-    let subject = EntityId::from_uuid(
-        uuid::Uuid::from_slice(&subject_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
+    let subject = EntityId::from_uuid(uuid::Uuid::from_slice(&subject_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Blob, Box::new(e))
+    })?);
 
-    let predicate = NamespacedId::parse(&predicate_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Text, Box::new(e)))?;
+    let predicate = NamespacedId::parse(&predicate_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Text, Box::new(e))
+    })?;
 
-    let evidence = evidence_record_ids_from_json(&evidence_json)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let evidence = evidence_record_ids_from_json(&evidence_json).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            4,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
-    let hypotheses = hypothesis_ids_from_json(&hypotheses_json)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let hypotheses = hypothesis_ids_from_json(&hypotheses_json).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            5,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
-    let status = status_from_db(&status_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(6, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let status = status_from_db(&status_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            6,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
     let resolution = match resolution_json {
-        Some(json) => Some(
-            resolution_from_json(&json)
-                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(7, rusqlite::types::Type::Text, Box::new(ParseError(e))))?,
-        ),
+        Some(json) => Some(resolution_from_json(&json).map_err(|e| {
+            rusqlite::Error::FromSqlConversionFailure(
+                7,
+                rusqlite::types::Type::Text,
+                Box::new(ParseError(e)),
+            )
+        })?),
         None => None,
     };
 
-    let created_at = parse_timestamp(&created_at_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(8, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let created_at = parse_timestamp(&created_at_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            8,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
-    let updated_at = parse_timestamp(&updated_at_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(9, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let updated_at = parse_timestamp(&updated_at_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            9,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
     Ok(Contradiction {
         id,
@@ -464,8 +490,12 @@ mod tests {
         let e2 = insert_entity(&db, pid);
         let store = SqliteContradictionStore::new(&db);
 
-        store.insert(&sample_contradiction(pid, e1, vec![])).unwrap();
-        store.insert(&sample_contradiction(pid, e2, vec![])).unwrap();
+        store
+            .insert(&sample_contradiction(pid, e1, vec![]))
+            .unwrap();
+        store
+            .insert(&sample_contradiction(pid, e2, vec![]))
+            .unwrap();
 
         let all = store.list_by_project(pid).unwrap();
         assert_eq!(all.len(), 2);
@@ -479,9 +509,15 @@ mod tests {
         let e2 = insert_entity(&db, pid);
         let store = SqliteContradictionStore::new(&db);
 
-        store.insert(&sample_contradiction(pid, e1, vec![])).unwrap();
-        store.insert(&sample_contradiction(pid, e1, vec![])).unwrap();
-        store.insert(&sample_contradiction(pid, e2, vec![])).unwrap();
+        store
+            .insert(&sample_contradiction(pid, e1, vec![]))
+            .unwrap();
+        store
+            .insert(&sample_contradiction(pid, e1, vec![]))
+            .unwrap();
+        store
+            .insert(&sample_contradiction(pid, e2, vec![]))
+            .unwrap();
 
         let for_e1 = store.list_by_subject(e1).unwrap();
         assert_eq!(for_e1.len(), 2);
@@ -549,7 +585,10 @@ mod tests {
         store.resolve(c.id, build_resolution(&[h])).unwrap();
 
         let result = store.resolve(c.id, build_resolution(&[h]));
-        assert!(result.is_err(), "Resolving an already-resolved contradiction must fail");
+        assert!(
+            result.is_err(),
+            "Resolving an already-resolved contradiction must fail"
+        );
 
         let fetched = store.get(c.id).unwrap().unwrap();
         assert_eq!(fetched.status, ContradictionStatus::Resolved);
@@ -583,7 +622,10 @@ mod tests {
         drop(conn);
 
         let result = store.resolve(c.id, build_resolution(&[h]));
-        assert!(result.is_err(), "Deferred -> Resolved is invalid; must reopen first");
+        assert!(
+            result.is_err(),
+            "Deferred -> Resolved is invalid; must reopen first"
+        );
 
         let fetched = store.get(c.id).unwrap().unwrap();
         assert_eq!(fetched.status, ContradictionStatus::Deferred);
@@ -599,7 +641,10 @@ mod tests {
         let mut c = sample_contradiction(pid, entity_id, vec![]);
         c.project = ProjectId::new();
         let result = store.insert(&c);
-        assert!(result.is_err(), "FK violation for non-existent project should fail");
+        assert!(
+            result.is_err(),
+            "FK violation for non-existent project should fail"
+        );
     }
 
     #[test]
@@ -610,7 +655,10 @@ mod tests {
 
         let c = sample_contradiction(pid, EntityId::new(), vec![]);
         let result = store.insert(&c);
-        assert!(result.is_err(), "FK violation for non-existent entity should fail");
+        assert!(
+            result.is_err(),
+            "FK violation for non-existent entity should fail"
+        );
     }
 
     #[test]

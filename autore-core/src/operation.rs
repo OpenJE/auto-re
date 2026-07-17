@@ -115,24 +115,64 @@ mod tests {
     #[test]
     fn operation_state_transitions_valid() {
         // Queued → Running
-        assert!(OperationState::Queued.transition(&OperationState::Running).is_ok());
+        assert!(
+            OperationState::Queued
+                .transition(&OperationState::Running)
+                .is_ok()
+        );
         // Running ↔ Paused
-        assert!(OperationState::Running.transition(&OperationState::Paused).is_ok());
-        assert!(OperationState::Paused.transition(&OperationState::Running).is_ok());
+        assert!(
+            OperationState::Running
+                .transition(&OperationState::Paused)
+                .is_ok()
+        );
+        assert!(
+            OperationState::Paused
+                .transition(&OperationState::Running)
+                .is_ok()
+        );
         // Running → Cancelling
-        assert!(OperationState::Running.transition(&OperationState::Cancelling).is_ok());
+        assert!(
+            OperationState::Running
+                .transition(&OperationState::Cancelling)
+                .is_ok()
+        );
         // Cancelling → Cancelled
-        assert!(OperationState::Cancelling.transition(&OperationState::Cancelled).is_ok());
+        assert!(
+            OperationState::Cancelling
+                .transition(&OperationState::Cancelled)
+                .is_ok()
+        );
         // Running → Completed
-        assert!(OperationState::Running.transition(&OperationState::Completed).is_ok());
+        assert!(
+            OperationState::Running
+                .transition(&OperationState::Completed)
+                .is_ok()
+        );
         // Running → Failed
-        assert!(OperationState::Running.transition(&OperationState::Failed).is_ok());
+        assert!(
+            OperationState::Running
+                .transition(&OperationState::Failed)
+                .is_ok()
+        );
         // Running → Blocked
-        assert!(OperationState::Running.transition(&OperationState::Blocked).is_ok());
+        assert!(
+            OperationState::Running
+                .transition(&OperationState::Blocked)
+                .is_ok()
+        );
         // Running → Inconclusive
-        assert!(OperationState::Running.transition(&OperationState::Inconclusive).is_ok());
+        assert!(
+            OperationState::Running
+                .transition(&OperationState::Inconclusive)
+                .is_ok()
+        );
         // Blocked → Running
-        assert!(OperationState::Blocked.transition(&OperationState::Running).is_ok());
+        assert!(
+            OperationState::Blocked
+                .transition(&OperationState::Running)
+                .is_ok()
+        );
     }
 
     #[test]
@@ -162,16 +202,48 @@ mod tests {
             }
         }
         // Queued cannot go to anything except Running
-        assert!(OperationState::Queued.transition(&OperationState::Completed).is_err());
-        assert!(OperationState::Queued.transition(&OperationState::Failed).is_err());
-        assert!(OperationState::Queued.transition(&OperationState::Paused).is_err());
-        assert!(OperationState::Queued.transition(&OperationState::Cancelling).is_err());
+        assert!(
+            OperationState::Queued
+                .transition(&OperationState::Completed)
+                .is_err()
+        );
+        assert!(
+            OperationState::Queued
+                .transition(&OperationState::Failed)
+                .is_err()
+        );
+        assert!(
+            OperationState::Queued
+                .transition(&OperationState::Paused)
+                .is_err()
+        );
+        assert!(
+            OperationState::Queued
+                .transition(&OperationState::Cancelling)
+                .is_err()
+        );
         // Paused cannot go to terminal directly
-        assert!(OperationState::Paused.transition(&OperationState::Completed).is_err());
-        assert!(OperationState::Paused.transition(&OperationState::Failed).is_err());
+        assert!(
+            OperationState::Paused
+                .transition(&OperationState::Completed)
+                .is_err()
+        );
+        assert!(
+            OperationState::Paused
+                .transition(&OperationState::Failed)
+                .is_err()
+        );
         // Cancelling can only go to Cancelled
-        assert!(OperationState::Cancelling.transition(&OperationState::Running).is_err());
-        assert!(OperationState::Cancelling.transition(&OperationState::Completed).is_err());
+        assert!(
+            OperationState::Cancelling
+                .transition(&OperationState::Running)
+                .is_err()
+        );
+        assert!(
+            OperationState::Cancelling
+                .transition(&OperationState::Completed)
+                .is_err()
+        );
         // Self-transitions are invalid
         for state in [
             OperationState::Queued,

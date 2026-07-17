@@ -67,11 +67,7 @@ pub struct BinaryLocation {
 
 impl BinaryLocation {
     /// Creates a new binary location from an artifact, module identity, and RVA.
-    pub fn new(
-        artifact: BinaryArtifactId,
-        module: ModuleIdentity,
-        relative_address: u64,
-    ) -> Self {
+    pub fn new(artifact: BinaryArtifactId, module: ModuleIdentity, relative_address: u64) -> Self {
         BinaryLocation {
             artifact,
             module,
@@ -637,7 +633,10 @@ mod tests {
         // so this tests that the guard is present.
         let json = r#"{"kind":"Float","value":"NaN"}"#;
         let result: std::result::Result<EvidenceValue, _> = serde_json::from_str(json);
-        assert!(result.is_err(), "string 'NaN' must not deserialize as Float");
+        assert!(
+            result.is_err(),
+            "string 'NaN' must not deserialize as Float"
+        );
     }
 
     // -- 12 variant coverage --

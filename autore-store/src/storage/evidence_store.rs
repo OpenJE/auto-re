@@ -9,19 +9,10 @@ use crate::storage::database::Database;
 pub trait EvidenceStore: Send + Sync {
     fn insert_evidence(&self, record: &EvidenceRecord) -> crate::Result<()>;
     fn get_evidence(&self, id: EvidenceRecordId) -> crate::Result<Option<EvidenceRecord>>;
-    fn list_by_project(
-        &self,
-        project_id: ProjectId,
-    ) -> crate::Result<Vec<EvidenceRecord>>;
+    fn list_by_project(&self, project_id: ProjectId) -> crate::Result<Vec<EvidenceRecord>>;
     fn list_by_subject(&self, subject: EntityId) -> crate::Result<Vec<EvidenceRecord>>;
-    fn list_by_provider_run(
-        &self,
-        run_id: ProviderRunId,
-    ) -> crate::Result<Vec<EvidenceRecord>>;
-    fn record_lifecycle_event(
-        &self,
-        event: &EvidenceLifecycleEvent,
-    ) -> crate::Result<()>;
+    fn list_by_provider_run(&self, run_id: ProviderRunId) -> crate::Result<Vec<EvidenceRecord>>;
+    fn record_lifecycle_event(&self, event: &EvidenceLifecycleEvent) -> crate::Result<()>;
     fn list_lifecycle_for_evidence(
         &self,
         evidence_id: EvidenceRecordId,
@@ -121,10 +112,7 @@ impl EvidenceStore for SqliteEvidenceStore<'_> {
         }
     }
 
-    fn list_by_project(
-        &self,
-        project_id: ProjectId,
-    ) -> crate::Result<Vec<EvidenceRecord>> {
+    fn list_by_project(&self, project_id: ProjectId) -> crate::Result<Vec<EvidenceRecord>> {
         let project_bytes = project_id.as_uuid().as_bytes().to_vec();
         let conn = self.db.connection()?;
 
@@ -170,10 +158,7 @@ impl EvidenceStore for SqliteEvidenceStore<'_> {
         Ok(records)
     }
 
-    fn list_by_provider_run(
-        &self,
-        run_id: ProviderRunId,
-    ) -> crate::Result<Vec<EvidenceRecord>> {
+    fn list_by_provider_run(&self, run_id: ProviderRunId) -> crate::Result<Vec<EvidenceRecord>> {
         let run_bytes = run_id.as_uuid().as_bytes().to_vec();
         let conn = self.db.connection()?;
 
@@ -196,16 +181,11 @@ impl EvidenceStore for SqliteEvidenceStore<'_> {
         Ok(records)
     }
 
-    fn record_lifecycle_event(
-        &self,
-        event: &EvidenceLifecycleEvent,
-    ) -> crate::Result<()> {
+    fn record_lifecycle_event(&self, event: &EvidenceLifecycleEvent) -> crate::Result<()> {
         let evidence_bytes = event.evidence.as_uuid().as_bytes().to_vec();
         let timestamp = event.timestamp.to_string();
         let state = event.state.to_string();
-        let caused_by_bytes = event
-            .caused_by
-            .map(|id| id.as_uuid().as_bytes().to_vec());
+        let caused_by_bytes = event.caused_by.map(|id| id.as_uuid().as_bytes().to_vec());
 
         let conn = self.db.connection()?;
         conn.execute(
@@ -270,45 +250,57 @@ fn row_to_evidence_record(row: &rusqlite::Row<'_>) -> rusqlite::Result<EvidenceR
     let assumptions_json: String = row.get(8)?;
     let created_at_str: String = row.get(9)?;
 
-    let id = EvidenceRecordId::from_uuid(
-        uuid::Uuid::from_slice(&id_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
+    let id = EvidenceRecordId::from_uuid(uuid::Uuid::from_slice(&id_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e))
+    })?);
 
-    let project = ProjectId::from_uuid(
-        uuid::Uuid::from_slice(&project_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
+    let project = ProjectId::from_uuid(uuid::Uuid::from_slice(&project_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e))
+    })?);
 
-    let subject = EntityId::from_uuid(
-        uuid::Uuid::from_slice(&subject_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
+    let subject = EntityId::from_uuid(uuid::Uuid::from_slice(&subject_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Blob, Box::new(e))
+    })?);
 
-    let predicate = NamespacedId::parse(&predicate_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Text, Box::new(e)))?;
+    let predicate = NamespacedId::parse(&predicate_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Text, Box::new(e))
+    })?;
 
-    let value: EvidenceValue = serde_json::from_str(&value_json)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(e)))?;
+    let value: EvidenceValue = serde_json::from_str(&value_json).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(e))
+    })?;
 
-    let derivation: Derivation = serde_json::from_str(&derivation_json)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(e)))?;
+    let derivation: Derivation = serde_json::from_str(&derivation_json).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(e))
+    })?;
 
     let provider_run = provider_run_bytes.map(|bytes| {
-        ProviderRunId::from_uuid(
-            uuid::Uuid::from_slice(&bytes)
-                .expect("valid UUID bytes from DB"),
-        )
+        ProviderRunId::from_uuid(uuid::Uuid::from_slice(&bytes).expect("valid UUID bytes from DB"))
     });
 
-    let native_artifacts = native_artifact_ids_from_json(&native_json)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(7, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let native_artifacts = native_artifact_ids_from_json(&native_json).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            7,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
-    let assumptions = assumptions_from_json(&assumptions_json)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(8, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let assumptions = assumptions_from_json(&assumptions_json).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            8,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
-    let created_at = parse_timestamp(&created_at_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(9, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let created_at = parse_timestamp(&created_at_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            9,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
     Ok(EvidenceRecord {
         id,
@@ -331,13 +323,18 @@ fn row_to_lifecycle_event(row: &rusqlite::Row<'_>) -> rusqlite::Result<EvidenceL
     let reason: Option<String> = row.get(3)?;
     let caused_by_bytes: Option<Vec<u8>> = row.get(4)?;
 
-    let evidence = EvidenceRecordId::from_uuid(
-        uuid::Uuid::from_slice(&evidence_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
+    let evidence =
+        EvidenceRecordId::from_uuid(uuid::Uuid::from_slice(&evidence_bytes).map_err(|e| {
+            rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e))
+        })?);
 
-    let timestamp = parse_timestamp(&timestamp_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let timestamp = parse_timestamp(&timestamp_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            1,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
     let state = match state_str.as_str() {
         "Active" => EvidenceLifecycleState::Active,
@@ -355,8 +352,7 @@ fn row_to_lifecycle_event(row: &rusqlite::Row<'_>) -> rusqlite::Result<EvidenceL
 
     let caused_by = caused_by_bytes.map(|bytes| {
         EvidenceRecordId::from_uuid(
-            uuid::Uuid::from_slice(&bytes)
-                .expect("valid UUID bytes from DB"),
+            uuid::Uuid::from_slice(&bytes).expect("valid UUID bytes from DB"),
         )
     });
 
@@ -389,11 +385,11 @@ fn parse_timestamp(s: &str) -> Result<Timestamp, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use autore_schema::domain::Derivation;
     use autore_schema::domain::records::{
         EVIDENCE_PREDICATE_FUNCTION_NAME, EVIDENCE_PREDICATE_FUNCTION_SIGNATURE,
         PROVIDER_KIND_DECOMPILER,
     };
-    use autore_schema::domain::Derivation;
     use autore_schema::domain::values::DerivationMethod;
     use autore_schema::ids::{ProviderId, ProviderRunId};
 
@@ -628,7 +624,10 @@ mod tests {
             created_at: Timestamp::now(),
         };
         let result = store.insert_evidence(&rec);
-        assert!(result.is_err(), "FK violation for non-existent entity should fail");
+        assert!(
+            result.is_err(),
+            "FK violation for non-existent entity should fail"
+        );
     }
 
     #[test]
@@ -656,7 +655,10 @@ mod tests {
             created_at: Timestamp::now(),
         };
         let result = store.insert_evidence(&rec);
-        assert!(result.is_err(), "FK violation for non-existent project should fail");
+        assert!(
+            result.is_err(),
+            "FK violation for non-existent project should fail"
+        );
     }
 
     #[test]
@@ -684,7 +686,10 @@ mod tests {
             created_at: Timestamp::now(),
         };
         let result = store.insert_evidence(&rec);
-        assert!(result.is_err(), "FK violation for non-existent provider_run should fail");
+        assert!(
+            result.is_err(),
+            "FK violation for non-existent provider_run should fail"
+        );
     }
 
     #[test]
@@ -711,12 +716,10 @@ mod tests {
             ),
             provider_run: None,
             native_artifacts: vec![na1, na2],
-            assumptions: vec![
-                Assumption {
-                    description: "binary is stripped".to_string(),
-                    evidence: None,
-                },
-            ],
+            assumptions: vec![Assumption {
+                description: "binary is stripped".to_string(),
+                evidence: None,
+            }],
             created_at: Timestamp::now(),
         };
         store.insert_evidence(&rec).unwrap();
@@ -742,7 +745,11 @@ mod tests {
         rec.provider_run = Some(run_id);
         store.insert_evidence(&rec).unwrap();
 
-        let rec2 = sample_evidence(pid, entity_id, EVIDENCE_PREDICATE_FUNCTION_SIGNATURE.clone());
+        let rec2 = sample_evidence(
+            pid,
+            entity_id,
+            EVIDENCE_PREDICATE_FUNCTION_SIGNATURE.clone(),
+        );
         store.insert_evidence(&rec2).unwrap();
 
         let by_run = store.list_by_provider_run(run_id).unwrap();
@@ -771,7 +778,10 @@ mod tests {
             caused_by: None,
         };
         let result = store.record_lifecycle_event(&ev);
-        assert!(result.is_err(), "FK violation for non-existent evidence should fail");
+        assert!(
+            result.is_err(),
+            "FK violation for non-existent evidence should fail"
+        );
     }
 
     #[test]

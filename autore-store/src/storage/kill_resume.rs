@@ -9,8 +9,8 @@
 mod tests {
     use autore_core::operation::OperationState;
     use autore_schema::domain::records::{
-        EventSource, EventSubject, Operation, Project,
-        EVENT_KIND_OPERATION_STARTED, OPERATION_KIND_ARTIFACT_IMPORT,
+        EVENT_KIND_OPERATION_STARTED, EventSource, EventSubject, OPERATION_KIND_ARTIFACT_IMPORT,
+        Operation, Project,
     };
     use autore_schema::ids::{OperationId, ProjectId};
 
@@ -106,18 +106,10 @@ mod tests {
             let (op_id, pid) = {
                 let conn = db.connection().unwrap();
                 let op_id_bytes: Vec<u8> = conn
-                    .query_row(
-                        "SELECT id FROM operations LIMIT 1",
-                        [],
-                        |row| row.get(0),
-                    )
+                    .query_row("SELECT id FROM operations LIMIT 1", [], |row| row.get(0))
                     .unwrap();
                 let pid_bytes: Vec<u8> = conn
-                    .query_row(
-                        "SELECT id FROM projects LIMIT 1",
-                        [],
-                        |row| row.get(0),
-                    )
+                    .query_row("SELECT id FROM projects LIMIT 1", [], |row| row.get(0))
                     .unwrap();
                 (
                     OperationId::from_uuid(uuid::Uuid::from_slice(&op_id_bytes).unwrap()),
@@ -138,8 +130,7 @@ mod tests {
             assert_eq!(events.len(), 1, "exactly one event must survive restart");
             assert_eq!(events[0].sequence, 1, "event sequence must be 1");
             assert_eq!(
-                events[0].kind,
-                *EVENT_KIND_OPERATION_STARTED,
+                events[0].kind, *EVENT_KIND_OPERATION_STARTED,
                 "event kind must be core.operation.started"
             );
             assert_eq!(
@@ -313,7 +304,10 @@ mod tests {
                 },
             );
 
-            assert!(result.is_err(), "with_event must propagate the closure error");
+            assert!(
+                result.is_err(),
+                "with_event must propagate the closure error"
+            );
             let err_msg = format!("{}", result.unwrap_err());
             assert!(err_msg.contains("simulated failure"));
         }

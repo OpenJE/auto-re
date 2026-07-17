@@ -4,12 +4,12 @@
 //! a worker produces after analyzing a single function — and provides
 //! `validate_output()` to verify JSON output against the generated schema.
 
-use autore_core::{Error, Result};
 use crate::domain::{
     Address, AddressSpace, ClaimPredicate, ClaimValue, Confidence, EvidenceKind, EvidenceLocation,
     SymbolName,
 };
 use crate::ids::FunctionId;
+use autore_core::{Error, Result};
 use schemars::{JsonSchema, Schema, SchemaGenerator};
 use std::borrow::Cow;
 
@@ -254,8 +254,8 @@ pub fn validate_output(json: &str) -> Result<FunctionAnalysisOutput> {
     let schema = schemars::schema_for!(FunctionAnalysisOutput);
     let schema_value = schema.as_value();
 
-    let instance: serde_json::Value = serde_json::from_str(json)
-        .map_err(|e| Error::Validation(format!("invalid JSON: {e}")))?;
+    let instance: serde_json::Value =
+        serde_json::from_str(json).map_err(|e| Error::Validation(format!("invalid JSON: {e}")))?;
 
     let validator = jsonschema::validator_for(schema_value)
         .map_err(|e| Error::Validation(format!("schema compilation failed: {e}")))?;

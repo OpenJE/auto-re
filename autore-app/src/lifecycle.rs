@@ -137,12 +137,21 @@ mod tests {
 
         // Verify the project record
         assert_eq!(project.name, "test-project");
-        assert_eq!(project.schema_version, autore_schema::domain::SchemaVersion::new(2, 0));
+        assert_eq!(
+            project.schema_version,
+            autore_schema::domain::SchemaVersion::new(2, 0)
+        );
 
         // Verify the directory structure
         let project_dir = temp_dir.path().join(PROJECT_DIR_NAME);
-        assert!(project_dir.exists(), "project.auto-re/ directory should exist");
-        assert!(project_dir.is_dir(), "project.auto-re/ should be a directory");
+        assert!(
+            project_dir.exists(),
+            "project.auto-re/ directory should exist"
+        );
+        assert!(
+            project_dir.is_dir(),
+            "project.auto-re/ should be a directory"
+        );
 
         // Verify manifest file
         let manifest_path = project_dir.join(MANIFEST_FILE_NAME);
@@ -162,7 +171,10 @@ mod tests {
         // Verify packages.lock file
         let packages_lock_path = project_dir.join(PACKAGES_LOCK_FILE_NAME);
         assert!(packages_lock_path.exists(), "packages.lock should exist");
-        assert!(packages_lock_path.is_file(), "packages.lock should be a file");
+        assert!(
+            packages_lock_path.is_file(),
+            "packages.lock should be a file"
+        );
     }
 
     #[test]
@@ -178,7 +190,10 @@ mod tests {
         // Verify semantic equality
         assert_eq!(original_project.id, reopened_project.id);
         assert_eq!(original_project.name, reopened_project.name);
-        assert_eq!(original_project.schema_version, reopened_project.schema_version);
+        assert_eq!(
+            original_project.schema_version,
+            reopened_project.schema_version
+        );
         assert_eq!(original_project.created_at, reopened_project.created_at);
         // Note: updated_at may differ if touch() was called, but for a fresh project it should match
         assert_eq!(original_project.updated_at, reopened_project.updated_at);
@@ -190,11 +205,20 @@ mod tests {
         let project = create_project(temp_dir.path(), "schema-version-test").unwrap();
 
         // Load the manifest directly and verify schema_version
-        let manifest_path = temp_dir.path().join(PROJECT_DIR_NAME).join(MANIFEST_FILE_NAME);
+        let manifest_path = temp_dir
+            .path()
+            .join(PROJECT_DIR_NAME)
+            .join(MANIFEST_FILE_NAME);
         let manifest = ProjectManifest::load(&manifest_path).unwrap();
 
-        assert_eq!(manifest.schema_version, autore_schema::domain::SchemaVersion::new(2, 0));
-        assert_eq!(manifest.project.schema_version, autore_schema::domain::SchemaVersion::new(2, 0));
+        assert_eq!(
+            manifest.schema_version,
+            autore_schema::domain::SchemaVersion::new(2, 0)
+        );
+        assert_eq!(
+            manifest.project.schema_version,
+            autore_schema::domain::SchemaVersion::new(2, 0)
+        );
         assert_eq!(manifest.project.id, project.id);
         assert_eq!(manifest.project.name, project.name);
     }

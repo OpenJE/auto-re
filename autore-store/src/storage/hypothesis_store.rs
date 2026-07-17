@@ -14,16 +14,8 @@ pub trait HypothesisStore: Send + Sync {
         project_id: ProjectId,
         status_kind: &str,
     ) -> crate::Result<Vec<Hypothesis>>;
-    fn update_status(
-        &self,
-        id: HypothesisId,
-        target: HypothesisStatus,
-    ) -> crate::Result<()>;
-    fn update_confidence(
-        &self,
-        id: HypothesisId,
-        confidence: Confidence,
-    ) -> crate::Result<()>;
+    fn update_status(&self, id: HypothesisId, target: HypothesisStatus) -> crate::Result<()>;
+    fn update_confidence(&self, id: HypothesisId, confidence: Confidence) -> crate::Result<()>;
     fn get_competing(
         &self,
         subject: EntityId,
@@ -69,7 +61,10 @@ fn status_to_db(hypothesis: &Hypothesis) -> (&'static str, Option<Vec<u8>>) {
     }
 }
 
-fn status_from_db(status_str: &str, superseded_by_bytes: Option<Vec<u8>>) -> Result<HypothesisStatus, String> {
+fn status_from_db(
+    status_str: &str,
+    superseded_by_bytes: Option<Vec<u8>>,
+) -> Result<HypothesisStatus, String> {
     match status_str {
         "Proposed" => Ok(HypothesisStatus::Proposed),
         "UnderInvestigation" => Ok(HypothesisStatus::UnderInvestigation),
@@ -227,7 +222,10 @@ impl HypothesisStore for SqliteHypothesisStore<'_> {
             .map_err(|e| crate::Error::Database(e.to_string()))?;
 
         let records = stmt
-            .query_map(rusqlite::params![project_bytes, status_kind], row_to_hypothesis)
+            .query_map(
+                rusqlite::params![project_bytes, status_kind],
+                row_to_hypothesis,
+            )
             .map_err(|e| crate::Error::Database(e.to_string()))?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| crate::Error::Database(e.to_string()))?;
@@ -235,11 +233,7 @@ impl HypothesisStore for SqliteHypothesisStore<'_> {
         Ok(records)
     }
 
-    fn update_status(
-        &self,
-        id: HypothesisId,
-        target: HypothesisStatus,
-    ) -> crate::Result<()> {
+    fn update_status(&self, id: HypothesisId, target: HypothesisStatus) -> crate::Result<()> {
         let id_bytes = id.as_uuid().as_bytes().to_vec();
         let conn = self.db.connection()?;
 
@@ -281,22 +275,19 @@ impl HypothesisStore for SqliteHypothesisStore<'_> {
         Ok(())
     }
 
-    fn update_confidence(
-        &self,
-        id: HypothesisId,
-        confidence: Confidence,
-    ) -> crate::Result<()> {
+    fn update_confidence(&self, id: HypothesisId, confidence: Confidence) -> crate::Result<()> {
         let id_bytes = id.as_uuid().as_bytes().to_vec();
         let confidence_json = serde_json::to_string(&confidence)
             .map_err(|e| crate::Error::Serialization(e.to_string()))?;
         let updated_at = Timestamp::now().to_string();
 
         let conn = self.db.connection()?;
-        let changes = conn.execute(
-            "UPDATE hypotheses SET confidence = ?1, updated_at = ?2 WHERE id = ?3",
-            rusqlite::params![confidence_json, updated_at, id_bytes],
-        )
-        .map_err(|e| crate::Error::Database(e.to_string()))?;
+        let changes = conn
+            .execute(
+                "UPDATE hypotheses SET confidence = ?1, updated_at = ?2 WHERE id = ?3",
+                rusqlite::params![confidence_json, updated_at, id_bytes],
+            )
+            .map_err(|e| crate::Error::Database(e.to_string()))?;
 
         if changes == 0 {
             return Err(crate::Error::NotFound(format!("hypothesis {id} not found")));
@@ -326,7 +317,10 @@ impl HypothesisStore for SqliteHypothesisStore<'_> {
             .map_err(|e| crate::Error::Database(e.to_string()))?;
 
         let records = stmt
-            .query_map(rusqlite::params![subject_bytes, predicate_str], row_to_hypothesis)
+            .query_map(
+                rusqlite::params![subject_bytes, predicate_str],
+                row_to_hypothesis,
+            )
             .map_err(|e| crate::Error::Database(e.to_string()))?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| crate::Error::Database(e.to_string()))?;
@@ -350,47 +344,78 @@ fn row_to_hypothesis(row: &rusqlite::Row<'_>) -> rusqlite::Result<Hypothesis> {
     let created_at_str: String = row.get(11)?;
     let updated_at_str: String = row.get(12)?;
 
-    let id = HypothesisId::from_uuid(
-        uuid::Uuid::from_slice(&id_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
+    let id = HypothesisId::from_uuid(uuid::Uuid::from_slice(&id_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e))
+    })?);
 
-    let project = ProjectId::from_uuid(
-        uuid::Uuid::from_slice(&project_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
+    let project = ProjectId::from_uuid(uuid::Uuid::from_slice(&project_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e))
+    })?);
 
-    let subject = EntityId::from_uuid(
-        uuid::Uuid::from_slice(&subject_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
+    let subject = EntityId::from_uuid(uuid::Uuid::from_slice(&subject_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Blob, Box::new(e))
+    })?);
 
-    let predicate = NamespacedId::parse(&predicate_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Text, Box::new(e)))?;
+    let predicate = NamespacedId::parse(&predicate_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Text, Box::new(e))
+    })?;
 
-    let candidate: EvidenceValue = serde_json::from_str(&candidate_json)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(e)))?;
+    let candidate: EvidenceValue = serde_json::from_str(&candidate_json).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(e))
+    })?;
 
-    let supporting_evidence = evidence_record_ids_from_json(&supporting_json)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let supporting_evidence = evidence_record_ids_from_json(&supporting_json).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            5,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
-    let contradicting_evidence = evidence_record_ids_from_json(&contradicting_json)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(6, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let contradicting_evidence =
+        evidence_record_ids_from_json(&contradicting_json).map_err(|e| {
+            rusqlite::Error::FromSqlConversionFailure(
+                6,
+                rusqlite::types::Type::Text,
+                Box::new(ParseError(e)),
+            )
+        })?;
 
-    let derived_from = hypothesis_ids_from_json(&derived_json)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(7, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let derived_from = hypothesis_ids_from_json(&derived_json).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            7,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
-    let confidence: Confidence = serde_json::from_str(&confidence_json)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(8, rusqlite::types::Type::Text, Box::new(e)))?;
+    let confidence: Confidence = serde_json::from_str(&confidence_json).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(8, rusqlite::types::Type::Text, Box::new(e))
+    })?;
 
-    let status = status_from_db(&status_str, superseded_bytes)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(9, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let status = status_from_db(&status_str, superseded_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            9,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
-    let created_at = parse_timestamp(&created_at_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(11, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let created_at = parse_timestamp(&created_at_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            11,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
-    let updated_at = parse_timestamp(&updated_at_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(12, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let updated_at = parse_timestamp(&updated_at_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            12,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
     Ok(Hypothesis {
         id,
@@ -559,7 +584,9 @@ mod tests {
 
         let h2 = sample_hypothesis(pid, entity_id);
         store.insert(&h2).unwrap();
-        store.update_status(h2.id, HypothesisStatus::UnderInvestigation).unwrap();
+        store
+            .update_status(h2.id, HypothesisStatus::UnderInvestigation)
+            .unwrap();
 
         let proposed = store.list_by_status(pid, "Proposed").unwrap();
         assert_eq!(proposed.len(), 1);
@@ -580,11 +607,15 @@ mod tests {
         let h = sample_hypothesis(pid, entity_id);
         store.insert(&h).unwrap();
 
-        store.update_status(h.id, HypothesisStatus::UnderInvestigation).unwrap();
+        store
+            .update_status(h.id, HypothesisStatus::UnderInvestigation)
+            .unwrap();
         let fetched = store.get(h.id).unwrap().unwrap();
         assert_eq!(fetched.status, HypothesisStatus::UnderInvestigation);
 
-        store.update_status(h.id, HypothesisStatus::Accepted).unwrap();
+        store
+            .update_status(h.id, HypothesisStatus::Accepted)
+            .unwrap();
         let fetched = store.get(h.id).unwrap().unwrap();
         assert_eq!(fetched.status, HypothesisStatus::Accepted);
     }
@@ -626,12 +657,18 @@ mod tests {
         store.insert(&h).unwrap();
 
         let new_confidence = Confidence::with_rationale(0.9, "strong evidence").unwrap();
-        store.update_confidence(h.id, new_confidence.clone()).unwrap();
+        store
+            .update_confidence(h.id, new_confidence.clone())
+            .unwrap();
 
         let fetched = store.get(h.id).unwrap().unwrap();
         assert!((fetched.confidence.score() - 0.9).abs() < f32::EPSILON);
         assert_eq!(fetched.confidence.rationale(), Some("strong evidence"));
-        assert_eq!(fetched.status, HypothesisStatus::Proposed, "confidence update must not change status");
+        assert_eq!(
+            fetched.status,
+            HypothesisStatus::Proposed,
+            "confidence update must not change status"
+        );
     }
 
     #[test]
@@ -655,11 +692,21 @@ mod tests {
         store.insert(&h1).unwrap();
         store.insert(&h2).unwrap();
 
-        store.update_status(h1.id, HypothesisStatus::UnderInvestigation).unwrap();
-        store.update_status(h1.id, HypothesisStatus::Accepted).unwrap();
+        store
+            .update_status(h1.id, HypothesisStatus::UnderInvestigation)
+            .unwrap();
+        store
+            .update_status(h1.id, HypothesisStatus::Accepted)
+            .unwrap();
 
-        let competing = store.get_competing(entity_id, &EVIDENCE_PREDICATE_FUNCTION_NAME).unwrap();
-        assert_eq!(competing.len(), 2, "both hypotheses must coexist after accepting one");
+        let competing = store
+            .get_competing(entity_id, &EVIDENCE_PREDICATE_FUNCTION_NAME)
+            .unwrap();
+        assert_eq!(
+            competing.len(),
+            2,
+            "both hypotheses must coexist after accepting one"
+        );
         assert_eq!(competing[0].id, h1.id);
         assert_eq!(competing[0].status, HypothesisStatus::Accepted);
         assert_eq!(competing[1].id, h2.id);
@@ -678,11 +725,19 @@ mod tests {
         store.insert(&h1).unwrap();
         store.insert(&h2).unwrap();
 
-        store.update_status(h1.id, HypothesisStatus::UnderInvestigation).unwrap();
-        store.update_status(h1.id, HypothesisStatus::Accepted).unwrap();
+        store
+            .update_status(h1.id, HypothesisStatus::UnderInvestigation)
+            .unwrap();
+        store
+            .update_status(h1.id, HypothesisStatus::Accepted)
+            .unwrap();
 
-        store.update_status(h2.id, HypothesisStatus::UnderInvestigation).unwrap();
-        store.update_status(h2.id, HypothesisStatus::Accepted).unwrap();
+        store
+            .update_status(h2.id, HypothesisStatus::UnderInvestigation)
+            .unwrap();
+        store
+            .update_status(h2.id, HypothesisStatus::Accepted)
+            .unwrap();
 
         let superseded = HypothesisStatus::Superseded { by: h2.id };
         store.update_status(h1.id, superseded).unwrap();
@@ -706,7 +761,10 @@ mod tests {
         let mut h = sample_hypothesis(pid, entity_id);
         h.project = ProjectId::new();
         let result = store.insert(&h);
-        assert!(result.is_err(), "FK violation for non-existent project should fail");
+        assert!(
+            result.is_err(),
+            "FK violation for non-existent project should fail"
+        );
     }
 
     #[test]
@@ -717,7 +775,10 @@ mod tests {
 
         let h = sample_hypothesis(pid, EntityId::new());
         let result = store.insert(&h);
-        assert!(result.is_err(), "FK violation for non-existent entity should fail");
+        assert!(
+            result.is_err(),
+            "FK violation for non-existent entity should fail"
+        );
     }
 
     #[test]

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use autore_core::operation::{operation_state_from_str, OperationState};
+use autore_core::operation::{OperationState, operation_state_from_str};
 use autore_schema::domain::records::{
     CancellationRequest, EventSubject, MetricMap, Operation, OperationFailure, ProgressUpdate,
 };
@@ -46,8 +46,8 @@ impl<'a> SqliteOperationStore<'a> {
 fn subject_to_json(s: &Option<EventSubject>) -> crate::Result<Option<String>> {
     match s {
         Some(subject) => {
-            let json =
-                serde_json::to_string(subject).map_err(|e| crate::Error::Serialization(e.to_string()))?;
+            let json = serde_json::to_string(subject)
+                .map_err(|e| crate::Error::Serialization(e.to_string()))?;
             Ok(Some(json))
         }
         None => Ok(None),
@@ -107,51 +107,80 @@ fn row_to_operation(row: &rusqlite::Row<'_>) -> rusqlite::Result<Operation> {
     let created_at_str: String = row.get(8)?;
     let updated_at_str: String = row.get(9)?;
 
-    let id = OperationId::from_uuid(
-        uuid::Uuid::from_slice(&id_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
+    let id = OperationId::from_uuid(uuid::Uuid::from_slice(&id_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e))
+    })?);
 
-    let project = ProjectId::from_uuid(
-        uuid::Uuid::from_slice(&project_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
+    let project = ProjectId::from_uuid(uuid::Uuid::from_slice(&project_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e))
+    })?);
 
-    let kind = parse_namespaced_id(&kind_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let kind = parse_namespaced_id(&kind_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            2,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
-    let state = operation_state_from_str(&state_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let state = operation_state_from_str(&state_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            3,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
     let subject = match subject_json {
-        Some(json) => Some(
-            subject_from_json(&json)
-                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(ParseError(e))))?,
-        ),
+        Some(json) => Some(subject_from_json(&json).map_err(|e| {
+            rusqlite::Error::FromSqlConversionFailure(
+                4,
+                rusqlite::types::Type::Text,
+                Box::new(ParseError(e)),
+            )
+        })?),
         None => None,
     };
 
     let parent = match parent_bytes {
         Some(bytes) => Some(OperationId::from_uuid(
-            uuid::Uuid::from_slice(&bytes)
-                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(6, rusqlite::types::Type::Blob, Box::new(e)))?,
+            uuid::Uuid::from_slice(&bytes).map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    6,
+                    rusqlite::types::Type::Blob,
+                    Box::new(e),
+                )
+            })?,
         )),
         None => None,
     };
 
     let failure = match failure_json {
-        Some(json) => Some(
-            failure_from_json(&json)
-                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(7, rusqlite::types::Type::Text, Box::new(ParseError(e))))?,
-        ),
+        Some(json) => Some(failure_from_json(&json).map_err(|e| {
+            rusqlite::Error::FromSqlConversionFailure(
+                7,
+                rusqlite::types::Type::Text,
+                Box::new(ParseError(e)),
+            )
+        })?),
         None => None,
     };
 
-    let created_at = parse_timestamp(&created_at_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(8, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let created_at = parse_timestamp(&created_at_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            8,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
-    let updated_at = parse_timestamp(&updated_at_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(9, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let updated_at = parse_timestamp(&updated_at_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            9,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
     Ok(Operation {
         id,
@@ -175,19 +204,29 @@ fn row_to_progress(row: &rusqlite::Row<'_>) -> rusqlite::Result<ProgressUpdate> 
     let metrics_json: String = row.get(4)?;
     let created_at_str: String = row.get(5)?;
 
-    let id = uuid::Uuid::from_slice(&id_bytes)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e)))?;
+    let id = uuid::Uuid::from_slice(&id_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e))
+    })?;
 
-    let operation_id = OperationId::from_uuid(
-        uuid::Uuid::from_slice(&op_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
+    let operation_id = OperationId::from_uuid(uuid::Uuid::from_slice(&op_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e))
+    })?);
 
-    let metrics: BTreeMap<NamespacedId, f64> = metrics_from_json(&metrics_json)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let metrics: BTreeMap<NamespacedId, f64> = metrics_from_json(&metrics_json).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            4,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
-    let created_at = parse_timestamp(&created_at_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let created_at = parse_timestamp(&created_at_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            5,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
     Ok(ProgressUpdate {
         id,
@@ -206,16 +245,21 @@ fn row_to_cancellation(row: &rusqlite::Row<'_>) -> rusqlite::Result<Cancellation
     let reason: Option<String> = row.get(3)?;
     let created_at_str: String = row.get(4)?;
 
-    let id = uuid::Uuid::from_slice(&id_bytes)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e)))?;
+    let id = uuid::Uuid::from_slice(&id_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(e))
+    })?;
 
-    let operation_id = OperationId::from_uuid(
-        uuid::Uuid::from_slice(&op_bytes)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e)))?,
-    );
+    let operation_id = OperationId::from_uuid(uuid::Uuid::from_slice(&op_bytes).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Blob, Box::new(e))
+    })?);
 
-    let created_at = parse_timestamp(&created_at_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(ParseError(e))))?;
+    let created_at = parse_timestamp(&created_at_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            4,
+            rusqlite::types::Type::Text,
+            Box::new(ParseError(e)),
+        )
+    })?;
 
     Ok(CancellationRequest {
         id,
@@ -233,9 +277,7 @@ impl OperationStore for SqliteOperationStore<'_> {
         let kind = operation.kind.to_string();
         let state = operation.state.kind();
         let subject_json = subject_to_json(&operation.subject)?;
-        let parent_bytes = operation
-            .parent
-            .map(|p| p.as_uuid().as_bytes().to_vec());
+        let parent_bytes = operation.parent.map(|p| p.as_uuid().as_bytes().to_vec());
         let failure_json = operation
             .failure
             .as_ref()
@@ -337,7 +379,10 @@ impl OperationStore for SqliteOperationStore<'_> {
             .map_err(|e| crate::Error::Database(e.to_string()))?;
 
         let records = stmt
-            .query_map(rusqlite::params![project_bytes, state_str], row_to_operation)
+            .query_map(
+                rusqlite::params![project_bytes, state_str],
+                row_to_operation,
+            )
             .map_err(|e| crate::Error::Database(e.to_string()))?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| crate::Error::Database(e.to_string()))?;
@@ -372,10 +417,7 @@ impl OperationStore for SqliteOperationStore<'_> {
 
         current_state.transition(&target)?;
 
-        let failure_json = failure
-            .as_ref()
-            .map(failure_to_json)
-            .transpose()?;
+        let failure_json = failure.as_ref().map(failure_to_json).transpose()?;
         let updated_at = Timestamp::now().to_string();
 
         conn.execute(
@@ -575,7 +617,9 @@ mod tests {
 
         let op1 = sample_operation(pid);
         store.insert(&op1).unwrap();
-        store.transition(op1.id, OperationState::Running, None).unwrap();
+        store
+            .transition(op1.id, OperationState::Running, None)
+            .unwrap();
 
         let op2 = sample_operation(pid);
         store.insert(&op2).unwrap();
@@ -598,11 +642,15 @@ mod tests {
         let op = sample_operation(pid);
         store.insert(&op).unwrap();
 
-        store.transition(op.id, OperationState::Running, None).unwrap();
+        store
+            .transition(op.id, OperationState::Running, None)
+            .unwrap();
         let fetched = store.get(op.id).unwrap().unwrap();
         assert_eq!(fetched.state, OperationState::Running);
 
-        store.transition(op.id, OperationState::Completed, None).unwrap();
+        store
+            .transition(op.id, OperationState::Completed, None)
+            .unwrap();
         let fetched = store.get(op.id).unwrap().unwrap();
         assert_eq!(fetched.state, OperationState::Completed);
     }
@@ -633,7 +681,9 @@ mod tests {
 
         let op = sample_operation(pid);
         store.insert(&op).unwrap();
-        store.transition(op.id, OperationState::Running, None).unwrap();
+        store
+            .transition(op.id, OperationState::Running, None)
+            .unwrap();
 
         let failure = OperationFailure {
             code: NamespacedId::parse("core.error.timeout").unwrap(),
@@ -698,13 +748,28 @@ mod tests {
         store.insert(&op2).unwrap();
 
         store
-            .record_progress(&ProgressUpdate::new(op1.id, 0, "op1-first", BTreeMap::new()))
+            .record_progress(&ProgressUpdate::new(
+                op1.id,
+                0,
+                "op1-first",
+                BTreeMap::new(),
+            ))
             .unwrap();
         store
-            .record_progress(&ProgressUpdate::new(op1.id, 1, "op1-second", BTreeMap::new()))
+            .record_progress(&ProgressUpdate::new(
+                op1.id,
+                1,
+                "op1-second",
+                BTreeMap::new(),
+            ))
             .unwrap();
         store
-            .record_progress(&ProgressUpdate::new(op2.id, 0, "op2-first", BTreeMap::new()))
+            .record_progress(&ProgressUpdate::new(
+                op2.id,
+                0,
+                "op2-first",
+                BTreeMap::new(),
+            ))
             .unwrap();
 
         let p1 = store.list_progress(op1.id).unwrap();
@@ -743,7 +808,9 @@ mod tests {
 
         let op = sample_operation(pid);
         store.insert(&op).unwrap();
-        store.transition(op.id, OperationState::Running, None).unwrap();
+        store
+            .transition(op.id, OperationState::Running, None)
+            .unwrap();
 
         let cr = CancellationRequest::new(op.id, "user", None);
         store.request_cancellation(&cr).unwrap();
@@ -817,7 +884,10 @@ mod tests {
             )
             .unwrap();
         let upper = ddl.to_uppercase();
-        assert!(!upper.contains("AUTOINCREMENT"), "operations must not use AUTOINCREMENT");
+        assert!(
+            !upper.contains("AUTOINCREMENT"),
+            "operations must not use AUTOINCREMENT"
+        );
         assert!(
             !upper.contains("DEFAULT") || !upper.contains("UUID"),
             "operations must not use DEFAULT uuid()"

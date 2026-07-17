@@ -16,8 +16,8 @@ use std::path::{Path, PathBuf};
 
 use autore_core::{Error, Result};
 
-use crate::domain::{MetadataMap, SchemaVersion, Timestamp};
 use crate::domain::records::Project;
+use crate::domain::{MetadataMap, SchemaVersion, Timestamp};
 use crate::ids::ProjectId;
 
 // ---------------------------------------------------------------------------
@@ -61,8 +61,8 @@ impl ProjectManifest {
             created_at: self.project.created_at,
             updated_at: self.project.updated_at,
         };
-        let toml_string = toml::to_string_pretty(&toml_data)
-            .map_err(|e| Error::Serialization(e.to_string()))?;
+        let toml_string =
+            toml::to_string_pretty(&toml_data).map_err(|e| Error::Serialization(e.to_string()))?;
         std::fs::write(path, toml_string)?;
         Ok(())
     }
@@ -70,8 +70,8 @@ impl ProjectManifest {
     /// Loads a manifest from the given TOML file.
     pub fn load(path: &Path) -> Result<Self> {
         let contents = std::fs::read_to_string(path)?;
-        let toml_data: ManifestToml = toml::from_str(&contents)
-            .map_err(|e| Error::Serialization(e.to_string()))?;
+        let toml_data: ManifestToml =
+            toml::from_str(&contents).map_err(|e| Error::Serialization(e.to_string()))?;
 
         let project = Project {
             id: toml_data.project_id,

@@ -4,15 +4,14 @@ pub mod manifest;
 pub mod worker_output;
 
 pub use domain::*;
-pub use manifest::ProjectManifest;
 pub use ids::{
-    BinaryArtifactId, BinaryId, BinaryRevisionId, CampaignId, ClaimId, ContradictionId,
-    EvidenceId, FunctionId, GenerationTargetId, HypothesisId, ImplementationTargetId, ModuleId,
-    NativeArtifactId, OperationId, PackageId, ProjectEventId, ProjectId, ProviderId,
-    ProviderRunId, SourceArtifactId, TaskId, TransactionId, ValidationRunId,
-    VerificationRecordId, WorkerRunId,
+    BinaryArtifactId, BinaryId, BinaryRevisionId, CampaignId, ClaimId, ContradictionId, EvidenceId,
+    FunctionId, GenerationTargetId, HypothesisId, ImplementationTargetId, ModuleId,
+    NativeArtifactId, OperationId, PackageId, ProjectEventId, ProjectId, ProviderId, ProviderRunId,
+    SourceArtifactId, TaskId, TransactionId, ValidationRunId, VerificationRecordId, WorkerRunId,
 };
-pub use worker_output::{validate_output, FunctionAnalysisOutput, ProposedClaim, ProposedEvidence};
+pub use manifest::ProjectManifest;
+pub use worker_output::{FunctionAnalysisOutput, ProposedClaim, ProposedEvidence, validate_output};
 
 #[cfg(test)]
 mod tests {
@@ -41,6 +40,9 @@ mod tests {
         // Different inputs must produce different hashes.
         let a = Sha256::digest(b"alpha");
         let b = Sha256::digest(b"beta");
-        assert_ne!(a, b, "different inputs should produce different SHA-256 hashes");
+        assert_ne!(
+            a, b,
+            "different inputs should produce different SHA-256 hashes"
+        );
     }
 }
