@@ -197,6 +197,8 @@ mod tests {
         assert!(tables.contains(&"leases".to_string()));
         assert!(tables.contains(&"artifacts".to_string()));
         assert!(tables.contains(&"projects".to_string()));
+        assert!(tables.contains(&"providers".to_string()));
+        assert!(tables.contains(&"provider_runs".to_string()));
     }
 
     #[test]

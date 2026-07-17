@@ -6,8 +6,8 @@
 
 use std::path::PathBuf;
 
-use crate::domain::{ContentHash, MetadataMap, NamespacedId, SchemaVersion, StableEntityKey, Timestamp};
-use crate::ids::{ArtifactId, EntityId, ProjectId};
+use crate::domain::{ContentHash, ExtensionData, MetadataMap, NamespacedId, SchemaVersion, StableEntityKey, Timestamp};
+use crate::ids::{ArtifactId, EntityId, PackageId, ProjectId, ProviderId, ProviderRunId};
 
 // ---------------------------------------------------------------------------
 // Project
@@ -215,6 +215,171 @@ pub static ENTITY_KIND_EXTERNAL_FUNCTION: std::sync::LazyLock<NamespacedId> =
 /// Entity kind: a source-level symbol (from debug info or source analysis).
 pub static ENTITY_KIND_SOURCE_SYMBOL: std::sync::LazyLock<NamespacedId> =
     std::sync::LazyLock::new(|| NamespacedId::parse("core.source-symbol").unwrap());
+
+// ---------------------------------------------------------------------------
+// ProviderRunStatus
+// ---------------------------------------------------------------------------
+
+/// The finite state machine for a provider run's lifecycle.
+///
+/// Valid transitions:
+/// - Running -> Completed, Failed, Cancelled, Inconclusive
+/// - All other transitions are invalid (terminal states are terminal).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum ProviderRunStatus {
+    Running,
+    Completed,
+    Failed,
+    Cancelled,
+    Inconclusive,
+}
+
+impl ProviderRunStatus {
+    /// Validates a state transition from `self` to `target`.
+    ///
+    /// Only `Running` may transition to a terminal state (`Completed`,
+    /// `Failed`, `Cancelled`, `Inconclusive`). Terminal states cannot
+    /// transition further.
+    pub fn transition(&self, target: ProviderRunStatus) -> autore_core::Result<()> {
+        match (self, target) {
+            (ProviderRunStatus::Running, ProviderRunStatus::Completed)
+            | (ProviderRunStatus::Running, ProviderRunStatus::Failed)
+            | (ProviderRunStatus::Running, ProviderRunStatus::Cancelled)
+            | (ProviderRunStatus::Running, ProviderRunStatus::Inconclusive) => Ok(()),
+            _ => Err(autore_core::Error::InvalidStateTransition(format!(
+                "{self:?} -> {target:?}"
+            ))),
+        }
+    }
+
+    /// Returns `true` if this status is a terminal state.
+    pub fn is_terminal(&self) -> bool {
+        !matches!(self, ProviderRunStatus::Running)
+    }
+}
+
+impl std::fmt::Display for ProviderRunStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ProviderRunStatus::Running => write!(f, "Running"),
+            ProviderRunStatus::Completed => write!(f, "Completed"),
+            ProviderRunStatus::Failed => write!(f, "Failed"),
+            ProviderRunStatus::Cancelled => write!(f, "Cancelled"),
+            ProviderRunStatus::Inconclusive => write!(f, "Inconclusive"),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// EnvironmentIdentity
+// ---------------------------------------------------------------------------
+
+/// Describes the execution environment in which a provider run took place.
+///
+/// Captures OS, architecture, optional isolation backend and image digest,
+/// plus an extensible `ExtensionData` for environment-specific metadata.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct EnvironmentIdentity {
+    pub operating_system: NamespacedId,
+    pub architecture: NamespacedId,
+    pub isolation_backend: Option<NamespacedId>,
+    pub image_digest: Option<ContentHash>,
+    pub extension: Option<ExtensionData>,
+}
+
+// ---------------------------------------------------------------------------
+// Provider
+// ---------------------------------------------------------------------------
+
+/// An analysis provider — a tool, model, or human that produces observations.
+///
+/// Providers are NOT canonical entities (§3.2); they bridge to canonical
+/// `SemanticEntity` via `ProviderEntityAlias` (task 16).
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Provider {
+    pub id: ProviderId,
+    pub package_id: Option<PackageId>,
+    pub name: String,
+    pub kind: NamespacedId,
+    pub version: String,
+    pub executable_hash: Option<ContentHash>,
+}
+
+impl Provider {
+    /// Creates a new provider with the given name, kind, and version.
+    pub fn new(name: impl Into<String>, kind: NamespacedId, version: impl Into<String>) -> Self {
+        Provider {
+            id: ProviderId::new(),
+            package_id: None,
+            name: name.into(),
+            kind,
+            version: version.into(),
+            executable_hash: None,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Provider kind constants (§10)
+// ---------------------------------------------------------------------------
+
+/// Provider kind: a disassembler (e.g., IDA, Ghidra, objdump).
+pub static PROVIDER_KIND_DISASSEMBLER: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("provider.disassembler").unwrap());
+
+/// Provider kind: a decompiler (e.g., Hex-Rays, Ghidra decompiler).
+pub static PROVIDER_KIND_DECOMPILER: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("provider.decompiler").unwrap());
+
+/// Provider kind: a debugger (e.g., GDB, LLDB).
+pub static PROVIDER_KIND_DEBUGGER: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("provider.debugger").unwrap());
+
+/// Provider kind: a symbolic executor (e.g., angr, Z3).
+pub static PROVIDER_KIND_SYMBOLIC_EXECUTOR: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("provider.symbolic-executor").unwrap());
+
+/// Provider kind: a large language model.
+pub static PROVIDER_KIND_LLM: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("provider.llm").unwrap());
+
+/// Provider kind: a human analyst.
+pub static PROVIDER_KIND_HUMAN: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("provider.human").unwrap());
+
+// ---------------------------------------------------------------------------
+// ProviderRun
+// ---------------------------------------------------------------------------
+
+/// A single execution run of an analysis provider within a project.
+///
+/// Tracks the provider, operation, input artifacts, configuration,
+/// environment identity, timestamps, and status.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ProviderRun {
+    pub id: ProviderRunId,
+    pub project: ProjectId,
+    pub provider: ProviderId,
+    pub operation: NamespacedId,
+    pub input_artifacts: Vec<ArtifactId>,
+    pub configuration_artifact: Option<ArtifactId>,
+    pub configuration_hash: ContentHash,
+    pub environment: EnvironmentIdentity,
+    pub started_at: Timestamp,
+    pub completed_at: Option<Timestamp>,
+    pub status: ProviderRunStatus,
+}
+
+impl ProviderRun {
+    /// Transitions this run's status to the target, validating the
+    /// state machine. Sets `completed_at` when moving to a terminal state.
+    pub fn complete(&mut self, target: ProviderRunStatus) -> autore_core::Result<()> {
+        self.status.transition(target)?;
+        self.status = target;
+        self.completed_at = Some(Timestamp::now());
+        Ok(())
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -520,5 +685,147 @@ mod tests {
         assert_eq!(ENTITY_KIND_STRING.to_string(), "core.string");
         assert_eq!(ENTITY_KIND_EXTERNAL_FUNCTION.to_string(), "core.external-function");
         assert_eq!(ENTITY_KIND_SOURCE_SYMBOL.to_string(), "core.source-symbol");
+    }
+
+    #[test]
+    fn provider_run_status_valid_transitions() {
+        let running = ProviderRunStatus::Running;
+        assert!(running.transition(ProviderRunStatus::Completed).is_ok());
+        assert!(running.transition(ProviderRunStatus::Failed).is_ok());
+        assert!(running.transition(ProviderRunStatus::Cancelled).is_ok());
+        assert!(running.transition(ProviderRunStatus::Inconclusive).is_ok());
+    }
+
+    #[test]
+    fn provider_run_status_invalid_transitions() {
+        assert!(ProviderRunStatus::Completed.transition(ProviderRunStatus::Running).is_err());
+        assert!(ProviderRunStatus::Failed.transition(ProviderRunStatus::Completed).is_err());
+        assert!(ProviderRunStatus::Cancelled.transition(ProviderRunStatus::Failed).is_err());
+        assert!(ProviderRunStatus::Inconclusive.transition(ProviderRunStatus::Running).is_err());
+        assert!(ProviderRunStatus::Running.transition(ProviderRunStatus::Running).is_err());
+    }
+
+    #[test]
+    fn provider_run_status_terminal() {
+        assert!(!ProviderRunStatus::Running.is_terminal());
+        assert!(ProviderRunStatus::Completed.is_terminal());
+        assert!(ProviderRunStatus::Failed.is_terminal());
+        assert!(ProviderRunStatus::Cancelled.is_terminal());
+        assert!(ProviderRunStatus::Inconclusive.is_terminal());
+    }
+
+    #[test]
+    fn provider_run_status_display() {
+        assert_eq!(ProviderRunStatus::Running.to_string(), "Running");
+        assert_eq!(ProviderRunStatus::Completed.to_string(), "Completed");
+        assert_eq!(ProviderRunStatus::Failed.to_string(), "Failed");
+        assert_eq!(ProviderRunStatus::Cancelled.to_string(), "Cancelled");
+        assert_eq!(ProviderRunStatus::Inconclusive.to_string(), "Inconclusive");
+    }
+
+    #[test]
+    fn provider_run_status_serialize_round_trip() {
+        let status = ProviderRunStatus::Running;
+        let json = serde_json::to_string(&status).unwrap();
+        let back: ProviderRunStatus = serde_json::from_str(&json).unwrap();
+        assert_eq!(status, back);
+    }
+
+    #[test]
+    fn provider_kinds_registered() {
+        assert_eq!(PROVIDER_KIND_DISASSEMBLER.to_string(), "provider.disassembler");
+        assert_eq!(PROVIDER_KIND_DECOMPILER.to_string(), "provider.decompiler");
+        assert_eq!(PROVIDER_KIND_DEBUGGER.to_string(), "provider.debugger");
+        assert_eq!(PROVIDER_KIND_SYMBOLIC_EXECUTOR.to_string(), "provider.symbolic-executor");
+        assert_eq!(PROVIDER_KIND_LLM.to_string(), "provider.llm");
+        assert_eq!(PROVIDER_KIND_HUMAN.to_string(), "provider.human");
+    }
+
+    #[test]
+    fn provider_round_trip_json() {
+        let p = Provider::new(
+            "IDA Pro",
+            PROVIDER_KIND_DECOMPILER.clone(),
+            "8.3",
+        );
+        let json = serde_json::to_string_pretty(&p).unwrap();
+        let back: Provider = serde_json::from_str(&json).unwrap();
+        assert_eq!(p.id, back.id);
+        assert_eq!(p.name, back.name);
+        assert_eq!(p.kind, back.kind);
+        assert_eq!(p.version, back.version);
+        assert_eq!(p.executable_hash, back.executable_hash);
+    }
+
+    #[test]
+    fn environment_identity_round_trip_json() {
+        let env = EnvironmentIdentity {
+            operating_system: NamespacedId::parse("core.linux").unwrap(),
+            architecture: NamespacedId::parse("core.x86-64").unwrap(),
+            isolation_backend: Some(NamespacedId::parse("core.docker").unwrap()),
+            image_digest: Some(ContentHash::sha256(b"test image")),
+            extension: None,
+        };
+        let json = serde_json::to_string_pretty(&env).unwrap();
+        let back: EnvironmentIdentity = serde_json::from_str(&json).unwrap();
+        assert_eq!(env, back);
+    }
+
+    #[test]
+    fn provider_run_complete_transitions() {
+        use crate::ids::ProviderRunId;
+
+        let env = EnvironmentIdentity {
+            operating_system: NamespacedId::parse("core.linux").unwrap(),
+            architecture: NamespacedId::parse("core.x86-64").unwrap(),
+            isolation_backend: None,
+            image_digest: None,
+            extension: None,
+        };
+        let mut run = ProviderRun {
+            id: ProviderRunId::new(),
+            project: ProjectId::new(),
+            provider: ProviderId::new(),
+            operation: NamespacedId::parse("core.disassemble").unwrap(),
+            input_artifacts: vec![],
+            configuration_artifact: None,
+            configuration_hash: ContentHash::sha256(b"config"),
+            environment: env,
+            started_at: Timestamp::now(),
+            completed_at: None,
+            status: ProviderRunStatus::Running,
+        };
+        assert!(run.completed_at.is_none());
+        run.complete(ProviderRunStatus::Completed).unwrap();
+        assert_eq!(run.status, ProviderRunStatus::Completed);
+        assert!(run.completed_at.is_some());
+    }
+
+    #[test]
+    fn provider_run_complete_rejects_invalid_transition() {
+        use crate::ids::ProviderRunId;
+
+        let env = EnvironmentIdentity {
+            operating_system: NamespacedId::parse("core.linux").unwrap(),
+            architecture: NamespacedId::parse("core.x86-64").unwrap(),
+            isolation_backend: None,
+            image_digest: None,
+            extension: None,
+        };
+        let mut run = ProviderRun {
+            id: ProviderRunId::new(),
+            project: ProjectId::new(),
+            provider: ProviderId::new(),
+            operation: NamespacedId::parse("core.disassemble").unwrap(),
+            input_artifacts: vec![],
+            configuration_artifact: None,
+            configuration_hash: ContentHash::sha256(b"config"),
+            environment: env,
+            started_at: Timestamp::now(),
+            completed_at: None,
+            status: ProviderRunStatus::Completed,
+        };
+        let result = run.complete(ProviderRunStatus::Failed);
+        assert!(result.is_err());
     }
 }

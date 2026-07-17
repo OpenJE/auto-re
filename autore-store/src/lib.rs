@@ -5,6 +5,7 @@ pub mod storage;
 
 pub use storage::{
     ArtifactIntegrity, ArtifactStore, Database, EntityColumn, EntityPage, EntityStore, Page,
-    ProjectColumn, ProjectStore, SqliteArtifactStore, SqliteClaimRepository, SqliteEntityStore,
-    SqliteProjectStore, SqliteTaskRepository, Transaction,
+    ProjectColumn, ProjectStore, ProviderStore, RunQuery, SqliteArtifactStore,
+    SqliteClaimRepository, SqliteEntityStore, SqliteProjectStore, SqliteProviderStore,
+    SqliteTaskRepository, Transaction,
 };

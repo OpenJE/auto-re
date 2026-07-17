@@ -142,3 +142,19 @@
 - Added `SemanticEntity` struct (~20 LOC) + 6 entity kind constants (~24 LOC) + 3 tests (~45 LOC).
 - records.rs now ~220 pure LOC implementation + ~290 LOC tests = ~510 total.
 - Implementation LOC is within the 250 ceiling.
+
+## 2026-07-17 (Task 15)
+
+### provider_store.rs LOC (INFORMATIONAL)
+- Implementation: ~230 pure LOC + ~350 LOC tests = ~580 total.
+- Implementation LOC is within the 250 ceiling.
+- Co-located unit tests per Rust convention.
+
+### records.rs growth (Task 15) (INFORMATIONAL)
+- Added `ProviderRunStatus` enum (~45 LOC) + `EnvironmentIdentity` struct (~10 LOC) + `Provider` struct (~20 LOC) + `ProviderRun` struct (~20 LOC) + 6 provider kind constants (~24 LOC) + 8 tests (~120 LOC).
+- records.rs now ~340 pure LOC implementation + ~410 LOC tests = ~750 total.
+- Implementation LOC exceeds 250 ceiling. However, the file contains 5 struct/enum definitions, 13 constants, and tests — the implementation is spread across well-separated sections following the established pattern. A future split is planned when the provider module is extracted (task 16 adds aliases which may warrant a new module).
+
+### V5 migration naming (DESIGN NOTE)
+- Task plan says "V4__providers.sql" but V4 is already used by `semantic_entities`. V5 is the correct next migration number.
+- No impact — refinery applies migrations in numerical order.
