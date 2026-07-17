@@ -2,7 +2,7 @@
 
 { ... }:
 let
-  omoVersion  = "4.16.2";
+  omoVersion  = "4.18.2";
   provider    = "localserver";
   leadModel   = "qwen36-27b-gguf";
   workerModel = "ornith-35b";

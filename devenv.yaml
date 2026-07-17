@@ -8,6 +8,6 @@ inputs:
   nixpkgs-unstable:
     url: github:nixos/nixpkgs/nixos-unstable
   codegraph:
-    url: github:Shenmarukai/codegraph/103223adf0718cf1932fbc29b580daf1de0bb5f0
+    url: github:nixos/nixpkgs/af1de45a31012737034d75fffe20267ddf8fb46e
   opencode:
-    url: github:nixos/nixpkgs/5c1ae64122ad43f24ce1b1a8139e2f459dc791dd
+    url: github:nixos/nixpkgs/a881b86c471b743c33f6c4287da501c07135580b

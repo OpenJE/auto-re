@@ -2,7 +2,7 @@
 
 { ... }: {
   files.".opencode/oh-my-openagent.jsonc".text = builtins.toJSON {
-    "$schema" = "https://raw.githubusercontent.com/code-yeongyu/oh-my-openagent/v4.15.1/assets/oh-my-opencode.schema.json";
+    "$schema" = "https://raw.githubusercontent.com/code-yeongyu/oh-my-openagent/v4.18.2/assets/oh-my-opencode.schema.json";
     team_mode = {
       enabled               = true;
       max_parallel_members  = 4;
