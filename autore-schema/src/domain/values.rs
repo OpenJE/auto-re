@@ -1,6 +1,9 @@
 //! Value types for extensible evidence and metadata.
 //!
-//! - `BinaryLocation`: minimal address reference within a binary artifact.
+//! - `ModuleIdentity`: content-addressed identity of a binary module.
+//! - `BinaryLocation`: address within a binary artifact (artifact + module + RVA).
+//! - `StableEntityKey`: closed enum for content-addressed entity identity.
+//! - `DerivationMethod` / `Derivation`: provenance metadata for derived entities.
 //! - `ExtensionData`: versioned, schema-tagged payload (§7 mandate).
 //! - `MetadataMap`: typed wrapper around `BTreeMap<NamespacedId, ExtensionData>`.
 //! - `EvidenceValue`: tagged enum covering all primitive and composite
@@ -8,31 +11,67 @@
 
 use std::collections::BTreeMap;
 
-use crate::domain::NamespacedId;
+use crate::domain::{ContentHash, NamespacedId};
 use crate::ids::{
-    ArtifactId as Stage0ArtifactId, BinaryArtifactId, EntityId as Stage0EntityId,
+    ArtifactId as Stage0ArtifactId, BinaryArtifactId, EntityId as Stage0EntityId, EvidenceId,
+    HypothesisId,
 };
+
+// ---------------------------------------------------------------------------
+// ModuleIdentity
+// ---------------------------------------------------------------------------
+
+/// Identity of a module within a binary artifact, keyed by content hash
+/// rather than filesystem path or tool-assigned ID.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub struct ModuleIdentity {
+    /// Optional human-readable module name (e.g., ".text", "libc.so.6").
+    pub name: Option<String>,
+    /// Content hash of the module's bytes for content-addressed identity.
+    pub content_hash: ContentHash,
+    /// Optional index within the artifact's image (e.g., PE section index).
+    pub image_relative_index: Option<u32>,
+}
+
+impl ModuleIdentity {
+    /// Creates a new module identity.
+    pub fn new(
+        name: Option<String>,
+        content_hash: ContentHash,
+        image_relative_index: Option<u32>,
+    ) -> Self {
+        ModuleIdentity {
+            name,
+            content_hash,
+            image_relative_index,
+        }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // BinaryLocation
 // ---------------------------------------------------------------------------
 
-/// A minimal location within a binary artifact.
-///
-/// Task 7 will refine this with `ModuleIdentity` and validation.
+/// A location within a binary artifact, keyed by artifact identity, module
+/// identity, and relative virtual address — NOT by absolute load address,
+/// filesystem path, or tool-specific ID.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct BinaryLocation {
     /// The binary artifact containing this location.
     pub artifact: BinaryArtifactId,
-    /// Module name or identifier within the artifact.
-    pub module: String,
-    /// Address relative to the module's load base.
+    /// The module within the artifact.
+    pub module: ModuleIdentity,
+    /// Address relative to the module's image base (RVA).
     pub relative_address: u64,
 }
 
 impl BinaryLocation {
-    /// Creates a new binary location.
-    pub fn new(artifact: BinaryArtifactId, module: String, relative_address: u64) -> Self {
+    /// Creates a new binary location from an artifact, module identity, and RVA.
+    pub fn new(
+        artifact: BinaryArtifactId,
+        module: ModuleIdentity,
+        relative_address: u64,
+    ) -> Self {
         BinaryLocation {
             artifact,
             module,
@@ -199,23 +238,143 @@ impl EvidenceValue {
 }
 
 // ---------------------------------------------------------------------------
+// StableEntityKey
+// ---------------------------------------------------------------------------
+
+/// A stable, content-addressed key for entities across analysis sessions.
+///
+/// This enum is intentionally closed: all entity keying in the system
+/// falls into one of these four categories. New keying strategies require
+/// a schema revision rather than silent extension, ensuring all consumers
+/// handle every variant.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind", content = "value")]
+pub enum StableEntityKey {
+    /// A specific location within a binary.
+    BinaryLocation(BinaryLocation),
+    /// A contiguous range starting at `start` with `length` bytes.
+    BinaryRange { start: BinaryLocation, length: u64 },
+    /// A named symbol within an artifact.
+    ArtifactSymbol {
+        artifact: Stage0ArtifactId,
+        symbol: String,
+    },
+    /// An externally-namespaced identity (e.g., DWARF DIE, PDB type index).
+    ExternalIdentity {
+        namespace: NamespacedId,
+        value: String,
+    },
+}
+
+// ---------------------------------------------------------------------------
+// DerivationMethod
+// ---------------------------------------------------------------------------
+
+/// How a claim or entity was derived — a closed finite set of derivation
+/// strategies used in the analysis pipeline.
+///
+/// This enum is closed: the set of derivation methods is finite and known
+/// at compile time. Adding a new method requires a code change, ensuring
+/// all consumers are updated to handle it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind")]
+pub enum DerivationMethod {
+    DirectObservation,
+    ProviderAnalysis,
+    DeterministicAnalysis,
+    SolverProof,
+    ConcreteExecution,
+    SymbolicExecution,
+    CrossProviderAgreement,
+    LlmInference,
+    HumanAssertion,
+    ImportedKnowledge,
+}
+
+// ---------------------------------------------------------------------------
+// Derivation
+// ---------------------------------------------------------------------------
+
+/// Provenance metadata describing how a claim or entity was derived.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub struct Derivation {
+    pub method: DerivationMethod,
+    pub operation: NamespacedId,
+    pub supporting_evidence: Vec<EvidenceId>,
+    pub source_hypotheses: Vec<HypothesisId>,
+}
+
+impl Derivation {
+    /// Creates a new derivation record.
+    pub fn new(
+        method: DerivationMethod,
+        operation: NamespacedId,
+        supporting_evidence: Vec<EvidenceId>,
+        source_hypotheses: Vec<HypothesisId>,
+    ) -> Self {
+        Derivation {
+            method,
+            operation,
+            supporting_evidence,
+            source_hypotheses,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::NamespacedId;
-    use crate::ids::{ArtifactId as Stage0ArtifactId, BinaryArtifactId, EntityId as Stage0EntityId};
+    use crate::domain::{ContentHash, NamespacedId};
+    use crate::ids::{
+        ArtifactId as Stage0ArtifactId, BinaryArtifactId, EntityId as Stage0EntityId, EvidenceId,
+        HypothesisId,
+    };
 
-    // -- BinaryLocation tests --
+    // -- ModuleIdentity / BinaryLocation tests --
+
+    fn test_module_identity() -> ModuleIdentity {
+        ModuleIdentity::new(
+            Some(".text".into()),
+            ContentHash::sha256(b"test module content"),
+            Some(0),
+        )
+    }
 
     #[test]
     fn binary_location_serialize_roundtrip() {
-        let loc = BinaryLocation::new(BinaryArtifactId::new(), ".text".into(), 0x1000);
+        let loc = BinaryLocation::new(BinaryArtifactId::new(), test_module_identity(), 0x1000);
         let json = serde_json::to_string(&loc).unwrap();
         let back: BinaryLocation = serde_json::from_str(&json).unwrap();
         assert_eq!(loc, back);
+    }
+
+    #[test]
+    fn binary_location_round_trip() {
+        let fixture = include_str!("../../tests/fixtures/binary_location.json");
+        let loc: BinaryLocation = serde_json::from_str(fixture).unwrap();
+        assert!(loc.module.name.is_some());
+        assert_eq!(loc.module.name.as_deref(), Some(".text"));
+        let re_serialized = serde_json::to_string(&loc).unwrap();
+        assert_eq!(fixture.trim(), re_serialized);
+    }
+
+    #[test]
+    fn binary_location_rejects_absolute_only() {
+        // BinaryLocation::new requires BinaryArtifactId + ModuleIdentity + rva.
+        // The old API (artifact, String, u64) no longer compiles.
+        let module = ModuleIdentity::new(
+            Some(".text".into()),
+            ContentHash::sha256(b"module bytes"),
+            Some(0),
+        );
+        let loc = BinaryLocation::new(BinaryArtifactId::new(), module, 0x1000);
+        assert_eq!(loc.relative_address, 0x1000);
+        assert_eq!(loc.module.name.as_deref(), Some(".text"));
+        assert_eq!(loc.module.image_relative_index, Some(0));
     }
 
     // -- ExtensionData tests --
@@ -378,7 +537,7 @@ mod tests {
 
     #[test]
     fn evidence_value_binary_location_roundtrip() {
-        let loc = BinaryLocation::new(BinaryArtifactId::new(), ".text".into(), 0x1234);
+        let loc = BinaryLocation::new(BinaryArtifactId::new(), test_module_identity(), 0x1234);
         roundtrip(&EvidenceValue::BinaryLocation(loc));
     }
 
@@ -496,7 +655,7 @@ mod tests {
         let _ = EvidenceValue::Artifact(Stage0ArtifactId::new());
         let _ = EvidenceValue::BinaryLocation(BinaryLocation::new(
             BinaryArtifactId::new(),
-            String::new(),
+            ModuleIdentity::new(None, ContentHash::sha256(b""), None),
             0,
         ));
         let _ = EvidenceValue::List(vec![]);
@@ -506,5 +665,122 @@ mod tests {
             1,
             serde_json::json!(null),
         ));
+    }
+
+    // -- StableEntityKey tests --
+
+    fn test_binary_location() -> BinaryLocation {
+        BinaryLocation::new(BinaryArtifactId::new(), test_module_identity(), 0x1000)
+    }
+
+    #[test]
+    fn stable_entity_key_binary_location_roundtrip() {
+        let key = StableEntityKey::BinaryLocation(test_binary_location());
+        let json = serde_json::to_string(&key).unwrap();
+        let back: StableEntityKey = serde_json::from_str(&json).unwrap();
+        assert_eq!(key, back);
+    }
+
+    #[test]
+    fn stable_entity_key_binary_range_roundtrip() {
+        let key = StableEntityKey::BinaryRange {
+            start: test_binary_location(),
+            length: 256,
+        };
+        let json = serde_json::to_string(&key).unwrap();
+        let back: StableEntityKey = serde_json::from_str(&json).unwrap();
+        assert_eq!(key, back);
+    }
+
+    #[test]
+    fn stable_entity_key_artifact_symbol_roundtrip() {
+        let key = StableEntityKey::ArtifactSymbol {
+            artifact: Stage0ArtifactId::new(),
+            symbol: "main".into(),
+        };
+        let json = serde_json::to_string(&key).unwrap();
+        let back: StableEntityKey = serde_json::from_str(&json).unwrap();
+        assert_eq!(key, back);
+    }
+
+    #[test]
+    fn stable_entity_key_external_identity_roundtrip() {
+        let key = StableEntityKey::ExternalIdentity {
+            namespace: NamespacedId::parse("dwarf.die").unwrap(),
+            value: "0x1a2b".into(),
+        };
+        let json = serde_json::to_string(&key).unwrap();
+        let back: StableEntityKey = serde_json::from_str(&json).unwrap();
+        assert_eq!(key, back);
+    }
+
+    #[test]
+    fn stable_entity_key_fixture_roundtrip() {
+        let fixture = include_str!("../../tests/fixtures/stable_entity_key.json");
+        let key: StableEntityKey = serde_json::from_str(fixture).unwrap();
+        match &key {
+            StableEntityKey::BinaryLocation(loc) => {
+                assert_eq!(loc.module.name.as_deref(), Some(".text"));
+            }
+            other => panic!("expected BinaryLocation variant, got: {other:?}"),
+        }
+        let re_serialized = serde_json::to_string(&key).unwrap();
+        assert_eq!(fixture.trim(), re_serialized);
+    }
+
+    // -- DerivationMethod tests --
+
+    #[test]
+    fn derivation_method_all_10_variants_roundtrip() {
+        let methods = [
+            DerivationMethod::DirectObservation,
+            DerivationMethod::ProviderAnalysis,
+            DerivationMethod::DeterministicAnalysis,
+            DerivationMethod::SolverProof,
+            DerivationMethod::ConcreteExecution,
+            DerivationMethod::SymbolicExecution,
+            DerivationMethod::CrossProviderAgreement,
+            DerivationMethod::LlmInference,
+            DerivationMethod::HumanAssertion,
+            DerivationMethod::ImportedKnowledge,
+        ];
+        for method in &methods {
+            let json = serde_json::to_string(method).unwrap();
+            let back: DerivationMethod = serde_json::from_str(&json).unwrap();
+            assert_eq!(method, &back);
+        }
+    }
+
+    #[test]
+    fn derivation_method_tagged_format() {
+        let json = serde_json::to_string(&DerivationMethod::DirectObservation).unwrap();
+        assert_eq!(json, r#"{"kind":"DirectObservation"}"#);
+    }
+
+    // -- Derivation tests --
+
+    #[test]
+    fn derivation_roundtrip() {
+        let d = Derivation::new(
+            DerivationMethod::ProviderAnalysis,
+            NamespacedId::parse("core.analysis").unwrap(),
+            vec![EvidenceId::new()],
+            vec![HypothesisId::new()],
+        );
+        let json = serde_json::to_string(&d).unwrap();
+        let back: Derivation = serde_json::from_str(&json).unwrap();
+        assert_eq!(d, back);
+    }
+
+    #[test]
+    fn derivation_fixture_roundtrip() {
+        let fixture = include_str!("../../tests/fixtures/derivation.json");
+        let d: Derivation = serde_json::from_str(fixture).unwrap();
+        assert_eq!(d.method, DerivationMethod::DirectObservation);
+        assert_eq!(d.operation.as_str(), "core.analysis");
+        assert_eq!(d.supporting_evidence.len(), 1);
+        assert!(d.source_hypotheses.is_empty());
+        let re_serialized = serde_json::to_string(&d).unwrap();
+        assert_eq!(fixture.trim(), re_serialized);
     }
 }

@@ -568,7 +568,10 @@ pub use claim::{Claim, ClaimPredicate, ClaimState, ClaimValue};
 pub use evidence::{ArtifactId, EntityId, Evidence, EvidenceKind, EvidenceLocation};
 pub use function::Function;
 pub use task::{RequiredCapabilities, Task, TaskKind, TaskPriority, TaskState, TaskSubject};
-pub use values::{BinaryLocation, EvidenceValue, ExtensionData, MetadataMap};
+pub use values::{
+    BinaryLocation, Derivation, DerivationMethod, EvidenceValue, ExtensionData, MetadataMap,
+    ModuleIdentity, StableEntityKey,
+};
 
 // ---------------------------------------------------------------------------
 // Tests
