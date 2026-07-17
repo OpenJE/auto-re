@@ -200,4 +200,23 @@ mod tests {
         // (Compile-time check: comparing task_id and campaign_id would fail)
         assert_eq!(campaign_id.as_uuid(), task_id.as_uuid());
     }
+
+    #[test]
+    fn uuid_v7_sorts() {
+        // UUIDv7 embeds a Unix timestamp in the leading 48 bits, so two v7
+        // UUIDs generated 1ms apart MUST sort lexicographically in creation order.
+        let a = uuid::Uuid::now_v7();
+        std::thread::sleep(std::time::Duration::from_millis(1));
+        let b = uuid::Uuid::now_v7();
+
+        assert!(
+            a < b,
+            "UUIDv7 generated later should sort after earlier: {a} < {b}"
+        );
+
+        assert!(
+            a.to_string() < b.to_string(),
+            "UUIDv7 string form should preserve temporal ordering"
+        );
+    }
 }
