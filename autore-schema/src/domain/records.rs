@@ -7,7 +7,7 @@
 use std::path::PathBuf;
 
 use crate::domain::{ContentHash, ExtensionData, MetadataMap, NamespacedId, SchemaVersion, StableEntityKey, Timestamp};
-use crate::ids::{ArtifactId, EntityId, PackageId, ProjectId, ProviderId, ProviderRunId};
+use crate::ids::{ArtifactId, EntityId, NativeArtifactId, PackageId, ProjectId, ProviderId, ProviderRunId};
 
 // ---------------------------------------------------------------------------
 // Project
@@ -380,6 +380,70 @@ impl ProviderRun {
         Ok(())
     }
 }
+
+// ---------------------------------------------------------------------------
+// ProviderEntityAlias
+// ---------------------------------------------------------------------------
+
+/// Maps a provider-specific identifier to a canonical `SemanticEntity`.
+///
+/// Providers use their own naming conventions (function names, addresses,
+/// symbol IDs). Aliases bridge these to canonical entities without
+/// cross-provider alignment — each provider's aliases are independent.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ProviderEntityAlias {
+    pub provider_run: ProviderRunId,
+    pub provider_kind: NamespacedId,
+    pub provider_identifier: String,
+    pub entity: EntityId,
+}
+
+// ---------------------------------------------------------------------------
+// NativeArtifact
+// ---------------------------------------------------------------------------
+
+/// A native-format artifact produced by a provider run.
+///
+/// Links a content-addressed `Artifact` to the provider run that created it,
+/// with a format identifier and optional subject entities. The content is
+/// opaque — Stage 0 does NOT parse native artifacts.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct NativeArtifact {
+    pub id: NativeArtifactId,
+    pub provider_run: ProviderRunId,
+    pub artifact: ArtifactId,
+    pub format: NamespacedId,
+    pub subject_entities: Vec<EntityId>,
+    pub description: Option<String>,
+}
+
+// ---------------------------------------------------------------------------
+// Native format constants
+// ---------------------------------------------------------------------------
+
+/// Native format: Hex-Rays decompiler pseudocode output.
+pub static NATIVE_FORMAT_IDA_HEXRAYS_PSEUDOCODE: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("ida.hexrays.pseudocode").unwrap());
+
+/// Native format: IDA microcode output.
+pub static NATIVE_FORMAT_IDA_MICROCODE: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("ida.microcode").unwrap());
+
+/// Native format: Ghidra P-code output.
+pub static NATIVE_FORMAT_GHIDRA_PCODE: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("ghidra.pcode").unwrap());
+
+/// Native format: GDB execution trace.
+pub static NATIVE_FORMAT_GDB_TRACE: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("gdb.trace").unwrap());
+
+/// Native format: Z3 solver model output.
+pub static NATIVE_FORMAT_Z3_MODEL: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("z3.model").unwrap());
+
+/// Native format: Raw LLM response text.
+pub static NATIVE_FORMAT_LLM_RAW_RESPONSE: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("llm.raw-response").unwrap());
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -827,5 +891,65 @@ mod tests {
         };
         let result = run.complete(ProviderRunStatus::Failed);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn provider_entity_alias_round_trip_json() {
+        use crate::ids::ProviderRunId;
+
+        let alias = ProviderEntityAlias {
+            provider_run: ProviderRunId::new(),
+            provider_kind: PROVIDER_KIND_DECOMPILER.clone(),
+            provider_identifier: "sub_401000".to_string(),
+            entity: EntityId::new(),
+        };
+        let json = serde_json::to_string_pretty(&alias).unwrap();
+        let back: ProviderEntityAlias = serde_json::from_str(&json).unwrap();
+        assert_eq!(alias, back);
+    }
+
+    #[test]
+    fn native_artifact_round_trip_json() {
+        use crate::ids::{NativeArtifactId, ProviderRunId};
+
+        let na = NativeArtifact {
+            id: NativeArtifactId::new(),
+            provider_run: ProviderRunId::new(),
+            artifact: ArtifactId::new(),
+            format: NATIVE_FORMAT_IDA_HEXRAYS_PSEUDOCODE.clone(),
+            subject_entities: vec![EntityId::new(), EntityId::new()],
+            description: Some("decompiled main".to_string()),
+        };
+        let json = serde_json::to_string_pretty(&na).unwrap();
+        let back: NativeArtifact = serde_json::from_str(&json).unwrap();
+        assert_eq!(na, back);
+    }
+
+    #[test]
+    fn native_artifact_no_subjects_no_description() {
+        use crate::ids::{NativeArtifactId, ProviderRunId};
+
+        let na = NativeArtifact {
+            id: NativeArtifactId::new(),
+            provider_run: ProviderRunId::new(),
+            artifact: ArtifactId::new(),
+            format: NATIVE_FORMAT_GHIDRA_PCODE.clone(),
+            subject_entities: vec![],
+            description: None,
+        };
+        let json = serde_json::to_string(&na).unwrap();
+        let back: NativeArtifact = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.subject_entities, vec![]);
+        assert_eq!(back.description, None);
+    }
+
+    #[test]
+    fn native_format_constants_registered() {
+        assert_eq!(NATIVE_FORMAT_IDA_HEXRAYS_PSEUDOCODE.to_string(), "ida.hexrays.pseudocode");
+        assert_eq!(NATIVE_FORMAT_IDA_MICROCODE.to_string(), "ida.microcode");
+        assert_eq!(NATIVE_FORMAT_GHIDRA_PCODE.to_string(), "ghidra.pcode");
+        assert_eq!(NATIVE_FORMAT_GDB_TRACE.to_string(), "gdb.trace");
+        assert_eq!(NATIVE_FORMAT_Z3_MODEL.to_string(), "z3.model");
+        assert_eq!(NATIVE_FORMAT_LLM_RAW_RESPONSE.to_string(), "llm.raw-response");
     }
 }

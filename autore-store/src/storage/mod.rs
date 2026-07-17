@@ -1,5 +1,6 @@
 //! Storage layer — SQLite database, schema migrations, and repository traits.
 
+pub mod alias_store;
 pub mod artifact_store;
 pub mod database;
 pub mod entity_store;
@@ -7,6 +8,9 @@ pub mod project_store;
 pub mod provider_store;
 pub mod repositories;
 
+pub use alias_store::{
+    NativeArtifactStore, ProviderAliasStore, SqliteAliasStore,
+};
 pub use artifact_store::{ArtifactIntegrity, ArtifactStore, SqliteArtifactStore};
 pub use database::{Database, Transaction};
 pub use entity_store::{EntityColumn, EntityPage, EntityStore, SqliteEntityStore};

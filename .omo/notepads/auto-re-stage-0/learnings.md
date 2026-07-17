@@ -102,3 +102,12 @@
 - **`Vec<ArtifactId>` stored as JSON array TEXT**: `input_artifacts` serializes as a JSON array of UUID strings. This keeps the schema simple and avoids a junction table for a typically small list.
 - **Dynamic SQL for `list_runs` query filtering**: `RunQuery` supports optional `status_filter` and `provider_filter`. The query builder constructs `WHERE` clauses dynamically with numbered parameters (`?1`, `?2`, etc.), matching the entity store's approach for optional filters.
 - **`Option<Vec<u8>>` for nullable BLOB columns**: `package_id` and `configuration_artifact` are optional UUID BLOBs. `rusqlite` maps `Option<Vec<u8>>` to/from nullable BLOB columns naturally.
+
+## 2026-07-17 (Task 16)
+
+- **`Vec<EntityId>` serializes to JSON array TEXT**: `subject_entities` in `native_artifacts` stores as a JSON array of UUID strings. Same pattern as `Vec<ArtifactId>` in `provider_runs.input_artifacts`.
+- **`list_by_subject_entity` uses application-level filter**: Since `subject_entities` is stored as a JSON array in a TEXT column, the query fetches all rows and filters in Rust by checking if any entity UUID matches. This avoids SQLite JSON extension dependency. Acceptable for the expected small dataset sizes per run.
+- **`provider_entity_aliases` has no PRIMARY KEY**: The table uses a `UNIQUE INDEX` on `(provider_run, provider_identifier)` to enforce uniqueness, but no single-column PK. This is valid in SQLite (rowid tables) and matches the composite nature of the identity.
+- **`SqliteAliasStore` implements both `ProviderAliasStore` and `NativeArtifactStore`**: A single struct implements both traits, sharing the `&Database` reference. This avoids redundant struct definitions while maintaining trait-object separation.
+- **V6 migration uses `hash_digest` BLOB not TEXT hex**: The `stage0_artifacts` table stores `hash_digest` as BLOB (raw bytes), not hex TEXT. Test helpers must use `ch.digest.as_slice()` not `ch.digest_hex()`.
+- **FK references for aliases require both `provider_runs` AND `semantic_entities`**: The `provider_entity_aliases` table has FKs to two different tables. Both must exist before an alias can be inserted — test setup needs `insert_project`, `insert_provider`, `insert_run`, AND `insert_entity`.

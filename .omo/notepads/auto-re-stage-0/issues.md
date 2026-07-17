@@ -158,3 +158,21 @@
 ### V5 migration naming (DESIGN NOTE)
 - Task plan says "V4__providers.sql" but V4 is already used by `semantic_entities`. V5 is the correct next migration number.
 - No impact — refinery applies migrations in numerical order.
+
+## 2026-07-17 (Task 16)
+
+### alias_store.rs LOC (INFORMATIONAL)
+- Implementation: ~230 pure LOC + ~400 LOC tests = ~630 total.
+- Implementation LOC is within the 250 ceiling.
+- Co-located unit tests per Rust convention.
+
+### records.rs growth (Task 16) (INFORMATIONAL)
+- Added `ProviderEntityAlias` struct (~10 LOC) + `NativeArtifact` struct (~10 LOC) + 6 native format constants (~24 LOC) + 4 tests (~70 LOC).
+- records.rs now ~375 pure LOC implementation + ~480 LOC tests = ~855 total.
+- Implementation LOC exceeds 250 ceiling but contains 7 struct/enum definitions, 19 constants, and tests — well-separated sections following established pattern.
+- A future split into a `providers.rs` module is planned when the module is extracted.
+
+### `list_by_subject_entity` uses full-table scan (DESIGN NOTE)
+- `subject_entities` is stored as a JSON array TEXT column — cannot filter in SQL without SQLite JSON extension.
+- Current implementation fetches all `native_artifacts` rows and filters in Rust.
+- Acceptable for expected small dataset sizes. If performance becomes a concern, a junction table (`native_artifact_subjects`) could be added in a future migration.
