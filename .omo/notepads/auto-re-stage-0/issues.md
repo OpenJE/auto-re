@@ -63,3 +63,21 @@
 - validation.rs: 161 pure LOC implementation + 217 LOC tests = 378 total.
 - Implementation LOC is within the 250 ceiling. Tests are co-located per Rust convention.
 - Existing codebase files are larger: domain/mod.rs (945), claim.rs (603), evidence.rs (367).
+
+## 2026-07-17 (Task 10)
+
+### ProjectManifest placement deviation (DESIGN NOTE)
+- Task description says to put `ProjectManifest` in `autore-core`, but `autore-schema` depends on `autore-core` (for `Error::Validation`), making it impossible for `autore-core` to depend on `autore-schema` without circular dependency.
+- Resolved: `ProjectManifest` lives in `autore-schema/src/manifest.rs` where it can use `Project` and other schema types.
+- Test command adjusted: `cargo test -p autore-schema -- project_manifest_load_save` instead of `cargo test -p autore-core -- project_manifest_load_save`.
+
+### NamespacedId validation extended to allow hyphens (RESOLVED)
+- Original validation allowed only `[a-z0-9_]` per segment.
+- Artifact kind constants (`core.source-tree`, `core.native-provider-output`, `core.generated-candidate`) require hyphens.
+- Extended validation to `[a-z0-9_-]`. Updated error message accordingly.
+- Existing tests for valid/invalid NamespacedIds still pass.
+
+### records.rs LOC (INFORMATIONAL)
+- records.rs: ~140 pure LOC implementation + ~170 LOC tests = ~310 total.
+- Implementation LOC is well within the 250 ceiling.
+- Co-located unit tests per Rust convention.

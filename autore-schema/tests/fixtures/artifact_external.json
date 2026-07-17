@@ -1,0 +1,18 @@
+{
+  "id": "01906789-abcd-7000-8000-000000000003",
+  "project": "01906789-abcd-7000-8000-000000000001",
+  "kind": "core.source-tree",
+  "content_hash": {
+    "algorithm": "sha256",
+    "digest": "73ce0e5bb8a291cf491af421ae77e383a3b5c904fd8e07914928630deb80ca5e"
+  },
+  "size": 4096,
+  "storage": {
+    "kind": "ExternalFile",
+    "value": {
+      "canonical_path": "/home/user/projects/target-binary"
+    }
+  },
+  "created_at": "2026-01-15T10:30:00Z",
+  "metadata": {}
+}

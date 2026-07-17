@@ -1,9 +1,17 @@
 pub mod domain;
 pub mod ids;
+pub mod manifest;
 pub mod worker_output;
 
 pub use domain::*;
-pub use ids::*;
+pub use manifest::ProjectManifest;
+pub use ids::{
+    BinaryArtifactId, BinaryId, BinaryRevisionId, CampaignId, ClaimId, ContradictionId,
+    EvidenceId, FunctionId, GenerationTargetId, HypothesisId, ImplementationTargetId, ModuleId,
+    NativeArtifactId, OperationId, PackageId, ProjectEventId, ProjectId, ProviderId,
+    ProviderRunId, SourceArtifactId, TaskId, TransactionId, ValidationRunId,
+    VerificationRecordId, WorkerRunId,
+};
 pub use worker_output::{validate_output, FunctionAnalysisOutput, ProposedClaim, ProposedEvidence};
 
 #[cfg(test)]

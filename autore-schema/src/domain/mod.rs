@@ -270,9 +270,9 @@ impl NamespacedId {
             if segment.is_empty() {
                 return Err(NamespacedIdError("empty segment".into()));
             }
-            if segment.chars().any(|c| !c.is_ascii_lowercase() && !c.is_ascii_digit() && c != '_') {
+            if segment.chars().any(|c| !c.is_ascii_lowercase() && !c.is_ascii_digit() && c != '_' && c != '-') {
                 return Err(NamespacedIdError(format!(
-                    "segment '{segment}' contains invalid characters (must be lowercase ASCII)"
+                    "segment '{segment}' contains invalid characters (must be lowercase ASCII, digits, underscores, or hyphens)"
                 )));
             }
         }
@@ -558,6 +558,7 @@ pub mod campaign;
 pub mod claim;
 pub mod evidence;
 pub mod function;
+pub mod records;
 pub mod task;
 pub mod values;
 
@@ -571,6 +572,12 @@ pub use task::{RequiredCapabilities, Task, TaskKind, TaskPriority, TaskState, Ta
 pub use values::{
     BinaryLocation, Derivation, DerivationMethod, EvidenceValue, ExtensionData, MetadataMap,
     ModuleIdentity, StableEntityKey,
+};
+pub use records::{
+    Artifact, ArtifactStorage, BinaryArtifactMetadata, Endianness, Project,
+    ARTIFACT_KIND_BINARY, ARTIFACT_KIND_CONFIGURATION, ARTIFACT_KIND_GENERATED_CANDIDATE,
+    ARTIFACT_KIND_LOG, ARTIFACT_KIND_NATIVE_PROVIDER_OUTPUT, ARTIFACT_KIND_SOURCE_TREE,
+    ARTIFACT_KIND_TRACE,
 };
 
 // ---------------------------------------------------------------------------

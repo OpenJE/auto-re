@@ -1,0 +1,169 @@
+=== Task 10: Project + Artifact + MetadataMap + ProjectManifest ===
+Date: 2026-07-17T13:43:32-04:00
+
+--- cargo test -p autore-schema -- project_ ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.18s
+     Running unittests src/lib.rs (target/debug/deps/autore_schema-389958183ce38f9b)
+
+running 11 tests
+test domain::records::tests::project_new_sets_name_and_timestamps ... ok
+test ids::tests::ids_fixture_project_id_roundtrip ... ok
+test domain::records::tests::project_fixture_round_trip ... ok
+test manifest::tests::project_manifest_fixture_round_trip ... ok
+test manifest::tests::project_manifest_load_missing_file ... ok
+test domain::records::tests::project_round_trip_json ... ok
+test domain::records::tests::project_metadata_is_typed_not_raw_json ... ok
+test manifest::tests::project_manifest_load_invalid_toml ... ok
+test manifest::tests::project_manifest_load_save ... ok
+test manifest::tests::project_manifest_round_trip_preserves_timestamps ... ok
+test domain::records::tests::project_touch_updates_updated_at ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 161 filtered out; finished in 0.01s
+
+   Doc-tests autore_schema
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- cargo test -p autore-schema -- artifact_ ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.17s
+     Running unittests src/lib.rs (target/debug/deps/autore_schema-389958183ce38f9b)
+
+running 11 tests
+test domain::evidence::tests::artifact_id_default_creates_unique ... ok
+test domain::evidence::tests::artifact_id_roundtrip ... ok
+test domain::records::tests::artifact_kinds_registered ... ok
+test domain::records::tests::binary_artifact_metadata_all_none ... ok
+test domain::records::tests::artifact_fixture_managed_round_trip ... ok
+test domain::records::tests::artifact_fixture_external_round_trip ... ok
+test domain::records::tests::binary_artifact_metadata_round_trip ... ok
+test domain::values::tests::evidence_value_artifact_roundtrip ... ok
+test domain::records::tests::artifact_round_trip_external ... ok
+test domain::values::tests::stable_entity_key_artifact_symbol_roundtrip ... ok
+test domain::records::tests::artifact_round_trip_managed ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 161 filtered out; finished in 0.00s
+
+   Doc-tests autore_schema
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- cargo test -p autore-schema -- artifact_kinds_registered ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.17s
+     Running unittests src/lib.rs (target/debug/deps/autore_schema-389958183ce38f9b)
+
+running 1 test
+test domain::records::tests::artifact_kinds_registered ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 171 filtered out; finished in 0.00s
+
+   Doc-tests autore_schema
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- cargo test -p autore-schema -- manifest ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.17s
+     Running unittests src/lib.rs (target/debug/deps/autore_schema-389958183ce38f9b)
+
+running 6 tests
+test manifest::tests::project_manifest_load_missing_file ... ok
+test manifest::tests::project_manifest_fixture_round_trip ... ok
+test manifest::tests::generate_manifest_fixture ... ok
+test manifest::tests::project_manifest_load_invalid_toml ... ok
+test manifest::tests::project_manifest_load_save ... ok
+test manifest::tests::project_manifest_round_trip_preserves_timestamps ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 166 filtered out; finished in 0.00s
+
+   Doc-tests autore_schema
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- cargo build --workspace ---
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.24s
+
+--- cargo test -p autore-stage1 ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.22s
+     Running unittests src/lib.rs (target/debug/deps/autore_stage1-e765158ca72ef5d4)
+
+running 35 tests
+test analysis::mock::tests::mock_backend_capabilities ... ok
+test cli::tests::cli_no_subcommand_no_tui ... ok
+test analysis::packet::tests::packet_builder_uses_mock_backend ... ok
+test analysis::mock::tests::mock_backend_analyze_is_deterministic ... ok
+test analysis::mock::tests::unsupported_capability_returns_error ... ok
+test analysis::mock::tests::mock_backend_inventory_returns_ten_functions ... ok
+test analysis::packet::tests::packet_hashes_equal_for_equal_input ... ok
+test analysis::packet::tests::packet_is_serializable ... ok
+test analysis::packet::tests::packet_is_deterministic ... ok
+test model::router::tests::model_router_enforces_concurrency_limits ... ok
+test model::mock::tests::mock_provider_cancels_on_token ... ok
+test model::mock::tests::mock_provider_descriptor_capabilities ... ok
+test model::mock::tests::mock_provider_lists_models ... ok
+test model::router::tests::model_router_errors_on_missing_class ... ok
+test model::router::tests::model_router_selects_by_class ... ok
+test model::mock::tests::mock_provider_complete_returns_valid_json ... ok
+test scheduler::scheduler::tests::campaign_tests::scheduler_invalidates_stale_work ... ok
+test scheduler::scheduler::tests::priority_factors_are_inspectable ... ok
+test scheduler::scheduler::tests::priority_score_is_stable ... ok
+test scheduler::scheduler::tests::campaign_tests::scheduler_idle_sleeps ... ok
+test scheduler::scheduler::tests::campaign_tests::scheduler_recovers_expired_lease ... ok
+test scheduler::scheduler::tests::priority_score_verification_bonus ... ok
+test scheduler::scheduler::tests::campaign_tests::scheduler_respects_dependencies ... ok
+test scheduler::scheduler::tests::scheduler_score_tasks_batch ... ok
+test cli::tests::cli_task_status_missing_id_errors ... ok
+test scheduler::scheduler::tests::campaign_tests::scheduler_evaluates_complete ... ok
+test cli::tests::cli_campaign_status_runs ... ok
+test cli::tests::cli_campaign_status_with_nonexistent_id ... ok
+test cli::tests::cli_task_status_nonexistent_id_errors ... ok
+test cli::tests::cli_task_status_invalid_uuid_errors ... ok
+test cli::tests::cli_task_list_runs ... ok
+test worker::runner::tests::worker_times_out ... ok
+test worker::runner::tests::worker_cancels_on_token ... ok
+test worker::runner::tests::worker_rejects_malformed_schema ... ok
+test worker::runner::tests::worker_runs_valid_output_to_claims ... ok
+
+test result: ok. 35 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+     Running unittests src/main.rs (target/debug/deps/auto_re_stage1-704d6d3b19d2d07c)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/campaign_smoke.rs (target/debug/deps/campaign_smoke-341694ae30dfee53)
+
+running 4 tests
+test campaign_smoke_produces_claims ... ok
+test campaign_smoke_completes ... ok
+test campaign_smoke_analyzes_all_functions ... ok
+test campaign_smoke_updates_tui ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+
+     Running tests/kill_resume.rs (target/debug/deps/kill_resume-48875b1255b8a597)
+
+running 3 tests
+test kill_resume_no_duplicate_claims ... ok
+test campaign_completes_after_resume ... ok
+test accepted_claims_persist_after_kill ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.99s
+
+   Doc-tests autore_stage1
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

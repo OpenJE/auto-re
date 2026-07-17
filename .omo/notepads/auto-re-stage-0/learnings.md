@@ -43,3 +43,13 @@
 - **`Mutex<File>` as `MakeWriter`**: `tracing_subscriber::fmt::layer().with_writer(Mutex::new(file))` works because `Mutex<T>` implements `MakeWriter` when `T: Write`. No custom wrapper needed.
 - **Panic hook via `OnceLock<Arc<Mutex<...>>>`**: Global terminal restore hook uses `OnceLock` for one-time initialization + `Arc<Mutex<Option<...>>>` for mutable access. The `install_panic_hook()` function clones the `Arc` into the hook closure, capturing the shared reference without lifetime issues.
 - **Doc tests need explicit imports**: `/// ``` ` blocks don't inherit `use` statements from the enclosing module. Every type used in a doc test must be explicitly imported within the block.
+
+## 2026-07-17 (Task 10)
+
+- **ProjectManifest lives in autore-schema, not autore-core**: `autore-schema` depends on `autore-core` (for `Error::Validation`), so `autore-core` cannot depend on `autore-schema` without creating a circular dependency. `ProjectManifest` references `Project` and other schema types, so it must live in `autore-schema`. The task description's suggestion to put it in `autore-core` is architecturally impossible.
+- **NamespacedId segments allow hyphens**: Extended validation from `[a-z0-9_]` to `[a-z0-9_-]` to support artifact kind constants like `core.source-tree` and `core.native-provider-output`.
+- **`std::sync::LazyLock` for constants**: `NamespacedId::parse` is not `const`, so artifact kind constants use `LazyLock<NamespacedId>` for lazy initialization. Stabilized in Rust 1.80, available with edition 2024.
+- **`include_str!` path is relative to source file**: In `autore-schema/src/domain/records.rs`, `include_str!("../../tests/fixtures/...")` resolves correctly (two levels up from `src/domain/`). Using `../tests/` would look in `src/tests/` which doesn't exist.
+- **ArtifactStorage adjacently tagged**: `#[serde(tag = "kind", content = "value")]` produces `{"kind":"ManagedBlob","value":{"relative_path":"..."}}` — consistent with the pattern used for `EvidenceValue` and `StableEntityKey`.
+- **Timestamp lacks PartialOrd/Ord**: `Timestamp` only derives `PartialEq, Eq, Hash`. For ordering comparisons in tests, use `timestamp.as_offset_datetime()` to access the inner `time::OffsetDateTime` which implements `Ord`.
+- **TOML round-trip via flat structure**: `ProjectManifest` uses a flat `ManifestToml` intermediate type (schema_version, project_id, name, created_at, updated_at) rather than serializing the full `Project` struct. Metadata is stored in the database, not the manifest file.
