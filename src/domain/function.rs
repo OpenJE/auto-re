@@ -160,10 +160,7 @@ mod tests {
         let json = serde_json::to_string(&f).unwrap();
         let deserialized: Function = serde_json::from_str(&json).unwrap();
         assert_eq!(f.id, deserialized.id);
-        assert_eq!(
-            f.entry_address,
-            deserialized.entry_address
-        );
+        assert_eq!(f.entry_address, deserialized.entry_address);
         assert_eq!(f.current_name.to_string(), "main");
         assert!(!deserialized.locked);
     }

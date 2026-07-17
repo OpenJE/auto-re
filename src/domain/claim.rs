@@ -5,7 +5,8 @@
 //! by `Evidence` and tracked through its `ClaimState`.
 
 use crate::domain::{Confidence, EntityId, Provenance};
-use crate::ids::{ClaimId, EvidenceId};
+use crate::ids::{ClaimId, EvidenceId, FunctionId, WorkerRunId};
+use crate::worker::output::{FunctionAnalysisOutput, ProposedClaim};
 
 // ---------------------------------------------------------------------------
 // ClaimState
@@ -260,6 +261,66 @@ impl Claim {
             self.dependencies.push(claim_id);
         }
     }
+
+    // -----------------------------------------------------------------------
+    // Conversion from worker output
+    // -----------------------------------------------------------------------
+
+    /// Creates a `Claim` in `Proposed` state from a worker's `ProposedClaim`.
+    pub fn from_proposed(
+        function_id: FunctionId,
+        proposed: ProposedClaim,
+        worker_run_id: WorkerRunId,
+    ) -> crate::Result<Self> {
+        Ok(Claim::new(
+            ClaimId::new(),
+            EntityId::Function(function_id),
+            proposed.predicate,
+            proposed.value,
+            proposed.confidence,
+            Provenance::Agent { worker_run_id },
+        ))
+    }
+
+    /// Converts all proposed claims in a `FunctionAnalysisOutput` into `Claim`
+    /// entities in `Proposed` state, resolving intra-output dependencies by
+    /// matching `ClaimPredicate` values.
+    pub fn from_worker_output(
+        function_id: FunctionId,
+        output: &FunctionAnalysisOutput,
+        worker_run_id: WorkerRunId,
+    ) -> crate::Result<Vec<Self>> {
+        // First pass: create all claims.
+        let mut claims: Vec<Claim> = output
+            .claims
+            .iter()
+            .map(|pc| {
+                Claim::new(
+                    ClaimId::new(),
+                    EntityId::Function(function_id),
+                    pc.predicate.clone(),
+                    pc.value.clone(),
+                    pc.confidence,
+                    Provenance::Agent { worker_run_id },
+                )
+            })
+            .collect();
+
+        // Build predicate → ClaimId map for dependency resolution.
+        let predicate_to_id: std::collections::HashMap<ClaimPredicate, ClaimId> =
+            claims.iter().map(|c| (c.predicate.clone(), c.id)).collect();
+
+        // Second pass: resolve dependencies.
+        for (claim, proposed) in claims.iter_mut().zip(output.claims.iter()) {
+            for dep_predicate in &proposed.dependencies {
+                if let Some(&dep_id) = predicate_to_id.get(dep_predicate) {
+                    claim.add_dependency(dep_id);
+                }
+            }
+        }
+
+        Ok(claims)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -270,8 +331,8 @@ impl Claim {
 mod tests {
     use super::*;
     use crate::domain::Provenance;
-    use crate::ids::{EvidenceId, FunctionId};
     use crate::ids::ClaimId;
+    use crate::ids::{EvidenceId, FunctionId};
 
     fn sample_claim() -> Claim {
         Claim::new(
@@ -437,5 +498,105 @@ mod tests {
             Provenance::StaticAnalysis,
         );
         assert_eq!(c.state, ClaimState::Proposed);
+    }
+
+    // -- Worker output conversion tests --
+
+    use crate::domain::{Address, AddressSpace, EvidenceKind, EvidenceLocation, SymbolName};
+    use crate::ids::WorkerRunId;
+    use crate::worker::output::{FunctionAnalysisOutput, ProposedClaim, ProposedEvidence};
+
+    fn sample_worker_output() -> FunctionAnalysisOutput {
+        FunctionAnalysisOutput {
+            function_id: FunctionId::new(),
+            symbol_name: Some(SymbolName::new("main")),
+            address: Address::new(AddressSpace::Virtual, 0x401000),
+            confidence: Confidence::new(0.9).unwrap(),
+            claims: vec![
+                ProposedClaim {
+                    predicate: ClaimPredicate::FunctionName,
+                    value: ClaimValue::String("main".into()),
+                    confidence: Confidence::new(0.95).unwrap(),
+                    dependencies: vec![],
+                },
+                ProposedClaim {
+                    predicate: ClaimPredicate::FunctionSignature,
+                    value: ClaimValue::String("int main(int, char**)".into()),
+                    confidence: Confidence::new(0.8).unwrap(),
+                    dependencies: vec![ClaimPredicate::FunctionName],
+                },
+            ],
+            evidence: vec![ProposedEvidence {
+                kind: EvidenceKind::Disassembly,
+                location: Some(EvidenceLocation::new(
+                    Some(Address::new(AddressSpace::Virtual, 0x401000)),
+                    None,
+                )),
+                description: "push rbp; mov rbp, rsp".into(),
+                confidence: Confidence::new(0.85).unwrap(),
+            }],
+            metadata: serde_json::json!({}),
+        }
+    }
+
+    #[test]
+    fn worker_output_to_proposed_claims() {
+        let output = sample_worker_output();
+        let function_id = output.function_id;
+        let worker_run_id = WorkerRunId::new();
+
+        let claims = Claim::from_worker_output(function_id, &output, worker_run_id).unwrap();
+
+        assert_eq!(claims.len(), 2);
+        assert_eq!(claims[0].predicate, ClaimPredicate::FunctionName);
+        assert_eq!(claims[0].value, ClaimValue::String("main".into()));
+        assert_eq!(claims[1].predicate, ClaimPredicate::FunctionSignature);
+    }
+
+    #[test]
+    fn claims_start_in_proposed_state() {
+        let output = sample_worker_output();
+        let function_id = output.function_id;
+        let worker_run_id = WorkerRunId::new();
+
+        let claims = Claim::from_worker_output(function_id, &output, worker_run_id).unwrap();
+
+        for claim in &claims {
+            assert_eq!(claim.state, ClaimState::Proposed);
+            assert_eq!(claim.subject, EntityId::Function(function_id));
+            assert_eq!(claim.provenance, Provenance::Agent { worker_run_id });
+        }
+    }
+
+    #[test]
+    fn evidence_links_to_claims() {
+        let output = sample_worker_output();
+        let function_id = output.function_id;
+        let worker_run_id = WorkerRunId::new();
+
+        let evidence =
+            crate::domain::Evidence::from_worker_output(function_id, &output, worker_run_id)
+                .unwrap();
+
+        assert_eq!(evidence.len(), 1);
+        assert_eq!(evidence[0].kind, EvidenceKind::Disassembly);
+        assert_eq!(evidence[0].entity, Some(EntityId::Function(function_id)));
+        assert_eq!(evidence[0].provenance, Provenance::Agent { worker_run_id });
+    }
+
+    #[test]
+    fn claim_dependencies_recorded() {
+        let output = sample_worker_output();
+        let function_id = output.function_id;
+        let worker_run_id = WorkerRunId::new();
+
+        let claims = Claim::from_worker_output(function_id, &output, worker_run_id).unwrap();
+
+        // First claim (FunctionName) has no dependencies.
+        assert!(claims[0].dependencies.is_empty());
+
+        // Second claim (FunctionSignature) depends on FunctionName.
+        assert_eq!(claims[1].dependencies.len(), 1);
+        assert_eq!(claims[1].dependencies[0], claims[0].id);
     }
 }

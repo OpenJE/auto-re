@@ -16,7 +16,18 @@
 macro_rules! define_id {
     ($name:ident, $doc:literal) => {
         #[doc = $doc]
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+        #[derive(
+            Debug,
+            Clone,
+            Copy,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            serde::Serialize,
+            serde::Deserialize,
+        )]
         #[repr(transparent)]
         pub struct $name(uuid::Uuid);
 
@@ -55,19 +66,58 @@ macro_rules! define_id {
 // §8 Identifiers
 // ---------------------------------------------------------------------------
 
-define_id!(ProjectId, "Identifies an auto-re project — a top-level workspace or analysis campaign container.");
-define_id!(BinaryId, "Identifies a specific binary artifact (e.g., an ELF, PE, or Mach-O file under analysis).");
-define_id!(BinaryRevisionId, "Identifies a particular revision of a binary — captures the same file at a different build/version.");
-define_id!(ModuleId, "Identifies a module within a binary (a compilation unit, shared library segment, or loadable component).");
-define_id!(FunctionId, "Identifies a function within a binary's module.");
-define_id!(TaskId, "Identifies an analysis task — a single unit of work within a campaign.");
-define_id!(ClaimId, "Identifies a claim made during analysis (an assertion or finding about the binary).");
-define_id!(EvidenceId, "Identifies a piece of evidence supporting or refuting a claim.");
-define_id!(CampaignId, "Identifies an analysis campaign — a coordinated set of tasks.");
-define_id!(WorkerRunId, "Identifies a worker run — a single execution of a worker within a campaign.");
-define_id!(TransactionId, "Identifies a session — a logical sequence of operations.");
-define_id!(ImplementationTargetId, "Identifies an implementation target for a test or analysis.");
-define_id!(ValidationRunId, "Identifies a validation run — a single execution of validation logic.");
+define_id!(
+    ProjectId,
+    "Identifies an auto-re project — a top-level workspace or analysis campaign container."
+);
+define_id!(
+    BinaryId,
+    "Identifies a specific binary artifact (e.g., an ELF, PE, or Mach-O file under analysis)."
+);
+define_id!(
+    BinaryRevisionId,
+    "Identifies a particular revision of a binary — captures the same file at a different build/version."
+);
+define_id!(
+    ModuleId,
+    "Identifies a module within a binary (a compilation unit, shared library segment, or loadable component)."
+);
+define_id!(
+    FunctionId,
+    "Identifies a function within a binary's module."
+);
+define_id!(
+    TaskId,
+    "Identifies an analysis task — a single unit of work within a campaign."
+);
+define_id!(
+    ClaimId,
+    "Identifies a claim made during analysis (an assertion or finding about the binary)."
+);
+define_id!(
+    EvidenceId,
+    "Identifies a piece of evidence supporting or refuting a claim."
+);
+define_id!(
+    CampaignId,
+    "Identifies an analysis campaign — a coordinated set of tasks."
+);
+define_id!(
+    WorkerRunId,
+    "Identifies a worker run — a single execution of a worker within a campaign."
+);
+define_id!(
+    TransactionId,
+    "Identifies a session — a logical sequence of operations."
+);
+define_id!(
+    ImplementationTargetId,
+    "Identifies an implementation target for a test or analysis."
+);
+define_id!(
+    ValidationRunId,
+    "Identifies a validation run — a single execution of validation logic."
+);
 
 // ---------------------------------------------------------------------------
 // Tests

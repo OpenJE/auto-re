@@ -5,7 +5,10 @@
 //! (address, file path, provenance), and an optional artifact reference.
 
 use crate::domain::{Address, Provenance};
-use crate::ids::{ClaimId, EvidenceId, FunctionId, BinaryRevisionId, ModuleId, CampaignId, TaskId};
+use crate::ids::{
+    BinaryRevisionId, CampaignId, ClaimId, EvidenceId, FunctionId, ModuleId, TaskId, WorkerRunId,
+};
+use crate::worker::output::{FunctionAnalysisOutput, ProposedEvidence};
 
 use uuid::Uuid;
 
@@ -204,6 +207,52 @@ impl Evidence {
     /// Returns `true` if this evidence links to an artifact.
     pub fn has_artifact(&self) -> bool {
         self.artifact.is_some()
+    }
+
+    // -----------------------------------------------------------------------
+    // Conversion from worker output
+    // -----------------------------------------------------------------------
+
+    /// Creates an `Evidence` from a worker's `ProposedEvidence`.
+    ///
+    /// Note: `ProposedEvidence.description` and `ProposedEvidence.confidence`
+    /// are not representable in the current `Evidence` schema and are dropped.
+    pub fn from_proposed(
+        function_id: FunctionId,
+        proposed: ProposedEvidence,
+        worker_run_id: WorkerRunId,
+    ) -> crate::Result<Self> {
+        Ok(Evidence::new(
+            EvidenceId::new(),
+            proposed.kind,
+            None,
+            Some(EntityId::Function(function_id)),
+            proposed.location,
+            Provenance::Agent { worker_run_id },
+        ))
+    }
+
+    /// Converts all proposed evidence in a `FunctionAnalysisOutput` into
+    /// `Evidence` entities linked to the given function.
+    pub fn from_worker_output(
+        function_id: FunctionId,
+        output: &FunctionAnalysisOutput,
+        worker_run_id: WorkerRunId,
+    ) -> crate::Result<Vec<Self>> {
+        Ok(output
+            .evidence
+            .iter()
+            .map(|pe| {
+                Evidence::new(
+                    EvidenceId::new(),
+                    pe.kind.clone(),
+                    None,
+                    Some(EntityId::Function(function_id)),
+                    pe.location.clone(),
+                    Provenance::Agent { worker_run_id },
+                )
+            })
+            .collect())
     }
 }
 

@@ -28,7 +28,9 @@ pub enum TaskSubject {
 ///
 /// Higher values indicate higher priority. Scores are intentionally opaque
 /// — computed from `PriorityFactors` by the scheduler, not set directly.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub struct TaskPriority(u64);
 
 impl TaskPriority {

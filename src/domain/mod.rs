@@ -153,9 +153,7 @@ pub enum Provenance {
     ImportedSymbol,
     StaticAnalysis,
     DynamicAnalysis,
-    Agent {
-        worker_run_id: WorkerRunId,
-    },
+    Agent { worker_run_id: WorkerRunId },
     Derived,
     ReimplementationTest,
     ExternalReference,
@@ -209,10 +207,7 @@ impl<'de> serde::Deserialize<'de> for Provenance {
                     s if s.starts_with("Agent(") && s.ends_with(')') => {
                         let uuid_str = &s[6..s.len() - 1];
                         let uuid: uuid::Uuid = uuid_str.parse().map_err(|_| {
-                            serde::de::Error::invalid_value(
-                                serde::de::Unexpected::Str(s),
-                                &self,
-                            )
+                            serde::de::Error::invalid_value(serde::de::Unexpected::Str(s), &self)
                         })?;
                         Ok(Provenance::Agent {
                             worker_run_id: WorkerRunId::from_uuid(uuid),
@@ -358,10 +353,7 @@ mod tests {
             (AddressSpace::RelativeVirtual, "\"RelativeVirtual\""),
             (AddressSpace::FileOffset, "\"FileOffset\""),
             (AddressSpace::Physical, "\"Physical\""),
-            (
-                AddressSpace::Custom("test".into()),
-                "\"Custom(test)\"",
-            ),
+            (AddressSpace::Custom("test".into()), "\"Custom(test)\""),
         ];
         for (space, expected) in &cases {
             let json = serde_json::to_string(space).unwrap();
@@ -380,8 +372,7 @@ mod tests {
 
     #[test]
     fn address_spaces_deserialize_rejects_invalid() {
-        let result: std::result::Result<AddressSpace, _> =
-            serde_json::from_str("\"BogusSpace\"");
+        let result: std::result::Result<AddressSpace, _> = serde_json::from_str("\"BogusSpace\"");
         assert!(result.is_err());
     }
 

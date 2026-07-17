@@ -493,8 +493,8 @@ mod tests {
 
     #[test]
     fn task_required_capabilities_extras() {
-        let caps = RequiredCapabilities::new(true, true, false, true)
-            .with_extra("special_analysis");
+        let caps =
+            RequiredCapabilities::new(true, true, false, true).with_extra("special_analysis");
         assert!(caps.decompilation);
         assert!(caps.extras.contains("special_analysis"));
         assert!(!caps.extras.contains("nonexistent"));
