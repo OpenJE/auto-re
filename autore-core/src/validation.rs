@@ -218,7 +218,7 @@ pub fn validate_no_cycle<T: AsRef<str>>(
         adjacency: &HashMap<usize, Vec<usize>>,
         colors: &mut [u8],
         path: &mut Vec<usize>,
-        ids: &[impl AsRef<str>],
+        _ids: &[impl AsRef<str>],
     ) -> Option<Vec<usize>> {
         colors[node] = 1; // Mark as in-progress (gray)
         path.push(node);
@@ -233,10 +233,8 @@ pub fn validate_no_cycle<T: AsRef<str>>(
                     return Some(cycle);
                 }
 
-                if colors[next] == 0 {
-                    if let Some(cycle) = dfs(next, adjacency, colors, path, ids) {
-                        return Some(cycle);
-                    }
+                if colors[next] == 0 && let Some(cycle) = dfs(next, adjacency, colors, path, _ids) {
+                    return Some(cycle);
                 }
             }
         }
@@ -248,17 +246,15 @@ pub fn validate_no_cycle<T: AsRef<str>>(
 
     // Check all nodes (handles disconnected components)
     for start in 0..ids.len() {
-        if colors[start] == 0 {
-            if let Some(cycle) = dfs(start, &adjacency, &mut colors, &mut path, ids) {
-                let cycle_str: Vec<&str> = cycle
-                    .iter()
-                    .map(|&idx| ids[idx].as_ref())
-                    .collect();
-                return Err(Error::Validation(format!(
-                    "cycle detected: {}",
-                    cycle_str.join(" -> ")
-                )));
-            }
+        if colors[start] == 0 && let Some(cycle) = dfs(start, &adjacency, &mut colors, &mut path, ids) {
+            let cycle_str: Vec<&str> = cycle
+                .iter()
+                .map(|&idx| ids[idx].as_ref())
+                .collect();
+            return Err(Error::Validation(format!(
+                "cycle detected: {}",
+                cycle_str.join(" -> ")
+            )));
         }
     }
 

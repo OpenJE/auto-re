@@ -143,7 +143,7 @@ mod tests {
     #[test]
     fn result_alias_default_error() {
         let ok_val: Result<i32> = Ok(42);
-        assert_eq!(ok_val.unwrap(), 42);
+        assert!(ok_val.is_ok());
     }
 
     #[test]

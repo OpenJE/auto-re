@@ -26,11 +26,13 @@ use crate::Error;
 /// Sensitive field name patterns that should be redacted in logs.
 const SENSITIVE_PATTERNS: &[&str] = &["key", "token", "secret", "password", "credential"];
 
-/// Global terminal restoration hook for panic recovery.
-static TERMINAL_RESTORE_HOOK: OnceLock<Arc<Mutex<Option<Box<dyn Fn() + Send + Sync>>>>> =
-    OnceLock::new();
+/// Type alias for the terminal restore hook used in panic recovery.
+type TerminalRestoreHook = Arc<Mutex<Option<Box<dyn Fn() + Send + Sync>>>>;
 
-fn get_terminal_restore_hook() -> &'static Arc<Mutex<Option<Box<dyn Fn() + Send + Sync>>>> {
+/// Global terminal restoration hook for panic recovery.
+static TERMINAL_RESTORE_HOOK: OnceLock<TerminalRestoreHook> = OnceLock::new();
+
+fn get_terminal_restore_hook() -> &'static TerminalRestoreHook {
     TERMINAL_RESTORE_HOOK.get_or_init(|| Arc::new(Mutex::new(None)))
 }
 
@@ -52,32 +54,22 @@ pub fn install_panic_hook() {
     let restore_hook = Arc::clone(get_terminal_restore_hook());
 
     panic::set_hook(Box::new(move |info| {
-        if let Ok(guard) = restore_hook.lock() {
-            if let Some(ref restore_fn) = *guard {
-                restore_fn();
-            }
+        if let Ok(guard) = restore_hook.lock()
+            && let Some(ref restore_fn) = *guard {
+            restore_fn();
         }
         original_hook(info);
     }));
 }
 
 /// Configuration for the logging subsystem.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct LoggingConfig {
     /// Path to log file. If `None`, logs to stderr.
     /// In TUI mode, this MUST be `Some` to avoid corrupting the display.
     pub log_file: Option<PathBuf>,
     /// If `true`, emit logs in JSON format. Otherwise, use plain text.
     pub json: bool,
-}
-
-impl Default for LoggingConfig {
-    fn default() -> Self {
-        Self {
-            log_file: None,
-            json: false,
-        }
-    }
 }
 
 // ---------------------------------------------------------------------------
