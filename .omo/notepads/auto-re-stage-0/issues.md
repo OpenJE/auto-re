@@ -525,3 +525,23 @@
 - All 31 TUI unit tests + 3 regression tests + 573 workspace tests pass.
 - `cargo clippy --workspace --exclude autore-stage1 --all-targets -- -D warnings` clean.
 - `cargo fmt --all --check` clean.
+
+## 2026-07-18 (Task 32)
+
+### M1 repository code removed from `autore-store` (DESIGN NOTE)
+- V1 tables are dropped by `V12__drop_obsolete_v1.sql`, so the M1 `SqliteTaskRepository`/`SqliteClaimRepository` and their trait definitions could no longer function in `autore-store`.
+- Removed `autore-store/src/storage/repositories/` entirely; `autore-store/src/lib.rs` and `storage/mod.rs` no longer re-export these types.
+- `autore-stage1` has its own copy of the M1 repository code and is unaffected (workspace default excludes `autore-stage1`).
+
+### Dedicated V11 drop file was impossible (DESIGN NOTE)
+- `V11__events.sql` already created the `project_events` table in Task 21.
+- Placing the obsolete V1 drops in V11 would have required replacing/renaming an existing refinery migration, which would break existing databases.
+- Resolved by creating `V12__drop_obsolete_v1.sql` as the final migration in the V2 schema set.
+
+### `migration_records` table created lazily (DESIGN NOTE)
+- The table is created by `MigrationService::record_migration`, not by a migration file, so `applied_at` and `tool_version` reflect the actual migration run.
+- Fresh databases created via `Database::open` will not have `migration_records` until `MigrationService` is used.
+
+### V1 `artifacts` table intentionally retained (DESIGN NOTE)
+- The obsolete V1 drop list explicitly excludes `artifacts`; it continues to coexist with Stage 0 `stage0_artifacts`.
+- This matches the task specification's enumerated obsolete table names.

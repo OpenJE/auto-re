@@ -17,7 +17,32 @@ fn migration_runs_v1_then_v2() {
         .collect::<Result<Vec<_>, _>>()
         .unwrap();
 
-    for v1_table in [
+    let v2_tables = [
+        "projects",
+        "stage0_artifacts",
+        "semantic_entities",
+        "providers",
+        "provider_runs",
+        "provider_entity_aliases",
+        "native_artifacts",
+        "evidence_records",
+        "evidence_lifecycle_events",
+        "hypotheses",
+        "contradictions",
+        "verification_records",
+        "operations",
+        "progress_updates",
+        "cancellation_requests",
+        "project_events",
+    ];
+    for v2_table in v2_tables {
+        assert!(
+            tables.contains(&v2_table.to_string()),
+            "V2 table '{v2_table}' should exist after migration"
+        );
+    }
+
+    let obsolete_v1 = [
         "campaigns",
         "binary_revisions",
         "modules",
@@ -26,16 +51,16 @@ fn migration_runs_v1_then_v2() {
         "claims",
         "evidences",
         "leases",
-        "artifacts",
-    ] {
+    ];
+    for v1_table in obsolete_v1 {
         assert!(
-            tables.contains(&v1_table.to_string()),
-            "V1 table '{v1_table}' should exist after migration"
+            !tables.contains(&v1_table.to_string()),
+            "obsolete V1 table '{v1_table}' should be dropped after migration"
         );
     }
 
     assert!(
-        tables.contains(&"projects".to_string()),
-        "V2 table 'projects' should exist after migration"
+        tables.contains(&"artifacts".to_string()),
+        "retained V1 table 'artifacts' should still exist"
     );
 }

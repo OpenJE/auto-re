@@ -177,7 +177,7 @@ mod tests {
         // Opening an in-memory database applies migrations automatically.
         let db = Database::open_in_memory().expect("in-memory database should open and migrate");
 
-        // Verify all expected tables exist.
+        // Verify all expected V2 tables exist and obsolete V1 tables are gone.
         let conn = db.connection().unwrap();
         let tables: Vec<String> = conn
             .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
@@ -187,23 +187,47 @@ mod tests {
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
 
-        assert!(tables.contains(&"campaigns".to_string()));
-        assert!(tables.contains(&"binary_revisions".to_string()));
-        assert!(tables.contains(&"modules".to_string()));
-        assert!(tables.contains(&"functions".to_string()));
-        assert!(tables.contains(&"tasks".to_string()));
-        assert!(tables.contains(&"claims".to_string()));
-        assert!(tables.contains(&"evidences".to_string()));
-        assert!(tables.contains(&"leases".to_string()));
-        assert!(tables.contains(&"artifacts".to_string()));
-        assert!(tables.contains(&"projects".to_string()));
-        assert!(tables.contains(&"providers".to_string()));
-        assert!(tables.contains(&"provider_runs".to_string()));
-        assert!(tables.contains(&"provider_entity_aliases".to_string()));
-        assert!(tables.contains(&"native_artifacts".to_string()));
-        assert!(tables.contains(&"contradictions".to_string()));
-        assert!(tables.contains(&"verification_records".to_string()));
-        assert!(tables.contains(&"project_events".to_string()));
+        let v2_tables = [
+            "projects",
+            "stage0_artifacts",
+            "semantic_entities",
+            "providers",
+            "provider_runs",
+            "provider_entity_aliases",
+            "native_artifacts",
+            "evidence_records",
+            "evidence_lifecycle_events",
+            "hypotheses",
+            "contradictions",
+            "verification_records",
+            "operations",
+            "progress_updates",
+            "cancellation_requests",
+            "project_events",
+        ];
+        for table in v2_tables {
+            assert!(
+                tables.contains(&table.to_string()),
+                "V2 table {table} should exist"
+            );
+        }
+
+        let obsolete_v1 = [
+            "campaigns",
+            "tasks",
+            "claims",
+            "evidences",
+            "leases",
+            "functions",
+            "modules",
+            "binary_revisions",
+        ];
+        for table in obsolete_v1 {
+            assert!(
+                !tables.contains(&table.to_string()),
+                "obsolete V1 table {table} should be dropped"
+            );
+        }
     }
 
     #[test]
@@ -231,22 +255,30 @@ mod tests {
         let db = Database::open_in_memory().unwrap();
         let conn = db.connection().unwrap();
 
-        // Insert and query a campaign to verify the schema is live.
+        let id = uuid::Uuid::now_v7();
         conn.execute(
-            "INSERT INTO campaigns (id, name, state) VALUES (?1, ?2, ?3)",
-            rusqlite::params!["test-id", "test-campaign", "Pending"],
+            "INSERT INTO projects (id, name, schema_version, created_at, updated_at, metadata) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                id.as_bytes().as_slice(),
+                "test-project",
+                "2.0",
+                "2026-01-01T00:00:00Z",
+                "2026-01-01T00:00:00Z",
+                "{}"
+            ],
         )
         .expect("insert should succeed");
 
         let name: String = conn
             .query_row(
-                "SELECT name FROM campaigns WHERE id = ?1",
-                rusqlite::params!["test-id"],
+                "SELECT name FROM projects WHERE id = ?1",
+                rusqlite::params![id.as_bytes().as_slice()],
                 |row| row.get(0),
             )
             .expect("query should succeed");
 
-        assert_eq!(name, "test-campaign");
+        assert_eq!(name, "test-project");
     }
 
     #[test]
@@ -254,38 +286,24 @@ mod tests {
         let db = Database::open_in_memory().unwrap();
         let conn = db.connection().unwrap();
 
-        // Inserting a task with a non-existent campaign_id should fail.
+        // Inserting a provider run with a non-existent project_id should fail.
         let result = conn.execute(
-            "INSERT INTO tasks (id, campaign_id, kind, subject, state) VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO provider_runs (id, project_id, provider_id, operation, configuration_hash, environment, started_at) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             rusqlite::params![
-                "task-1",
-                "nonexistent-campaign",
-                "AnalyzeFunction",
+                uuid::Uuid::now_v7().as_bytes().as_slice(),
+                uuid::Uuid::now_v7().as_bytes().as_slice(),
+                uuid::Uuid::now_v7().as_bytes().as_slice(),
+                "core.analysis",
+                "deadbeef",
                 "{}",
-                "Pending"
+                "2026-01-01T00:00:00Z"
             ],
         );
         assert!(
             result.is_err(),
-            "foreign key constraint should reject orphan task"
+            "foreign key constraint should reject orphan provider run"
         );
-    }
-
-    #[test]
-    fn repository_traits_compile() {
-        // Verify that all repository traits are object-safe and can be
-        // referenced as trait objects. This is a compile-time check.
-        fn _assert_campaign_repo(_: &dyn crate::storage::repositories::CampaignRepository) {}
-        fn _assert_binary_revision_repo(
-            _: &dyn crate::storage::repositories::BinaryRevisionRepository,
-        ) {
-        }
-        fn _assert_module_repo(_: &dyn crate::storage::repositories::ModuleRepository) {}
-        fn _assert_function_repo(_: &dyn crate::storage::repositories::FunctionRepository) {}
-        fn _assert_task_repo(_: &dyn crate::storage::repositories::TaskRepository) {}
-        fn _assert_claim_repo(_: &dyn crate::storage::repositories::ClaimRepository) {}
-        fn _assert_evidence_repo(_: &dyn crate::storage::repositories::EvidenceRepository) {}
-        fn _assert_artifact_repo(_: &dyn crate::storage::repositories::ArtifactRepository) {}
     }
 
     #[test]
@@ -355,30 +373,51 @@ mod tests {
         }
     }
 
+    fn insert_test_project(conn: &rusqlite::Connection, id: &str, name: &str) {
+        let uuid = uuid::Uuid::parse_str(id).expect("valid test UUID");
+        conn.execute(
+            "INSERT INTO projects (id, name, schema_version, created_at, updated_at, metadata) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                uuid.as_bytes().as_slice(),
+                name,
+                "2.0",
+                "2026-01-01T00:00:00Z",
+                "2026-01-01T00:00:00Z",
+                "{}"
+            ],
+        )
+        .unwrap();
+    }
+
     #[test]
     fn transaction_commit_persists() {
         let db = Database::open_in_memory().unwrap();
 
         {
             let txn = db.begin_transaction().unwrap();
-            txn.conn()
-                .execute(
-                    "INSERT INTO campaigns (id, name, state) VALUES (?1, ?2, ?3)",
-                    rusqlite::params!["txn-1", "txn-campaign", "Pending"],
-                )
-                .unwrap();
+            insert_test_project(
+                txn.conn(),
+                "00000000-0000-0000-0000-000000000001",
+                "txn-project",
+            );
             txn.commit().unwrap();
         }
 
         let conn = db.connection().unwrap();
         let name: String = conn
             .query_row(
-                "SELECT name FROM campaigns WHERE id = ?1",
-                rusqlite::params!["txn-1"],
+                "SELECT name FROM projects WHERE id = ?1",
+                rusqlite::params![
+                    uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001")
+                        .unwrap()
+                        .as_bytes()
+                        .as_slice()
+                ],
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(name, "txn-campaign");
+        assert_eq!(name, "txn-project");
     }
 
     #[test]
@@ -387,19 +426,23 @@ mod tests {
 
         {
             let txn = db.begin_transaction().unwrap();
-            txn.conn()
-                .execute(
-                    "INSERT INTO campaigns (id, name, state) VALUES (?1, ?2, ?3)",
-                    rusqlite::params!["rollback-1", "should-not-exist", "Pending"],
-                )
-                .unwrap();
+            insert_test_project(
+                txn.conn(),
+                "00000000-0000-0000-0000-000000000002",
+                "should-not-exist",
+            );
         }
 
         let conn = db.connection().unwrap();
         let count: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM campaigns WHERE id = ?1",
-                rusqlite::params!["rollback-1"],
+                "SELECT COUNT(*) FROM projects WHERE id = ?1",
+                rusqlite::params![
+                    uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000002")
+                        .unwrap()
+                        .as_bytes()
+                        .as_slice()
+                ],
                 |row| row.get(0),
             )
             .unwrap();
@@ -412,12 +455,11 @@ mod tests {
 
         let result = {
             let txn = db.begin_transaction().unwrap();
-            txn.conn()
-                .execute(
-                    "INSERT INTO campaigns (id, name, state) VALUES (?1, ?2, ?3)",
-                    rusqlite::params!["err-1", "error-campaign", "Pending"],
-                )
-                .unwrap();
+            insert_test_project(
+                txn.conn(),
+                "00000000-0000-0000-0000-000000000003",
+                "error-project",
+            );
             let res: crate::Result<()> = Err(crate::Error::Validation("simulated failure".into()));
             res
         };
@@ -427,8 +469,13 @@ mod tests {
         let conn = db.connection().unwrap();
         let count: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM campaigns WHERE id = ?1",
-                rusqlite::params!["err-1"],
+                "SELECT COUNT(*) FROM projects WHERE id = ?1",
+                rusqlite::params![
+                    uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000003")
+                        .unwrap()
+                        .as_bytes()
+                        .as_slice()
+                ],
                 |row| row.get(0),
             )
             .unwrap();

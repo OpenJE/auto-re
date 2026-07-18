@@ -272,3 +272,13 @@
 - **Dialog state machine**: `open_artifact_import_dialog` pushes an `Input` dialog and sets `focus = Focus::Dialog`. `handle_key_event` dispatches to `handle_dialog_key_event` when focus is Dialog. Enter confirms (pops dialog, dispatches command), Esc cancels (pops without dispatch). Buffer edits go through `KeyCode::Char(c)` arm; backspace pops the last char.
 - **`ProjectEventSubscription::new` needs a `broadcast::Receiver`**: for tests that attach a subscription without a real broadcaster, create `broadcast::channel::<ProjectEvent>(N)` and immediately `drop(_tx)` so `receiver.recv()` returns `None` (closed channel).
 - **Clippy `field_reassign_with_default`**: `let mut x = T::default(); x.field = value;` triggers this lint. Use struct literal syntax: `let x = T { field: value, ..Default::default() };`.
+
+## 2026-07-18 (Task 32)
+
+- **V11 was already `project_events`**: The earlier Task 21 migration created `V11__events.sql`. Task 32's obsolete V1 table drops therefore had to be placed in a new `V12__drop_obsolete_v1.sql`, not a dedicated V11 drop file.
+- **M1 repository code removed from `autore-store`**: Since V1 tables are dropped by V12, the M1 `TaskRepository`/`ClaimRepository` SQLite implementations and trait definitions in `autore-store/src/storage/repositories/` were no longer valid. Removed them from `autore-store`; `autore-stage1` retains its own copy of the M1 repository code.
+- **`Database::open` runs migrations automatically**: `MigrationService::migrate_from_v1` copies the source V1 DB, then uses `Database::open(dest)` to apply all embedded refinery migrations (V2..V12). No separate runner call is needed.
+- **Source DB must not be opened with `Database::open` for verification**: `Database::open` would mutate the source by applying migrations. Verify the untouched source via a raw read-only `rusqlite::Connection`.
+- **Backup path is `<dest>.bak`**: Implemented as `dest.with_extension("<ext>.bak")` so `foo.db` becomes `foo.db.bak` and `bar` becomes `bar.bak`.
+- **Migration history is recorded by the service, not by a migration file**: The `migration_records` table is created lazily by `MigrationService` so `applied_at` and `tool_version` come from the running process.
+- **V1 `artifacts` table is retained**: The obsolete V1 drop list explicitly excludes `artifacts`, so it continues to coexist with Stage 0 `stage0_artifacts`.
