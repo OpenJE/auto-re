@@ -20,16 +20,18 @@ use autore_schema::domain::records::{
     EVENT_KIND_ENTITY_CREATED, EVENT_KIND_EVIDENCE_ADDED, EVENT_KIND_HYPOTHESIS_ACCEPTED,
     EVENT_KIND_HYPOTHESIS_PROPOSED, EVENT_KIND_HYPOTHESIS_REJECTED,
     EVENT_KIND_OPERATION_CANCELLING, EVENT_KIND_OPERATION_QUEUED, EVENT_KIND_PROJECT_CREATED,
-    EVENT_KIND_PROJECT_VALIDATION_FAILED, EVENT_KIND_VERIFICATION_RECORDED, EventSource,
-    EventSubject, Hypothesis, HypothesisStatus, OPERATION_KIND_PROJECT_MIGRATION,
-    OPERATION_KIND_PROJECT_REBUILD_INDEXES, Operation, Project, ProviderRun, SemanticEntity,
+    EVENT_KIND_PROJECT_INDEXES_REBUILT, EVENT_KIND_PROJECT_VALIDATION_FAILED,
+    EVENT_KIND_VERIFICATION_RECORDED, EventSource, EventSubject, Hypothesis, HypothesisStatus,
+    OPERATION_KIND_PROJECT_MIGRATION, OPERATION_KIND_PROJECT_REBUILD_INDEXES, Operation, Project,
+    ProviderRun, SemanticEntity,
 };
 use autore_schema::domain::{Confidence, ExtensionData, NamespacedId, Timestamp};
 use autore_schema::ids::{ArtifactId, HypothesisId, ProjectId, ProviderRunId};
 use autore_store::{
     ArtifactStore, ContradictionStore, Database, EntityColumn, EntityPage, EntityStore,
     EvidenceStore, HypothesisStore, NativeArtifactStore, OperationStore, ProjectStore,
-    ProviderAliasStore, ProviderStore, RunQuery, VerificationStore, with_event,
+    ProviderAliasStore, ProviderStore, RunQuery, VerificationStore, build_derived_state_in_tx,
+    with_event,
 };
 
 use crate::application_service::mutations as muts;
@@ -490,13 +492,32 @@ impl ApplicationService {
     }
 
     fn rebuild_indexes(&self, req: RebuildIndexesRequest) -> Result<CommandResult> {
-        let operation = self.queue_operation(
+        let _project = self.require_project(req.project)?;
+        let operation = Operation::new(
             req.project,
             OPERATION_KIND_PROJECT_REBUILD_INDEXES.clone(),
             "rebuild-indexes",
+        );
+        let op_id = operation.id;
+        with_event(
+            &self.db,
+            req.project,
+            EVENT_KIND_PROJECT_INDEXES_REBUILT.clone(),
+            EventSource::Project,
+            Some(EventSubject::Project(req.project)),
+            None,
+            |txn| {
+                build_derived_state_in_tx(txn, req.project)?;
+                muts::insert_operation(txn, &operation)?;
+                Ok(op_id)
+            },
         )?;
+        let updated = self
+            .operation_store
+            .get(op_id)?
+            .ok_or_else(|| Error::NotFound(format!("operation {op_id} not found")))?;
         Ok(CommandResult::IndexesRebuilt(RebuildIndexesResponse {
-            operation,
+            operation: updated,
         }))
     }
 
