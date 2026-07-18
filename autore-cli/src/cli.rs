@@ -83,8 +83,11 @@ pub enum ProjectCommand {
         #[arg(long, default_value = "human")]
         output: OutputFormat,
     },
-    /// Queue a project validation operation.
-    Validate,
+    /// Run project-wide validation and print the report.
+    Validate {
+        #[arg(long, default_value = "human")]
+        output: OutputFormat,
+    },
     /// Queue a project migration operation.
     Migrate,
     /// Queue a rebuild-indexes operation.

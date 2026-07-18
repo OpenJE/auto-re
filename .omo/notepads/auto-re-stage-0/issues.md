@@ -545,3 +545,84 @@
 ### V1 `artifacts` table intentionally retained (DESIGN NOTE)
 - The obsolete V1 drop list explicitly excludes `artifacts`; it continues to coexist with Stage 0 `stage0_artifacts`.
 - This matches the task specification's enumerated obsolete table names.
+
+## 2026-07-18 (Task 32 scope-creep fix)
+
+### M1 repository code moved from `autore-store` to `autore-stage1` (RESOLVED)
+- The Task 32 subagent deleted `autore-store/src/storage/repositories/{mod,claim,task}.rs` but did not relocate them.
+- `autore-stage1/src/lib.rs` previously re-exported `autore_store::storage` as a whole, so deleting the repositories broke `crate::storage::repositories::*` imports in stage1.
+- Restored the deleted files under `autore-stage1/src/storage/repositories/`, which is now stage1's own module.
+- `autore-stage1/src/lib.rs` defines `pub mod storage;` instead of re-exporting `autore_store::storage`.
+- `autore-stage1/src/storage/mod.rs` re-exports only the Stage 0 pieces stage1 needs (`Database`, `Transaction`) and exposes `pub mod repositories;`.
+- Repository traits/implementations were adapted to use `autore_core::Result` / `autore_core::Error` because `crate::Result` in stage1 resolves to `autore_stage1::Result`, which lacks the `Database`/`Validation` variants the SQLite code needs.
+- Verification:
+  - `cargo build -p autore-stage1` succeeds.
+  - `cargo test --workspace --exclude autore-stage1` passes.
+  - `cargo clippy --workspace --exclude autore-stage1 --all-targets -- -D warnings` passes.
+
+## 2026-07-18 (Task 33)
+
+### ValidationService placement (DESIGN NOTE)
+- `ValidationService` lives in `autore-app/src/application_service/validation.rs` rather than `autore-core` because it needs to query multiple stores (`ArtifactStore`, `EntityStore`, `EvidenceStore`, `HypothesisStore`, `OperationStore`, `ProviderStore`, `EventStore`, etc.) that are defined in `autore-store`.
+- `autore-core` already contains low-level validation primitives (`validate_no_cycle`, `validate_all_references_exist`, etc.) reused by the service.
+
+### Stable, versioned ValidationReport schema (DESIGN NOTE)
+- `ValidationReport` is a serializable struct with `schema_version: u32` (currently `1`), `project_id`, `findings: Vec<ValidationFinding>`, and `passed: bool`.
+- Each `ValidationFinding` carries `check`, `severity`, `message`, and optional `record_id`.
+- The JSON payload placed in the failure event uses `ExtensionData` with schema `core.project.validation-report` and embeds the serialized report.
+
+### 18 project-wide validation checks
+- The service implements all checks from spec §25:
+  1. `broken-reference` — every typed reference points to an existing record of the right kind.
+  2. `cross-project-reference` — no sub-record references an ID from another project.
+  3. `invalid-namespaced-id` — all stored `NamespacedId` values pass the segment/dot validation rules.
+  4. `managed-artifact-integrity` — managed artifacts still match their stored content hash.
+  5. `external-artifact-integrity` — external artifacts have not been modified on disk.
+  6. `confidence-range` — all confidence scores are within `[0.0, 1.0]`.
+  7. `provider-run-reference` — provider runs reference valid provider + artifacts.
+  8. `native-artifact-reference` — native artifacts reference valid artifacts + subject entities.
+  9. `evidence-reference` — evidence records reference valid subjects/runs/native artifacts/assumptions.
+  10. `hypothesis-reference` — hypotheses reference valid subject entities.
+  11. `hypothesis-supersession-cycle` — `Superseded { by }` graph has no cycles.
+  12. `contradiction-reference` — contradictions reference valid subjects/evidence/hypotheses.
+  13. `verification-reference` — verifications reference valid subjects/runs/evidence.
+  14. `operation-reference` — operations reference valid parent operations.
+  15. `operation-parent-cycle` — operation parent graph has no cycles.
+  16. `event-sequence` — event sequences are strictly increasing in chronological order and unique.
+  17. `event-subject-reference` — event subjects reference existing records.
+  18. `schema-table-consistency` — project schema version is compatible with DB migration history and derived-index aliases match the project ID.
+
+### Atomic event emission on failure (DESIGN NOTE)
+- `ApplicationService::validate_project` calls `ValidationService::validate_project` to build the report, then uses `self.with_event` to atomically commit the report and emit exactly one `core.project.validation-failed` `ProjectEvent` when the report does not pass.
+- The event payload contains the full `ValidationReport` JSON under key `report` so downstream consumers can react without re-running validation.
+- No event is emitted when validation passes.
+
+### CLI `project validate` default is human (DESIGN NOTE)
+- The CLI supports `--output json` and `--output human` with human as the default, per the task requirement.
+- Two integration tests initially called `project validate` without `--output json` and then parsed stdout as JSON. They were updated to pass `--output json` explicitly, matching the default-human contract.
+- On validation failure the CLI exits with code 1 and prints findings; on success it exits 0.
+
+### NativeArtifactStore and ProviderAliasStore wrappers (RESOLVED)
+- `autore-app` required read access to `native_artifacts` and `provider_aliases` tables but the stores were not exposed through the public `autore-store` API.
+- Added thin `NativeArtifactStoreImpl` and `ProviderAliasStoreImpl` wrappers in `autore-app/src/application_service/stores.rs` using the existing row helpers from `autore-store`.
+- This satisfies the constraint "Do NOT change existing store public APIs unless required" — no public store trait signatures were changed.
+
+### Test connection scoping deadlock (RESOLVED)
+- Tests that directly `UPDATE` the database (`validation_detects_operation_parent_cycle`, `validation_detects_event_sequence_violation`) held the `MutexGuard<Connection>` returned by `service.db.connection()` across the `service.execute(...)` call.
+- Because `ApplicationService` also acquires the same mutex during validation, this caused a deadlock.
+- Fixed by wrapping the raw SQL blocks in a nested scope so the guard is dropped before invoking the service.
+
+### Event sequence ordering (RESOLVED)
+- `ProjectEventService::events_after` returns events ordered by `sequence`, so validation could not detect a later event with a lower sequence number.
+- Changed `check_events` to sort the project's events by `created_at` (using `Timestamp::as_offset_datetime`) before checking monotonicity and uniqueness.
+- The corresponding test now inserts two events with distinct `created_at` timestamps and sequences `3` then `2`, which correctly triggers an `event-sequence` finding.
+
+### Clippy collapsible-if cleanup (RESOLVED)
+- The new validation functions contained many nested `if let` blocks that clippy flagged as collapsible.
+- Collapsed them using `let ... &&` chains and added `#[allow(clippy::too_many_arguments)]` on private helper functions (`check_namespaced_ids`, `check_events`, `check_verifications`) that legitimately need many ID sets.
+
+### Verification
+- `cargo test -p autore-app -- validation_` — 7/7 pass.
+- `cargo test --workspace --exclude autore-stage1` — all workspace tests pass.
+- `cargo clippy --workspace --exclude autore-stage1 --all-targets -- -D warnings` — clean.
+- `cargo fmt --all --check` — clean.

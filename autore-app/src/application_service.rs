@@ -16,25 +16,27 @@ use autore_core::operation::OperationState;
 use autore_core::{Error, Result};
 use autore_events::project_event_service::ProjectEventService;
 use autore_schema::domain::records::{
-    CancellationRequest, EventSource, EventSubject, Hypothesis, HypothesisStatus, Operation,
-    Project, ProviderRun, SemanticEntity, EVENT_KIND_ARTIFACT_REGISTERED,
-    EVENT_KIND_CONTRADICTION_CREATED, EVENT_KIND_EVIDENCE_ADDED, EVENT_KIND_ENTITY_CREATED,
-    EVENT_KIND_HYPOTHESIS_ACCEPTED, EVENT_KIND_HYPOTHESIS_PROPOSED, EVENT_KIND_HYPOTHESIS_REJECTED,
-    EVENT_KIND_OPERATION_CANCELLING, EVENT_KIND_OPERATION_QUEUED,
-    EVENT_KIND_PROJECT_CREATED, EVENT_KIND_VERIFICATION_RECORDED,
-    OPERATION_KIND_PROJECT_MIGRATION, OPERATION_KIND_PROJECT_REBUILD_INDEXES,
-    OPERATION_KIND_PROJECT_VALIDATION,
+    CancellationRequest, EVENT_KIND_ARTIFACT_REGISTERED, EVENT_KIND_CONTRADICTION_CREATED,
+    EVENT_KIND_ENTITY_CREATED, EVENT_KIND_EVIDENCE_ADDED, EVENT_KIND_HYPOTHESIS_ACCEPTED,
+    EVENT_KIND_HYPOTHESIS_PROPOSED, EVENT_KIND_HYPOTHESIS_REJECTED,
+    EVENT_KIND_OPERATION_CANCELLING, EVENT_KIND_OPERATION_QUEUED, EVENT_KIND_PROJECT_CREATED,
+    EVENT_KIND_PROJECT_VALIDATION_FAILED, EVENT_KIND_VERIFICATION_RECORDED, EventSource,
+    EventSubject, Hypothesis, HypothesisStatus, OPERATION_KIND_PROJECT_MIGRATION,
+    OPERATION_KIND_PROJECT_REBUILD_INDEXES, Operation, Project, ProviderRun, SemanticEntity,
 };
-use autore_schema::domain::{Confidence, NamespacedId, Timestamp};
+use autore_schema::domain::{Confidence, ExtensionData, NamespacedId, Timestamp};
 use autore_schema::ids::{ArtifactId, HypothesisId, ProjectId, ProviderRunId};
 use autore_store::{
     ArtifactStore, ContradictionStore, Database, EntityColumn, EntityPage, EntityStore,
-    EvidenceStore, HypothesisStore, OperationStore, ProjectStore, ProviderStore, RunQuery,
-    VerificationStore, with_event,
+    EvidenceStore, HypothesisStore, NativeArtifactStore, OperationStore, ProjectStore,
+    ProviderAliasStore, ProviderStore, RunQuery, VerificationStore, with_event,
 };
 
 use crate::application_service::mutations as muts;
-use crate::application_service::validation::{ensure_same_project, parse_namespaced_id, validate_confidence, validate_not_empty};
+use crate::application_service::validation::{
+    ValidationService, ensure_same_project, parse_namespaced_id, validate_confidence,
+    validate_not_empty,
+};
 
 /// The shared application layer for all auto-re frontends (CLI, TUI, etc.).
 ///
@@ -57,6 +59,7 @@ pub struct ApplicationService {
     pub(crate) contradiction_store: Arc<dyn ContradictionStore + Send + Sync>,
     pub(crate) verification_store: Arc<dyn VerificationStore + Send + Sync>,
     pub(crate) operation_store: Arc<dyn OperationStore + Send + Sync>,
+    pub(crate) validation_service: ValidationService,
 }
 
 impl ApplicationService {
@@ -69,20 +72,72 @@ impl ApplicationService {
         base_dir: impl Into<PathBuf>,
     ) -> Self {
         let base_dir = base_dir.into();
+        let project_store: Arc<dyn ProjectStore + Send + Sync> =
+            Arc::new(ProjectStoreImpl::new(Arc::clone(&db)));
+        let artifact_store: Arc<dyn ArtifactStore + Send + Sync> =
+            Arc::new(ArtifactStoreImpl::new(Arc::clone(&db), base_dir.clone()));
+        let entity_store: Arc<dyn EntityStore + Send + Sync> =
+            Arc::new(EntityStoreImpl::new(Arc::clone(&db)));
+        let provider_store: Arc<dyn ProviderStore + Send + Sync> =
+            Arc::new(ProviderStoreImpl::new(Arc::clone(&db)));
+        let evidence_store: Arc<dyn EvidenceStore + Send + Sync> =
+            Arc::new(EvidenceStoreImpl::new(Arc::clone(&db)));
+        let hypothesis_store: Arc<dyn HypothesisStore + Send + Sync> =
+            Arc::new(HypothesisStoreImpl::new(Arc::clone(&db)));
+        let contradiction_store: Arc<dyn ContradictionStore + Send + Sync> =
+            Arc::new(ContradictionStoreImpl::new(Arc::clone(&db)));
+        let verification_store: Arc<dyn VerificationStore + Send + Sync> =
+            Arc::new(VerificationStoreImpl::new(Arc::clone(&db)));
+        let operation_store: Arc<dyn OperationStore + Send + Sync> =
+            Arc::new(OperationStoreImpl::new(Arc::clone(&db)));
+        let native_artifact_store: Arc<dyn NativeArtifactStore + Send + Sync> =
+            Arc::new(NativeArtifactStoreImpl::new(Arc::clone(&db)));
+        let alias_store: Arc<dyn ProviderAliasStore + Send + Sync> =
+            Arc::new(ProviderAliasStoreImpl::new(Arc::clone(&db)));
+        let validation_service = ValidationService {
+            db: Arc::clone(&db),
+            project_store: Arc::clone(&project_store),
+            artifact_store: Arc::clone(&artifact_store),
+            entity_store: Arc::clone(&entity_store),
+            provider_store: Arc::clone(&provider_store),
+            evidence_store: Arc::clone(&evidence_store),
+            hypothesis_store: Arc::clone(&hypothesis_store),
+            contradiction_store: Arc::clone(&contradiction_store),
+            verification_store: Arc::clone(&verification_store),
+            operation_store: Arc::clone(&operation_store),
+            native_artifact_store: Arc::clone(&native_artifact_store),
+            alias_store: Arc::clone(&alias_store),
+            events: Arc::clone(&events),
+        };
         Self {
             db: Arc::clone(&db),
             events,
-            project_store: Arc::new(ProjectStoreImpl::new(Arc::clone(&db))),
-            artifact_store: Arc::new(ArtifactStoreImpl::new(Arc::clone(&db), base_dir.clone())),
-            entity_store: Arc::new(EntityStoreImpl::new(Arc::clone(&db))),
-            provider_store: Arc::new(ProviderStoreImpl::new(Arc::clone(&db))),
-            evidence_store: Arc::new(EvidenceStoreImpl::new(Arc::clone(&db))),
-            hypothesis_store: Arc::new(HypothesisStoreImpl::new(Arc::clone(&db))),
-            contradiction_store: Arc::new(ContradictionStoreImpl::new(Arc::clone(&db))),
-            verification_store: Arc::new(VerificationStoreImpl::new(Arc::clone(&db))),
-            operation_store: Arc::new(OperationStoreImpl::new(Arc::clone(&db))),
+            project_store,
+            artifact_store,
+            entity_store,
+            provider_store,
+            evidence_store,
+            hypothesis_store,
+            contradiction_store,
+            verification_store,
+            operation_store,
+            validation_service,
             base_dir,
         }
+    }
+
+    fn validation_report_payload(
+        report: &crate::application_service::requests::ValidationReport,
+    ) -> Result<ExtensionData> {
+        let value = serde_json::to_value(report)
+            .map_err(|e| Error::Serialization(format!("validation report: {e}")))?;
+        Ok(ExtensionData::new(
+            NamespacedId::parse("core.project.validation-report").map_err(|e| {
+                Error::Validation(format!("invalid validation report schema id: {e}"))
+            })?,
+            1,
+            value,
+        ))
     }
 
     /// Executes a mutating command and returns the typed result.
@@ -131,6 +186,7 @@ impl ApplicationService {
             ApplicationQuery::GetOperation(q) => self.get_operation(q),
             ApplicationQuery::ListOperations(q) => self.list_operations(q),
             ApplicationQuery::ListEvents(q) => self.list_events(q),
+            ApplicationQuery::GetValidationReport(q) => self.get_validation_report(q),
         }
     }
 
@@ -147,14 +203,19 @@ impl ApplicationService {
             None,
             |txn| muts::insert_project(txn, &project),
         )?;
-        Ok(CommandResult::ProjectCreated(CreateProjectResponse { project }))
+        Ok(CommandResult::ProjectCreated(CreateProjectResponse {
+            project,
+        }))
     }
 
     fn register_artifact(&self, req: RegisterArtifactRequest) -> Result<CommandResult> {
         let kind = parse_namespaced_id(&req.kind)?;
         let project = self.project_store.get_project(req.project)?;
         if project.is_none() {
-            return Err(Error::NotFound(format!("project {} not found", req.project)));
+            return Err(Error::NotFound(format!(
+                "project {} not found",
+                req.project
+            )));
         }
         let project_dir = self.base_dir.join(req.project.to_string());
         let artifact_id = ArtifactId::new();
@@ -176,9 +237,9 @@ impl ApplicationService {
                 )
             },
         )?;
-        Ok(CommandResult::ArtifactRegistered(RegisterArtifactResponse {
-            artifact,
-        }))
+        Ok(CommandResult::ArtifactRegistered(
+            RegisterArtifactResponse { artifact },
+        ))
     }
 
     fn register_entity(&self, req: RegisterEntityRequest) -> Result<CommandResult> {
@@ -195,15 +256,19 @@ impl ApplicationService {
             None,
             |txn| muts::insert_entity(txn, &entity),
         )?;
-        Ok(CommandResult::EntityRegistered(RegisterEntityResponse { entity }))
+        Ok(CommandResult::EntityRegistered(RegisterEntityResponse {
+            entity,
+        }))
     }
 
     fn register_provider(&self, req: RegisterProviderRequest) -> Result<CommandResult> {
         let _project = self.require_project(req.project)?;
         self.provider_store.insert_provider(&req.provider)?;
-        Ok(CommandResult::ProviderRegistered(RegisterProviderResponse {
-            provider: req.provider,
-        }))
+        Ok(CommandResult::ProviderRegistered(
+            RegisterProviderResponse {
+                provider: req.provider,
+            },
+        ))
     }
 
     fn start_provider_run(&self, req: StartProviderRunRequest) -> Result<CommandResult> {
@@ -227,7 +292,9 @@ impl ApplicationService {
             status: autore_schema::domain::records::ProviderRunStatus::Running,
         };
         self.provider_store.start_run(&run)?;
-        Ok(CommandResult::ProviderRunStarted(StartProviderRunResponse { run }))
+        Ok(CommandResult::ProviderRunStarted(
+            StartProviderRunResponse { run },
+        ))
     }
 
     fn add_evidence(&self, req: AddEvidenceRequest) -> Result<CommandResult> {
@@ -244,7 +311,9 @@ impl ApplicationService {
             None,
             |txn| muts::insert_evidence(txn, &record),
         )?;
-        Ok(CommandResult::EvidenceAdded(AddEvidenceResponse { id: record_id }))
+        Ok(CommandResult::EvidenceAdded(AddEvidenceResponse {
+            id: record_id,
+        }))
     }
 
     fn add_hypothesis(&self, req: AddHypothesisRequest) -> Result<CommandResult> {
@@ -313,7 +382,9 @@ impl ApplicationService {
             .get(req.id)?
             .ok_or_else(|| Error::NotFound(format!("hypothesis {} not found", req.id)))?;
         Ok(CommandResult::HypothesisStatusChanged(
-            ChangeHypothesisStatusResponse { hypothesis: updated },
+            ChangeHypothesisStatusResponse {
+                hypothesis: updated,
+            },
         ))
     }
 
@@ -332,7 +403,9 @@ impl ApplicationService {
             |txn| muts::insert_contradiction(txn, &contradiction),
         )?;
         Ok(CommandResult::ContradictionRecorded(
-            RecordContradictionResponse { id: contradiction_id },
+            RecordContradictionResponse {
+                id: contradiction_id,
+            },
         ))
     }
 
@@ -386,13 +459,22 @@ impl ApplicationService {
     }
 
     fn validate_project(&self, req: ValidateProjectRequest) -> Result<CommandResult> {
-        let operation = self.queue_operation(
-            req.project,
-            OPERATION_KIND_PROJECT_VALIDATION.clone(),
-            "validate-project",
-        )?;
+        let result = self.validation_service.validate_project(req.project)?;
+        let report = result.report().clone();
+        if let ValidationResult::Failed(_) = &result {
+            let payload = Self::validation_report_payload(&report)?;
+            with_event(
+                &self.db,
+                req.project,
+                EVENT_KIND_PROJECT_VALIDATION_FAILED.clone(),
+                EventSource::Project,
+                Some(EventSubject::Project(req.project)),
+                Some(payload),
+                |_txn| Ok(()),
+            )?;
+        }
         Ok(CommandResult::ProjectValidated(ValidateProjectResponse {
-            operation,
+            result,
         }))
     }
 
@@ -445,6 +527,13 @@ impl ApplicationService {
             .ok_or_else(|| Error::NotFound(format!("project {} not found", project)))
     }
 
+    fn get_validation_report(&self, q: GetValidationReportQuery) -> Result<QueryResult> {
+        let result = self.validation_service.validate_project(q.project)?;
+        Ok(QueryResult::ValidationReport(ValidationReportResponse {
+            report: result.report().clone(),
+        }))
+    }
+
     fn get_project_summary(&self, q: GetProjectSummaryQuery) -> Result<QueryResult> {
         let project = self.require_project(q.project)?;
         Ok(QueryResult::ProjectSummary(ProjectSummaryResponse {
@@ -479,9 +568,9 @@ impl ApplicationService {
             limit: q.limit,
             order_by: EntityColumn::CreatedAt,
         };
-        let entities = self
-            .entity_store
-            .list_by_project(q.project, page, q.kind_filter.as_ref())?;
+        let entities =
+            self.entity_store
+                .list_by_project(q.project, page, q.kind_filter.as_ref())?;
         Ok(QueryResult::Entities(EntitiesResponse { entities }))
     }
 
@@ -571,7 +660,9 @@ impl ApplicationService {
 
     fn list_verifications(&self, q: ListVerificationsQuery) -> Result<QueryResult> {
         let records = self.verification_store.list_by_project(q.project)?;
-        Ok(QueryResult::Verifications(VerificationsResponse { records }))
+        Ok(QueryResult::Verifications(VerificationsResponse {
+            records,
+        }))
     }
 
     fn get_operation(&self, q: GetOperationQuery) -> Result<QueryResult> {
@@ -594,5 +685,3 @@ impl ApplicationService {
         Ok(QueryResult::Events(EventsResponse { events }))
     }
 }
-
-

@@ -6,7 +6,9 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use autore_app::autore_events::project_event_service::{EventBroadcaster, LocalProjectEventService};
+use autore_app::autore_events::project_event_service::{
+    EventBroadcaster, LocalProjectEventService,
+};
 use autore_app::domain::records::HypothesisStatus;
 use autore_app::domain::{EvidenceRecord, EvidenceValue, StableEntityKey};
 use autore_app::ids::{
@@ -36,8 +38,8 @@ fn build_client(project_dir: &Path) -> Result<(LocalAutoReClient, ProjectId), St
     let auto_re_dir = project_dir.join(PROJECT_DIR_NAME);
     let manifest_path = auto_re_dir.join("project.toml");
 
-    let manifest =
-        ProjectManifest::load(&manifest_path).map_err(|e| format!("failed to load manifest: {e}"))?;
+    let manifest = ProjectManifest::load(&manifest_path)
+        .map_err(|e| format!("failed to load manifest: {e}"))?;
     let project_id = manifest.project.id;
 
     let database_path = auto_re_dir.join("project.sqlite3");
@@ -46,8 +48,9 @@ fn build_client(project_dir: &Path) -> Result<(LocalAutoReClient, ProjectId), St
     );
 
     let broadcaster = Arc::new(EventBroadcaster::new());
-    let events: Arc<dyn autore_app::autore_events::project_event_service::ProjectEventService + Send + Sync> =
-        Arc::new(LocalProjectEventService::new(Arc::clone(&db), broadcaster));
+    let events: Arc<
+        dyn autore_app::autore_events::project_event_service::ProjectEventService + Send + Sync,
+    > = Arc::new(LocalProjectEventService::new(Arc::clone(&db), broadcaster));
 
     let service = ApplicationService::new(db, events, project_dir);
     let client = LocalAutoReClient::new(Arc::new(service));
@@ -150,7 +153,9 @@ fn handle_project(project_dir: &Path, args: ProjectArgs) -> Result<(), String> {
             let (client, project_id) = build_client(project_dir)?;
             let result = client
                 .query(ApplicationQuery::GetProjectSummary(
-                    autore_app::GetProjectSummaryQuery { project: project_id },
+                    autore_app::GetProjectSummaryQuery {
+                        project: project_id,
+                    },
                 ))
                 .map_err(|e| format!("{e}"))?;
             match result {
@@ -171,21 +176,54 @@ fn handle_project(project_dir: &Path, args: ProjectArgs) -> Result<(), String> {
             }
             Ok(())
         }
-        ProjectCommand::Validate => {
+        ProjectCommand::Validate { output } => {
             let (client, project_id) = build_client(project_dir)?;
             let result = client
                 .execute(ApplicationCommand::ValidateProject(
-                    autore_app::ValidateProjectRequest { project: project_id },
+                    autore_app::ValidateProjectRequest {
+                        project: project_id,
+                    },
                 ))
                 .map_err(|e| format!("{e}"))?;
-            print_command_result("project-validated", &result);
+            let (report, failed) = match &result {
+                CommandResult::ProjectValidated(resp) => (
+                    resp.result.report().clone(),
+                    matches!(resp.result, autore_app::ValidationResult::Failed(_)),
+                ),
+                _ => return Err("unexpected validation result".to_owned()),
+            };
+            match output {
+                OutputFormat::Json => {
+                    let val = serde_json::to_value(&report).map_err(|e| e.to_string())?;
+                    print_json_with_schema("validation-report", &val);
+                }
+                OutputFormat::Human => {
+                    if report.passed {
+                        println!("Validation passed.");
+                    } else {
+                        println!("Validation failed: {} finding(s)", report.findings.len());
+                        for finding in &report.findings {
+                            let id = finding.record_id.as_deref().unwrap_or("-");
+                            println!(
+                                "  [{:?}] {}: {} ({})",
+                                finding.severity, finding.check, finding.message, id
+                            );
+                        }
+                    }
+                }
+            }
+            if failed {
+                return Err("validation failed".to_owned());
+            }
             Ok(())
         }
         ProjectCommand::Migrate => {
             let (client, project_id) = build_client(project_dir)?;
             let result = client
                 .execute(ApplicationCommand::MigrateProject(
-                    autore_app::MigrateProjectRequest { project: project_id },
+                    autore_app::MigrateProjectRequest {
+                        project: project_id,
+                    },
                 ))
                 .map_err(|e| format!("{e}"))?;
             print_command_result("project-migrated", &result);
@@ -195,7 +233,9 @@ fn handle_project(project_dir: &Path, args: ProjectArgs) -> Result<(), String> {
             let (client, project_id) = build_client(project_dir)?;
             let result = client
                 .execute(ApplicationCommand::RebuildIndexes(
-                    autore_app::RebuildIndexesRequest { project: project_id },
+                    autore_app::RebuildIndexesRequest {
+                        project: project_id,
+                    },
                 ))
                 .map_err(|e| format!("{e}"))?;
             print_command_result("indexes-rebuilt", &result);
@@ -204,11 +244,13 @@ fn handle_project(project_dir: &Path, args: ProjectArgs) -> Result<(), String> {
         ProjectCommand::CheckArtifacts => {
             let (client, project_id) = build_client(project_dir)?;
             let result = client
-                .query(ApplicationQuery::ListArtifacts(autore_app::ListArtifactsQuery {
-                    project: project_id,
-                    offset: 0,
-                    limit: 1000,
-                }))
+                .query(ApplicationQuery::ListArtifacts(
+                    autore_app::ListArtifactsQuery {
+                        project: project_id,
+                        offset: 0,
+                        limit: 1000,
+                    },
+                ))
                 .map_err(|e| format!("{e}"))?;
             match result {
                 QueryResult::Artifacts(resp) => {
@@ -247,11 +289,13 @@ fn handle_artifact(project_dir: &Path, args: ArtifactArgs) -> Result<(), String>
         }
         ArtifactCommand::List { output } => {
             let result = client
-                .query(ApplicationQuery::ListArtifacts(autore_app::ListArtifactsQuery {
-                    project: project_id,
-                    offset: 0,
-                    limit: 1000,
-                }))
+                .query(ApplicationQuery::ListArtifacts(
+                    autore_app::ListArtifactsQuery {
+                        project: project_id,
+                        offset: 0,
+                        limit: 1000,
+                    },
+                ))
                 .map_err(|e| format!("{e}"))?;
             match result {
                 QueryResult::Artifacts(resp) => match output {
@@ -281,9 +325,9 @@ fn handle_artifact(project_dir: &Path, args: ArtifactArgs) -> Result<(), String>
                 uuid::Uuid::parse_str(&id).map_err(|e| format!("invalid artifact ID: {e}"))?,
             );
             let result = client
-                .query(ApplicationQuery::GetArtifact(autore_app::GetArtifactQuery {
-                    id: artifact_id,
-                }))
+                .query(ApplicationQuery::GetArtifact(
+                    autore_app::GetArtifactQuery { id: artifact_id },
+                ))
                 .map_err(|e| format!("{e}"))?;
             match result {
                 QueryResult::Artifact(resp) => match output {
@@ -338,12 +382,14 @@ fn handle_entity(project_dir: &Path, args: EntityArgs) -> Result<(), String> {
         }
         EntityCommand::List { output } => {
             let result = client
-                .query(ApplicationQuery::ListEntities(autore_app::ListEntitiesQuery {
-                    project: project_id,
-                    offset: 0,
-                    limit: 1000,
-                    kind_filter: None,
-                }))
+                .query(ApplicationQuery::ListEntities(
+                    autore_app::ListEntitiesQuery {
+                        project: project_id,
+                        offset: 0,
+                        limit: 1000,
+                        kind_filter: None,
+                    },
+                ))
                 .map_err(|e| format!("{e}"))?;
             match result {
                 QueryResult::Entities(resp) => match output {
@@ -385,8 +431,7 @@ fn handle_entity(project_dir: &Path, args: EntityArgs) -> Result<(), String> {
             match result {
                 QueryResult::Entity(resp) => match output {
                     OutputFormat::Json => {
-                        let val =
-                            serde_json::to_value(&resp.entity).map_err(|e| e.to_string())?;
+                        let val = serde_json::to_value(&resp.entity).map_err(|e| e.to_string())?;
                         print_json_with_schema("entity", &val);
                     }
                     OutputFormat::Human => {
@@ -431,15 +476,16 @@ fn handle_evidence(project_dir: &Path, args: EvidenceArgs) -> Result<(), String>
         }
         EvidenceCommand::List { output } => {
             let result = client
-                .query(ApplicationQuery::ListEvidence(autore_app::ListEvidenceQuery {
-                    project: project_id,
-                }))
+                .query(ApplicationQuery::ListEvidence(
+                    autore_app::ListEvidenceQuery {
+                        project: project_id,
+                    },
+                ))
                 .map_err(|e| format!("{e}"))?;
             match result {
                 QueryResult::EvidenceList(resp) => match output {
                     OutputFormat::Json => {
-                        let val =
-                            serde_json::to_value(&resp.records).map_err(|e| e.to_string())?;
+                        let val = serde_json::to_value(&resp.records).map_err(|e| e.to_string())?;
                         print_list_json_with_schema("evidence-list", "records", &val);
                     }
                     OutputFormat::Human => {
@@ -502,7 +548,9 @@ fn handle_hypothesis(project_dir: &Path, args: HypothesisArgs) -> Result<(), Str
         HypothesisCommand::List { output } => {
             let result = client
                 .query(ApplicationQuery::ListHypotheses(
-                    autore_app::ListHypothesesQuery { project: project_id },
+                    autore_app::ListHypothesesQuery {
+                        project: project_id,
+                    },
                 ))
                 .map_err(|e| format!("{e}"))?;
             match result {
@@ -524,7 +572,10 @@ fn handle_hypothesis(project_dir: &Path, args: HypothesisArgs) -> Result<(), Str
                             for h in &resp.hypotheses {
                                 println!(
                                     "{:<38} {:<30} {:<15} {:.2}",
-                                    h.id, h.predicate, h.status, h.confidence.score()
+                                    h.id,
+                                    h.predicate,
+                                    h.status,
+                                    h.confidence.score()
                                 );
                             }
                         }
@@ -579,7 +630,9 @@ fn handle_contradiction(project_dir: &Path, args: ContradictionArgs) -> Result<(
         ContradictionCommand::List { output } => {
             let result = client
                 .query(ApplicationQuery::ListContradictions(
-                    autore_app::ListContradictionsQuery { project: project_id },
+                    autore_app::ListContradictionsQuery {
+                        project: project_id,
+                    },
                 ))
                 .map_err(|e| format!("{e}"))?;
             match result {
@@ -596,12 +649,7 @@ fn handle_contradiction(project_dir: &Path, args: ContradictionArgs) -> Result<(
                             println!("{:<38} {:<20} Subject", "ID", "Status");
                             println!("{}", "-".repeat(80));
                             for c in &resp.contradictions {
-                                println!(
-                                    "{:<38} {:<20} {}",
-                                    c.id,
-                                    c.status,
-                                    c.subject,
-                                );
+                                println!("{:<38} {:<20} {}", c.id, c.status, c.subject,);
                             }
                         }
                     }
@@ -612,8 +660,7 @@ fn handle_contradiction(project_dir: &Path, args: ContradictionArgs) -> Result<(
         }
         ContradictionCommand::Show { id, output } => {
             let cid = ContradictionId::from_uuid(
-                uuid::Uuid::parse_str(&id)
-                    .map_err(|e| format!("invalid contradiction ID: {e}"))?,
+                uuid::Uuid::parse_str(&id).map_err(|e| format!("invalid contradiction ID: {e}"))?,
             );
             let result = client
                 .query(ApplicationQuery::GetContradiction(
@@ -623,8 +670,8 @@ fn handle_contradiction(project_dir: &Path, args: ContradictionArgs) -> Result<(
             match result {
                 QueryResult::Contradiction(resp) => match output {
                     OutputFormat::Json => {
-                        let val = serde_json::to_value(&resp.contradiction)
-                            .map_err(|e| e.to_string())?;
+                        let val =
+                            serde_json::to_value(&resp.contradiction).map_err(|e| e.to_string())?;
                         print_json_with_schema("contradiction", &val);
                     }
                     OutputFormat::Human => {
@@ -652,14 +699,15 @@ fn handle_verification(project_dir: &Path, args: VerificationArgs) -> Result<(),
         VerificationCommand::List { output } => {
             let result = client
                 .query(ApplicationQuery::ListVerifications(
-                    autore_app::ListVerificationsQuery { project: project_id },
+                    autore_app::ListVerificationsQuery {
+                        project: project_id,
+                    },
                 ))
                 .map_err(|e| format!("{e}"))?;
             match result {
                 QueryResult::Verifications(resp) => match output {
                     OutputFormat::Json => {
-                        let val =
-                            serde_json::to_value(&resp.records).map_err(|e| e.to_string())?;
+                        let val = serde_json::to_value(&resp.records).map_err(|e| e.to_string())?;
                         print_list_json_with_schema("verifications", "records", &val);
                     }
                     OutputFormat::Human => {
@@ -691,8 +739,7 @@ fn handle_verification(project_dir: &Path, args: VerificationArgs) -> Result<(),
             match result {
                 QueryResult::Verification(resp) => match output {
                     OutputFormat::Json => {
-                        let val =
-                            serde_json::to_value(&resp.record).map_err(|e| e.to_string())?;
+                        let val = serde_json::to_value(&resp.record).map_err(|e| e.to_string())?;
                         print_json_with_schema("verification", &val);
                     }
                     OutputFormat::Human => {
@@ -719,24 +766,23 @@ fn handle_operation(project_dir: &Path, args: OperationArgs) -> Result<(), Strin
         OperationCommand::List { output } => {
             let result = client
                 .query(ApplicationQuery::ListOperations(
-                    autore_app::ListOperationsQuery { project: project_id },
+                    autore_app::ListOperationsQuery {
+                        project: project_id,
+                    },
                 ))
                 .map_err(|e| format!("{e}"))?;
             match result {
                 QueryResult::Operations(resp) => match output {
                     OutputFormat::Json => {
-                        let val = serde_json::to_value(&resp.operations)
-                            .map_err(|e| e.to_string())?;
+                        let val =
+                            serde_json::to_value(&resp.operations).map_err(|e| e.to_string())?;
                         print_list_json_with_schema("operations", "operations", &val);
                     }
                     OutputFormat::Human => {
                         if resp.operations.is_empty() {
                             println!("No operations.");
                         } else {
-                            println!(
-                                "{:<38} {:<30} {:<15}",
-                                "ID", "Kind", "State"
-                            );
+                            println!("{:<38} {:<30} {:<15}", "ID", "Kind", "State");
                             println!("{}", "-".repeat(85));
                             for op in &resp.operations {
                                 println!("{:<38} {:<30} {:<15}", op.id, op.kind, op.state);
@@ -822,18 +868,14 @@ fn handle_events(project_dir: &Path, args: EventsArgs) -> Result<(), String> {
             match result {
                 QueryResult::Events(resp) => match output {
                     OutputFormat::Json => {
-                        let val =
-                            serde_json::to_value(&resp.events).map_err(|e| e.to_string())?;
+                        let val = serde_json::to_value(&resp.events).map_err(|e| e.to_string())?;
                         print_list_json_with_schema("events", "events", &val);
                     }
                     OutputFormat::Human => {
                         if resp.events.is_empty() {
                             println!("No events.");
                         } else {
-                            println!(
-                                "{:<10} {:<38} {:<30}",
-                                "Seq", "Kind", "Source"
-                            );
+                            println!("{:<10} {:<38} {:<30}", "Seq", "Kind", "Source");
                             println!("{}", "-".repeat(80));
                             for ev in &resp.events {
                                 println!("{:<10} {:<38} {:<30}", ev.sequence, ev.kind, ev.source);

@@ -1,19 +1,20 @@
 use std::sync::Arc;
 
-use autore_events::project_event_service::{EventBroadcaster, LocalProjectEventService};
 use autore_core::operation::OperationState;
+use autore_events::project_event_service::{EventBroadcaster, LocalProjectEventService};
 use autore_schema::domain::records::{
-    Contradiction, EvidenceRecord, HypothesisStatus, Provider, ProviderRun, ProviderRunStatus,
-    VerificationRecord, VerificationSubject,
+    Contradiction, EvidenceRecord, Hypothesis, HypothesisStatus, Operation, ProjectEvent, Provider,
+    ProviderRun, ProviderRunStatus, VerificationRecord, VerificationSubject,
 };
-use autore_schema::domain::{ContentHash, Derivation, DerivationMethod, EnvironmentIdentity, EvidenceValue, NamespacedId, Timestamp};
-use autore_schema::ids::{
-    EntityId, EvidenceRecordId, HypothesisId, ProjectId, ProviderRunId,
+use autore_schema::domain::{
+    Confidence, ContentHash, Derivation, DerivationMethod, EnvironmentIdentity, EvidenceValue,
+    NamespacedId, Timestamp,
 };
+use autore_schema::ids::{EntityId, EvidenceRecordId, HypothesisId, ProjectId, ProviderRunId};
 use autore_store::Database;
 
-use crate::application_service::requests::*;
 use crate::application_service::ApplicationService;
+use crate::application_service::requests::*;
 
 fn test_service() -> (ApplicationService, tempfile::TempDir) {
     let db = Arc::new(Database::open_in_memory().unwrap());
@@ -36,7 +37,10 @@ fn create_project(service: &ApplicationService, name: &str) -> ProjectId {
     }
 }
 
-fn register_entity(service: &ApplicationService, project: ProjectId) -> autore_schema::ids::EntityId {
+fn register_entity(
+    service: &ApplicationService,
+    project: ProjectId,
+) -> autore_schema::ids::EntityId {
     let result = service
         .execute(ApplicationCommand::RegisterEntity(RegisterEntityRequest {
             project,
@@ -56,10 +60,7 @@ fn create_project_emits_event() {
     let (service, _tmp) = test_service();
     let project_id = create_project(&service, "event-test");
 
-    let events = service
-        .events
-        .events_after(project_id, 0, 10)
-        .unwrap();
+    let events = service.events.events_after(project_id, 0, 10).unwrap();
     assert_eq!(events.len(), 1);
     assert_eq!(
         events[0].kind,
@@ -76,29 +77,32 @@ fn register_artifact_emits_event() {
     std::fs::write(&source_path, "hello artifact").unwrap();
 
     let result = service
-        .execute(ApplicationCommand::RegisterArtifact(RegisterArtifactRequest {
-            project: project_id,
-            source_path: source_path.clone(),
-            kind: "core.binary".into(),
-        }))
+        .execute(ApplicationCommand::RegisterArtifact(
+            RegisterArtifactRequest {
+                project: project_id,
+                source_path: source_path.clone(),
+                kind: "core.binary".into(),
+            },
+        ))
         .unwrap();
     let artifact_id = match result {
         CommandResult::ArtifactRegistered(resp) => resp.artifact.id,
         _ => panic!("expected ArtifactRegistered"),
     };
 
-    let events = service
-        .events
-        .events_after(project_id, 0, 10)
-        .unwrap();
+    let events = service.events.events_after(project_id, 0, 10).unwrap();
     let artifact_events: Vec<_> = events
         .iter()
-        .filter(|e| e.kind == autore_schema::domain::records::EVENT_KIND_ARTIFACT_REGISTERED.clone())
+        .filter(|e| {
+            e.kind == autore_schema::domain::records::EVENT_KIND_ARTIFACT_REGISTERED.clone()
+        })
         .collect();
     assert_eq!(artifact_events.len(), 1);
     assert_eq!(
         artifact_events[0].subject,
-        Some(autore_schema::domain::records::EventSubject::Artifact(artifact_id))
+        Some(autore_schema::domain::records::EventSubject::Artifact(
+            artifact_id
+        ))
     );
 }
 
@@ -121,10 +125,7 @@ fn hypothesis_accept_emits_event_and_keeps_competitors() {
         ))
         .unwrap();
 
-    let events = service
-        .events
-        .events_after(project_id, 0, 10)
-        .unwrap();
+    let events = service.events.events_after(project_id, 0, 10).unwrap();
     let accept_events: Vec<_> = events
         .iter()
         .filter(|e| {
@@ -138,7 +139,9 @@ fn hypothesis_accept_emits_event_and_keeps_competitors() {
     );
 
     let h2_result = service
-        .query(ApplicationQuery::GetHypothesis(GetHypothesisQuery { id: h2 }))
+        .query(ApplicationQuery::GetHypothesis(GetHypothesisQuery {
+            id: h2,
+        }))
         .unwrap();
     match h2_result {
         QueryResult::Hypothesis(resp) => {
@@ -184,15 +187,13 @@ fn cancel_operation_is_cooperative() {
     let (service, _tmp) = test_service();
     let project_id = create_project(&service, "cancel-test");
 
-    let result = service
-        .execute(ApplicationCommand::ValidateProject(ValidateProjectRequest {
-            project: project_id,
-        }))
-        .unwrap();
-    let op_id = match result {
-        CommandResult::ProjectValidated(resp) => resp.operation.id,
-        _ => panic!("expected ProjectValidated"),
-    };
+    let operation = Operation::new(
+        project_id,
+        NamespacedId::parse("core.project.validation").unwrap(),
+        "test",
+    );
+    let op_id = operation.id;
+    service.operation_store.insert(&operation).unwrap();
 
     service
         .operation_store
@@ -200,12 +201,14 @@ fn cancel_operation_is_cooperative() {
         .unwrap();
 
     service
-        .execute(ApplicationCommand::CancelOperation(CancelOperationRequest {
-            project: project_id,
-            id: op_id,
-            requested_by: "user".into(),
-            reason: Some("user requested stop".into()),
-        }))
+        .execute(ApplicationCommand::CancelOperation(
+            CancelOperationRequest {
+                project: project_id,
+                id: op_id,
+                requested_by: "user".into(),
+                reason: Some("user requested stop".into()),
+            },
+        ))
         .unwrap();
 
     let requests = service
@@ -216,7 +219,9 @@ fn cancel_operation_is_cooperative() {
     assert_eq!(requests[0].requested_by, "user");
 
     let op_result = service
-        .query(ApplicationQuery::GetOperation(GetOperationQuery { id: op_id }))
+        .query(ApplicationQuery::GetOperation(GetOperationQuery {
+            id: op_id,
+        }))
         .unwrap();
     match op_result {
         QueryResult::Operation(resp) => {
@@ -279,10 +284,12 @@ fn register_provider_round_trips() {
         "1.0.0",
     );
     let result = service
-        .execute(ApplicationCommand::RegisterProvider(RegisterProviderRequest {
-            project: project_id,
-            provider: provider.clone(),
-        }))
+        .execute(ApplicationCommand::RegisterProvider(
+            RegisterProviderRequest {
+                project: project_id,
+                provider: provider.clone(),
+            },
+        ))
         .unwrap();
     let registered = match result {
         CommandResult::ProviderRegistered(resp) => resp.provider,
@@ -291,7 +298,9 @@ fn register_provider_round_trips() {
     assert_eq!(registered.id, provider.id);
 
     let fetched = service
-        .query(ApplicationQuery::GetProvider(GetProviderQuery { id: provider.id }))
+        .query(ApplicationQuery::GetProvider(GetProviderQuery {
+            id: provider.id,
+        }))
         .unwrap();
     match fetched {
         QueryResult::Provider(resp) => assert_eq!(resp.provider.id, provider.id),
@@ -310,10 +319,12 @@ fn start_provider_run_round_trips() {
         "1.0.0",
     );
     service
-        .execute(ApplicationCommand::RegisterProvider(RegisterProviderRequest {
-            project: project_id,
-            provider: provider.clone(),
-        }))
+        .execute(ApplicationCommand::RegisterProvider(
+            RegisterProviderRequest {
+                project: project_id,
+                provider: provider.clone(),
+            },
+        ))
         .unwrap();
 
     let run = ProviderRun {
@@ -336,13 +347,12 @@ fn start_provider_run_round_trips() {
         status: ProviderRunStatus::Running,
     };
 
-    service
-        .provider_store
-        .start_run(&run)
-        .unwrap();
+    service.provider_store.start_run(&run).unwrap();
 
     let fetched = service
-        .query(ApplicationQuery::GetProviderRun(GetProviderRunQuery { id: run.id }))
+        .query(ApplicationQuery::GetProviderRun(GetProviderRunQuery {
+            id: run.id,
+        }))
         .unwrap();
     match fetched {
         QueryResult::ProviderRun(resp) => assert_eq!(resp.run.id, run.id),
@@ -386,10 +396,7 @@ fn add_evidence_records_event() {
     };
     assert_eq!(id, record.id);
 
-    let events = service
-        .events
-        .events_after(project_id, 0, 10)
-        .unwrap();
+    let events = service.events.events_after(project_id, 0, 10).unwrap();
     let evidence_events: Vec<_> = events
         .iter()
         .filter(|e| e.kind == autore_schema::domain::records::EVENT_KIND_EVIDENCE_ADDED.clone())
@@ -425,10 +432,7 @@ fn record_contradiction_emits_event() {
     };
     assert_eq!(id, contradiction.id);
 
-    let events = service
-        .events
-        .events_after(project_id, 0, 10)
-        .unwrap();
+    let events = service.events.events_after(project_id, 0, 10).unwrap();
     let contradiction_events: Vec<_> = events
         .iter()
         .filter(|e| {
@@ -451,10 +455,12 @@ fn add_verification_emits_event() {
     );
 
     let result = service
-        .execute(ApplicationCommand::AddVerification(AddVerificationRequest {
-            project: project_id,
-            record: record.clone(),
-        }))
+        .execute(ApplicationCommand::AddVerification(
+            AddVerificationRequest {
+                project: project_id,
+                record: record.clone(),
+            },
+        ))
         .unwrap();
     let id = match result {
         CommandResult::VerificationAdded(resp) => resp.id,
@@ -462,10 +468,7 @@ fn add_verification_emits_event() {
     };
     assert_eq!(id, record.id);
 
-    let events = service
-        .events
-        .events_after(project_id, 0, 10)
-        .unwrap();
+    let events = service.events.events_after(project_id, 0, 10).unwrap();
     let verification_events: Vec<_> = events
         .iter()
         .filter(|e| {
@@ -475,7 +478,11 @@ fn add_verification_emits_event() {
     assert_eq!(verification_events.len(), 1);
 }
 
-fn test_client() -> (LocalAutoReClient, Arc<ApplicationService>, tempfile::TempDir) {
+fn test_client() -> (
+    LocalAutoReClient,
+    Arc<ApplicationService>,
+    tempfile::TempDir,
+) {
     let (service, tmp) = test_service();
     let service = Arc::new(service);
     let client = LocalAutoReClient::new(Arc::clone(&service));
@@ -512,9 +519,11 @@ fn local_client_routes_query() {
     };
 
     let query_result = client
-        .query(ApplicationQuery::GetProjectSummary(GetProjectSummaryQuery {
-            project: project_id,
-        }))
+        .query(ApplicationQuery::GetProjectSummary(
+            GetProjectSummaryQuery {
+                project: project_id,
+            },
+        ))
         .unwrap();
     match query_result {
         QueryResult::ProjectSummary(resp) => {
@@ -600,5 +609,386 @@ fn cross_project_reference_rejected() {
     assert!(
         err.contains("different project") || err.contains("Validation"),
         "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn validation_passes_for_empty_project() {
+    let (service, _tmp) = test_service();
+    let project_id = create_project(&service, "validation-empty");
+
+    let result = service
+        .execute(ApplicationCommand::ValidateProject(
+            ValidateProjectRequest {
+                project: project_id,
+            },
+        ))
+        .unwrap();
+    match result {
+        CommandResult::ProjectValidated(resp) => {
+            assert!(resp.result.report().passed);
+        }
+        _ => panic!("expected ProjectValidated"),
+    }
+}
+
+#[test]
+fn validation_detects_broken_references() {
+    let (service, _tmp) = test_service();
+    let project_id = create_project(&service, "validation-broken-refs");
+    let entity_id = register_entity(&service, project_id);
+
+    let hypothesis = Hypothesis {
+        id: HypothesisId::new(),
+        project: project_id,
+        subject: entity_id,
+        predicate: NamespacedId::parse("hypothesis.test").unwrap(),
+        candidate: EvidenceValue::String("x".into()),
+        supporting_evidence: vec![EvidenceRecordId::new()],
+        contradicting_evidence: vec![],
+        derived_from: vec![],
+        confidence: Confidence::new(0.5).unwrap(),
+        status: HypothesisStatus::Proposed,
+        created_at: Timestamp::now(),
+        updated_at: Timestamp::now(),
+    };
+    service.hypothesis_store.insert(&hypothesis).unwrap();
+
+    let result = service
+        .execute(ApplicationCommand::ValidateProject(
+            ValidateProjectRequest {
+                project: project_id,
+            },
+        ))
+        .unwrap();
+    match result {
+        CommandResult::ProjectValidated(resp) => {
+            assert!(!resp.result.report().passed);
+            let checks: Vec<_> = resp
+                .result
+                .report()
+                .findings
+                .iter()
+                .map(|f| f.check.as_str())
+                .collect();
+            assert!(
+                checks.contains(&"hypothesis-reference"),
+                "expected hypothesis-reference finding, got {:?}",
+                checks
+            );
+        }
+        _ => panic!("expected ProjectValidated"),
+    }
+}
+
+#[test]
+fn validation_detects_modified_external_artifact() {
+    let (service, tmp) = test_service();
+    let project_id = create_project(&service, "validation-external");
+
+    let source_path = tmp.path().join("external.txt");
+    std::fs::write(&source_path, "original content").unwrap();
+
+    let _artifact = service
+        .artifact_store
+        .register_external(
+            project_id,
+            &source_path,
+            NamespacedId::parse("core.binary").unwrap(),
+        )
+        .unwrap();
+
+    std::fs::write(&source_path, "modified content").unwrap();
+
+    let result = service
+        .execute(ApplicationCommand::ValidateProject(
+            ValidateProjectRequest {
+                project: project_id,
+            },
+        ))
+        .unwrap();
+    match result {
+        CommandResult::ProjectValidated(resp) => {
+            assert!(!resp.result.report().passed);
+            let checks: Vec<_> = resp
+                .result
+                .report()
+                .findings
+                .iter()
+                .map(|f| f.check.as_str())
+                .collect();
+            assert!(
+                checks.contains(&"artifact-integrity"),
+                "expected artifact-integrity finding, got {:?}",
+                checks
+            );
+        }
+        _ => panic!("expected ProjectValidated"),
+    }
+
+    std::fs::write(&source_path, "original content").unwrap();
+    let result = service
+        .execute(ApplicationCommand::ValidateProject(
+            ValidateProjectRequest {
+                project: project_id,
+            },
+        ))
+        .unwrap();
+    match result {
+        CommandResult::ProjectValidated(resp) => {
+            assert!(resp.result.report().passed);
+        }
+        _ => panic!("expected ProjectValidated"),
+    }
+}
+
+#[test]
+fn validation_detects_hypothesis_supersession_cycle() {
+    let (service, _tmp) = test_service();
+    let project_id = create_project(&service, "validation-hyp-cycle");
+    let entity_id = register_entity(&service, project_id);
+
+    let h1 = add_hypothesis(&service, project_id, entity_id, "a", 0.5);
+    let h2 = add_hypothesis(&service, project_id, entity_id, "b", 0.5);
+
+    service
+        .hypothesis_store
+        .update_status(h1, HypothesisStatus::Accepted)
+        .unwrap();
+    service
+        .hypothesis_store
+        .update_status(h2, HypothesisStatus::Accepted)
+        .unwrap();
+    service
+        .hypothesis_store
+        .update_status(h1, HypothesisStatus::Superseded { by: h2 })
+        .unwrap();
+    service
+        .hypothesis_store
+        .update_status(h2, HypothesisStatus::Superseded { by: h1 })
+        .unwrap();
+
+    let result = service
+        .execute(ApplicationCommand::ValidateProject(
+            ValidateProjectRequest {
+                project: project_id,
+            },
+        ))
+        .unwrap();
+    match result {
+        CommandResult::ProjectValidated(resp) => {
+            assert!(!resp.result.report().passed);
+            let checks: Vec<_> = resp
+                .result
+                .report()
+                .findings
+                .iter()
+                .map(|f| f.check.as_str())
+                .collect();
+            assert!(
+                checks.contains(&"hypothesis-supersession-cycle"),
+                "expected hypothesis-supersession-cycle finding, got {:?}",
+                checks
+            );
+        }
+        _ => panic!("expected ProjectValidated"),
+    }
+}
+
+#[test]
+fn validation_detects_operation_parent_cycle() {
+    let (service, _tmp) = test_service();
+    let project_id = create_project(&service, "validation-op-cycle");
+
+    let op1 = Operation::new(
+        project_id,
+        NamespacedId::parse("core.project.validation").unwrap(),
+        "test",
+    );
+    let op2 = Operation::new(
+        project_id,
+        NamespacedId::parse("core.project.validation").unwrap(),
+        "test",
+    );
+    let op1_id = op1.id;
+    let op2_id = op2.id;
+    service.operation_store.insert(&op1).unwrap();
+    service.operation_store.insert(&op2).unwrap();
+
+    {
+        let conn = service.db.connection().unwrap();
+        conn.execute(
+            "UPDATE operations SET parent = ?1 WHERE id = ?2",
+            rusqlite::params![
+                op2_id.as_uuid().as_bytes().as_slice(),
+                op1_id.as_uuid().as_bytes().as_slice()
+            ],
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE operations SET parent = ?1 WHERE id = ?2",
+            rusqlite::params![
+                op1_id.as_uuid().as_bytes().as_slice(),
+                op2_id.as_uuid().as_bytes().as_slice()
+            ],
+        )
+        .unwrap();
+    }
+
+    let result = service
+        .execute(ApplicationCommand::ValidateProject(
+            ValidateProjectRequest {
+                project: project_id,
+            },
+        ))
+        .unwrap();
+    match result {
+        CommandResult::ProjectValidated(resp) => {
+            assert!(!resp.result.report().passed);
+            let checks: Vec<_> = resp
+                .result
+                .report()
+                .findings
+                .iter()
+                .map(|f| f.check.as_str())
+                .collect();
+            assert!(
+                checks.contains(&"operation-parent-cycle"),
+                "expected operation-parent-cycle finding, got {:?}",
+                checks
+            );
+        }
+        _ => panic!("expected ProjectValidated"),
+    }
+}
+
+#[test]
+fn validation_detects_event_sequence_violation() {
+    let (service, _tmp) = test_service();
+    let project_id = create_project(&service, "validation-event-seq");
+
+    let kind = autore_schema::domain::records::EVENT_KIND_PROJECT_CREATED.clone();
+    let source = autore_schema::domain::records::EventSource::Project;
+    let project_bytes = project_id.as_uuid().as_bytes().to_vec();
+    let created_at_first = Timestamp::now().to_string();
+    let created_at_second = Timestamp::now().to_string();
+    let kind_str = kind.to_string();
+    let source_str = source.to_string();
+
+    {
+        let conn = service.db.connection().unwrap();
+
+        let first = ProjectEvent::new(project_id, 3, kind.clone(), source.clone(), None, None);
+        conn.execute(
+            "INSERT INTO project_events \
+             (project_event_id, project_id, sequence, kind, subject, source, payload, created_at) \
+             VALUES (?1, ?2, ?3, ?4, NULL, ?5, NULL, ?6)",
+            rusqlite::params![
+                first.id.as_uuid().as_bytes().as_slice(),
+                project_bytes.as_slice(),
+                3i64,
+                kind_str.clone(),
+                source_str.clone(),
+                created_at_first
+            ],
+        )
+        .unwrap();
+
+        let second = ProjectEvent::new(project_id, 2, kind.clone(), source, None, None);
+        conn.execute(
+            "INSERT INTO project_events \
+             (project_event_id, project_id, sequence, kind, subject, source, payload, created_at) \
+             VALUES (?1, ?2, ?3, ?4, NULL, ?5, NULL, ?6)",
+            rusqlite::params![
+                second.id.as_uuid().as_bytes().as_slice(),
+                project_bytes.as_slice(),
+                2i64,
+                kind_str,
+                source_str,
+                created_at_second
+            ],
+        )
+        .unwrap();
+    }
+
+    let result = service
+        .execute(ApplicationCommand::ValidateProject(
+            ValidateProjectRequest {
+                project: project_id,
+            },
+        ))
+        .unwrap();
+    match result {
+        CommandResult::ProjectValidated(resp) => {
+            assert!(!resp.result.report().passed);
+            let checks: Vec<_> = resp
+                .result
+                .report()
+                .findings
+                .iter()
+                .map(|f| f.check.as_str())
+                .collect();
+            assert!(
+                checks.contains(&"event-sequence"),
+                "expected event-sequence finding, got {:?}",
+                checks
+            );
+        }
+        _ => panic!("expected ProjectValidated"),
+    }
+}
+
+#[test]
+fn validation_failed_emits_single_validation_failed_event() {
+    let (service, _tmp) = test_service();
+    let project_id = create_project(&service, "validation-event");
+    let entity_id = register_entity(&service, project_id);
+
+    let hypothesis = Hypothesis {
+        id: HypothesisId::new(),
+        project: project_id,
+        subject: entity_id,
+        predicate: NamespacedId::parse("hypothesis.test").unwrap(),
+        candidate: EvidenceValue::String("x".into()),
+        supporting_evidence: vec![EvidenceRecordId::new()],
+        contradicting_evidence: vec![],
+        derived_from: vec![],
+        confidence: Confidence::new(0.5).unwrap(),
+        status: HypothesisStatus::Proposed,
+        created_at: Timestamp::now(),
+        updated_at: Timestamp::now(),
+    };
+    service.hypothesis_store.insert(&hypothesis).unwrap();
+
+    let before = service
+        .events
+        .events_after(project_id, 0, 100)
+        .unwrap()
+        .len();
+
+    service
+        .execute(ApplicationCommand::ValidateProject(
+            ValidateProjectRequest {
+                project: project_id,
+            },
+        ))
+        .unwrap();
+
+    let events = service.events.events_after(project_id, 0, 100).unwrap();
+    let validation_events: Vec<_> = events
+        .iter()
+        .filter(|e| {
+            e.kind == autore_schema::domain::records::EVENT_KIND_PROJECT_VALIDATION_FAILED.clone()
+        })
+        .collect();
+    assert_eq!(
+        validation_events.len(),
+        1,
+        "expected exactly one validation-failed event"
+    );
+    assert_eq!(events.len(), before + 1, "expected exactly one new event");
+    assert!(
+        validation_events[0].payload.is_some(),
+        "validation-failed event should carry the report payload"
     );
 }

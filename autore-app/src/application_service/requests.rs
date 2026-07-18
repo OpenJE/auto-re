@@ -4,7 +4,9 @@ use autore_schema::domain::records::{
     Artifact, Contradiction, EvidenceRecord, Hypothesis, Operation, Project, Provider, ProviderRun,
     SemanticEntity, VerificationRecord,
 };
-use autore_schema::domain::{ContentHash, EnvironmentIdentity, EvidenceValue, NamespacedId, StableEntityKey};
+use autore_schema::domain::{
+    ContentHash, EnvironmentIdentity, EvidenceValue, NamespacedId, StableEntityKey,
+};
 use autore_schema::ids::{
     ArtifactId, ContradictionId, EntityId, EvidenceRecordId, HypothesisId, OperationId, ProjectId,
     ProviderId, ProviderRunId, VerificationRecordId,
@@ -180,7 +182,7 @@ pub struct ValidateProjectRequest {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ValidateProjectResponse {
-    pub operation: Operation,
+    pub result: ValidationResult,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
@@ -201,6 +203,86 @@ pub struct RebuildIndexesRequest {
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct RebuildIndexesResponse {
     pub operation: Operation,
+}
+
+// ---------------------------------------------------------------------------
+// Validation report types
+// ---------------------------------------------------------------------------
+
+/// Severity of a validation finding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum ValidationSeverity {
+    Error,
+    Warning,
+}
+
+/// A single finding from one of the project-wide validation checks.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ValidationFinding {
+    /// Human-readable identifier for the check that produced this finding.
+    pub check: String,
+    /// Whether this finding causes validation to fail.
+    pub severity: ValidationSeverity,
+    /// Human-readable description of the problem.
+    pub message: String,
+    /// Optional identifier of the record involved, if applicable.
+    pub record_id: Option<String>,
+}
+
+/// Stable, versioned report produced by project-wide validation.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ValidationReport {
+    /// Schema version of this report format.
+    pub schema_version: String,
+    /// Project that was validated.
+    pub project_id: ProjectId,
+    /// `true` when no error findings were found.
+    pub passed: bool,
+    /// All findings from every check, ordered by check then record.
+    pub findings: Vec<ValidationFinding>,
+}
+
+impl ValidationReport {
+    /// Current report format version.
+    pub const SCHEMA_VERSION: &str = "1.0.0";
+
+    /// Creates an empty passed report for the given project.
+    pub fn passed(project_id: ProjectId) -> Self {
+        Self {
+            schema_version: Self::SCHEMA_VERSION.to_string(),
+            project_id,
+            passed: true,
+            findings: vec![],
+        }
+    }
+
+    /// Creates a failed report with the supplied findings.
+    pub fn failed(project_id: ProjectId, findings: Vec<ValidationFinding>) -> Self {
+        Self {
+            schema_version: Self::SCHEMA_VERSION.to_string(),
+            project_id,
+            passed: false,
+            findings,
+        }
+    }
+}
+
+/// Result of running project-wide validation.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub enum ValidationResult {
+    /// Validation passed with no error findings.
+    Passed(ValidationReport),
+    /// Validation failed; the report contains one or more error findings.
+    Failed(ValidationReport),
+}
+
+impl ValidationResult {
+    /// Returns the contained validation report.
+    pub fn report(&self) -> &ValidationReport {
+        match self {
+            ValidationResult::Passed(r) | ValidationResult::Failed(r) => r,
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -454,6 +536,16 @@ pub struct EventsResponse {
     pub events: Vec<autore_schema::domain::records::ProjectEvent>,
 }
 
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct GetValidationReportQuery {
+    pub project: ProjectId,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct ValidationReportResponse {
+    pub report: ValidationReport,
+}
+
 // ---------------------------------------------------------------------------
 // Query enum and result enum
 // ---------------------------------------------------------------------------
@@ -480,6 +572,7 @@ pub enum ApplicationQuery {
     GetOperation(GetOperationQuery),
     ListOperations(ListOperationsQuery),
     ListEvents(ListEventsQuery),
+    GetValidationReport(GetValidationReportQuery),
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
@@ -504,6 +597,7 @@ pub enum QueryResult {
     Operation(OperationResponse),
     Operations(OperationsResponse),
     Events(EventsResponse),
+    ValidationReport(ValidationReportResponse),
 }
 
 // ---------------------------------------------------------------------------
@@ -556,7 +650,9 @@ impl AutoReClient for LocalAutoReClient {
         sequence: u64,
         limit: usize,
     ) -> autore_core::Result<Vec<ProjectEvent>> {
-        self.application.events.events_after(project, sequence, limit)
+        self.application
+            .events
+            .events_after(project, sequence, limit)
     }
 
     fn subscribe_events(

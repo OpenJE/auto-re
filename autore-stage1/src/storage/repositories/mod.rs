@@ -96,7 +96,11 @@ pub trait TaskRepository: Send + Sync {
     ) -> autore_core::Result<Option<Task>>;
 
     /// Extends the lease on a task until the given deadline.
-    async fn renew_lease(&self, task_id: TaskId, until: time::OffsetDateTime) -> autore_core::Result<()>;
+    async fn renew_lease(
+        &self,
+        task_id: TaskId,
+        until: time::OffsetDateTime,
+    ) -> autore_core::Result<()>;
 
     /// Marks a task as completed and releases its lease.
     async fn complete(&self, task_id: TaskId) -> autore_core::Result<()>;
@@ -141,7 +145,12 @@ pub trait EvidenceRepository: Send + Sync {
 #[async_trait]
 pub trait ArtifactRepository: Send + Sync {
     /// Stores an artifact and returns its ID.
-    async fn store(&self, id: ArtifactId, content_hash: &str, data: &[u8]) -> autore_core::Result<()>;
+    async fn store(
+        &self,
+        id: ArtifactId,
+        content_hash: &str,
+        data: &[u8],
+    ) -> autore_core::Result<()>;
 
     /// Retrieves artifact data by ID.
     async fn retrieve(&self, id: ArtifactId) -> autore_core::Result<Option<Vec<u8>>>;

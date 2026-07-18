@@ -41,8 +41,13 @@ fn create_project(dir: &Path, name: &str) -> String {
 
 /// Extracts a UUID from "Project created: <name> (<uuid>)" output.
 fn extract_project_id(stdout: &str) -> String {
-    let start = stdout.find('(').expect("missing '(' in project create output") + 1;
-    let end = stdout.find(')').expect("missing ')' in project create output");
+    let start = stdout
+        .find('(')
+        .expect("missing '(' in project create output")
+        + 1;
+    let end = stdout
+        .find(')')
+        .expect("missing ')' in project create output");
     stdout[start..end].to_string()
 }
 
@@ -192,10 +197,7 @@ fn evidence_add() {
     let project_id = extract_project_id(&create_stdout);
 
     // Add an entity first (evidence needs a subject)
-    let entity_stdout = run_cli_ok(
-        tmp.path(),
-        &["entity", "add", "--kind", "entity.function"],
-    );
+    let entity_stdout = run_cli_ok(tmp.path(), &["entity", "add", "--kind", "entity.function"]);
     let entity_id = extract_id_from_result_json(&entity_stdout, "EntityRegistered", "entity");
 
     // Construct a valid EvidenceRecord JSON
@@ -219,16 +221,15 @@ fn evidence_add() {
     });
 
     let record_file = tmp.path().join("evidence.json");
-    fs::write(&record_file, serde_json::to_string_pretty(&evidence_json).unwrap()).unwrap();
+    fs::write(
+        &record_file,
+        serde_json::to_string_pretty(&evidence_json).unwrap(),
+    )
+    .unwrap();
 
     let stdout = run_cli_ok(
         tmp.path(),
-        &[
-            "evidence",
-            "add",
-            "--record",
-            record_file.to_str().unwrap(),
-        ],
+        &["evidence", "add", "--record", record_file.to_str().unwrap()],
     );
     let v: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
     assert!(v["$schema"].is_string(), "should have $schema");
@@ -244,10 +245,7 @@ fn hypothesis_add() {
     create_project(tmp.path(), "hypothesis-test");
 
     // Add an entity to be the hypothesis subject
-    let entity_stdout = run_cli_ok(
-        tmp.path(),
-        &["entity", "add", "--kind", "entity.function"],
-    );
+    let entity_stdout = run_cli_ok(tmp.path(), &["entity", "add", "--kind", "entity.function"]);
     let entity_id = extract_id_from_result_json(&entity_stdout, "EntityRegistered", "entity");
 
     let stdout = run_cli_ok(
@@ -280,10 +278,7 @@ fn hypothesis_accept_enforces_state_machine() {
     let tmp = TempDir::new().unwrap();
     create_project(tmp.path(), "accept-test");
 
-    let entity_stdout = run_cli_ok(
-        tmp.path(),
-        &["entity", "add", "--kind", "entity.function"],
-    );
+    let entity_stdout = run_cli_ok(tmp.path(), &["entity", "add", "--kind", "entity.function"]);
     let entity_id = extract_id_from_result_json(&entity_stdout, "EntityRegistered", "entity");
 
     let hyp_stdout = run_cli_ok(
@@ -381,7 +376,7 @@ fn events_list_json() {
 fn project_validate() {
     let tmp = TempDir::new().unwrap();
     create_project(tmp.path(), "validate-test");
-    let stdout = run_cli_ok(tmp.path(), &["project", "validate"]);
+    let stdout = run_cli_ok(tmp.path(), &["project", "validate", "--output", "json"]);
     let v: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
     assert!(v["$schema"].is_string(), "should have $schema");
 }
@@ -550,7 +545,7 @@ fn full_create_add_list_workflow() {
     assert_eq!(info["id"].as_str().unwrap(), project_id);
 
     // Validate
-    let validate_stdout = run_cli_ok(tmp.path(), &["project", "validate"]);
+    let validate_stdout = run_cli_ok(tmp.path(), &["project", "validate", "--output", "json"]);
     let vv: serde_json::Value = serde_json::from_str(&validate_stdout).unwrap();
     assert!(vv["$schema"].is_string());
 }

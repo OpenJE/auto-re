@@ -139,8 +139,8 @@ impl ClaimRepository for SqliteClaimRepository {
         let evidence_json = serde_json::to_string(&evidence_uuids)
             .map_err(|e| autore_core::Error::Database(e.to_string()))?;
         let dep_uuids: Vec<uuid::Uuid> = claim.dependencies.iter().map(|d| *d.as_uuid()).collect();
-        let deps_json =
-            serde_json::to_string(&dep_uuids).map_err(|e| autore_core::Error::Database(e.to_string()))?;
+        let deps_json = serde_json::to_string(&dep_uuids)
+            .map_err(|e| autore_core::Error::Database(e.to_string()))?;
 
         conn.execute(
             "INSERT INTO claims (id, subject, predicate, value, state, confidence, provenance, evidence, dependencies) \

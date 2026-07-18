@@ -9,7 +9,10 @@ use autore_schema::domain::{ContentHash, MetadataMap, NamespacedId, Timestamp};
 use autore_schema::ids::{ArtifactId, HypothesisId, OperationId, ProjectId};
 use autore_store::Transaction;
 
-pub fn insert_project(txn: &Transaction<'_>, project: &autore_schema::domain::records::Project) -> Result<()> {
+pub fn insert_project(
+    txn: &Transaction<'_>,
+    project: &autore_schema::domain::records::Project,
+) -> Result<()> {
     let id_bytes = project.id.as_uuid().as_bytes();
     let schema_version = project.schema_version.to_string();
     let created_at = project.created_at.to_string();
@@ -100,8 +103,8 @@ fn insert_artifact_row(txn: &Transaction<'_>, a: &Artifact) -> Result<()> {
         ),
     };
     let created_at = a.created_at.to_string();
-    let metadata = serde_json::to_string(&a.metadata)
-        .map_err(|e| Error::Serialization(e.to_string()))?;
+    let metadata =
+        serde_json::to_string(&a.metadata).map_err(|e| Error::Serialization(e.to_string()))?;
 
     txn.conn()
         .execute(
@@ -136,8 +139,8 @@ pub fn insert_entity(txn: &Transaction<'_>, entity: &SemanticEntity) -> Result<(
         .map(|k| serde_json::to_string(k).map_err(|e| Error::Serialization(e.to_string())))
         .transpose()?;
     let created_at = entity.created_at.to_string();
-    let metadata = serde_json::to_string(&entity.metadata)
-        .map_err(|e| Error::Serialization(e.to_string()))?;
+    let metadata =
+        serde_json::to_string(&entity.metadata).map_err(|e| Error::Serialization(e.to_string()))?;
 
     txn.conn()
         .execute(
@@ -163,8 +166,8 @@ pub fn insert_evidence(txn: &Transaction<'_>, record: &EvidenceRecord) -> Result
     let project_bytes = record.project.as_uuid().as_bytes().to_vec();
     let subject_bytes = record.subject.as_uuid().as_bytes().to_vec();
     let predicate = record.predicate.to_string();
-    let value_json = serde_json::to_string(&record.value)
-        .map_err(|e| Error::Serialization(e.to_string()))?;
+    let value_json =
+        serde_json::to_string(&record.value).map_err(|e| Error::Serialization(e.to_string()))?;
     let derivation_json = serde_json::to_string(&record.derivation)
         .map_err(|e| Error::Serialization(e.to_string()))?;
     let provider_run_bytes = record
@@ -205,7 +208,9 @@ fn hypothesis_status_to_db(status: &HypothesisStatus) -> (&'static str, Option<V
         HypothesisStatus::UnderInvestigation => ("UnderInvestigation", None),
         HypothesisStatus::Accepted => ("Accepted", None),
         HypothesisStatus::Rejected => ("Rejected", None),
-        HypothesisStatus::Superseded { by } => ("Superseded", Some(by.as_uuid().as_bytes().to_vec())),
+        HypothesisStatus::Superseded { by } => {
+            ("Superseded", Some(by.as_uuid().as_bytes().to_vec()))
+        }
     }
 }
 
@@ -228,7 +233,9 @@ fn hypothesis_status_from_db(
                 by: HypothesisId::from_uuid(uuid),
             })
         }
-        other => Err(Error::Database(format!("unknown hypothesis status: {other}"))),
+        other => Err(Error::Database(format!(
+            "unknown hypothesis status: {other}"
+        ))),
     }
 }
 
@@ -367,8 +374,8 @@ pub fn insert_verification(txn: &Transaction<'_>, record: &VerificationRecord) -
     let provider_run_bytes = record
         .provider_run
         .map(|id| id.as_uuid().as_bytes().to_vec());
-    let evidence_json = serde_json::to_string(&record.evidence)
-        .map_err(|e| Error::Serialization(e.to_string()))?;
+    let evidence_json =
+        serde_json::to_string(&record.evidence).map_err(|e| Error::Serialization(e.to_string()))?;
     let details_json = record
         .details
         .as_ref()
@@ -399,7 +406,9 @@ pub fn insert_verification(txn: &Transaction<'_>, record: &VerificationRecord) -
     Ok(())
 }
 
-fn subject_to_json(s: &Option<autore_schema::domain::records::EventSubject>) -> Result<Option<String>> {
+fn subject_to_json(
+    s: &Option<autore_schema::domain::records::EventSubject>,
+) -> Result<Option<String>> {
     match s {
         Some(subject) => serde_json::to_string(subject)
             .map(Some)
@@ -414,9 +423,7 @@ pub fn insert_operation(txn: &Transaction<'_>, operation: &Operation) -> Result<
     let kind = operation.kind.to_string();
     let state = operation.state.kind();
     let subject_json = subject_to_json(&operation.subject)?;
-    let parent_bytes = operation
-        .parent
-        .map(|p| p.as_uuid().as_bytes().to_vec());
+    let parent_bytes = operation.parent.map(|p| p.as_uuid().as_bytes().to_vec());
     let failure_json = operation
         .failure
         .as_ref()
@@ -515,4 +522,3 @@ pub fn transition_operation(
         .map_err(|e| Error::Database(e.to_string()))?;
     Ok(())
 }
-

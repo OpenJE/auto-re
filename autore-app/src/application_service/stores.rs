@@ -3,20 +3,20 @@ use std::sync::Arc;
 
 use autore_schema::domain::records::{
     Artifact, CancellationRequest, Contradiction, EvidenceLifecycleEvent, EvidenceRecord,
-    Hypothesis, Operation, ProgressUpdate, Provider, ProviderRun, SemanticEntity,
-    VerificationRecord,
+    Hypothesis, NativeArtifact, Operation, ProgressUpdate, Provider, ProviderEntityAlias,
+    ProviderRun, SemanticEntity, VerificationRecord,
 };
 use autore_schema::domain::{Confidence, NamespacedId};
 use autore_schema::ids::{
-    ArtifactId, ContradictionId, EntityId, EvidenceRecordId, HypothesisId, OperationId, ProjectId,
-    ProviderId, ProviderRunId, VerificationRecordId,
+    ArtifactId, ContradictionId, EntityId, EvidenceRecordId, HypothesisId, NativeArtifactId,
+    OperationId, ProjectId, ProviderId, ProviderRunId, VerificationRecordId,
 };
 use autore_store::{
     ArtifactStore, ContradictionStore, Database, EntityPage, EntityStore, EvidenceStore,
-    HypothesisStore, OperationStore, Page, ProjectStore, ProviderStore, RunQuery, SqliteArtifactStore,
-    SqliteContradictionStore, SqliteEntityStore, SqliteEvidenceStore, SqliteHypothesisStore,
-    SqliteOperationStore, SqliteProjectStore, SqliteProviderStore, SqliteVerificationStore,
-    VerificationStore,
+    HypothesisStore, NativeArtifactStore, OperationStore, Page, ProjectStore, ProviderAliasStore,
+    ProviderStore, RunQuery, SqliteAliasStore, SqliteArtifactStore, SqliteContradictionStore,
+    SqliteEntityStore, SqliteEvidenceStore, SqliteHypothesisStore, SqliteOperationStore,
+    SqliteProjectStore, SqliteProviderStore, SqliteVerificationStore, VerificationStore,
 };
 
 macro_rules! delegate_store {
@@ -193,8 +193,11 @@ impl ArtifactStore for ArtifactStoreImpl {
         source_path: &std::path::Path,
         kind: NamespacedId,
     ) -> crate::Result<Artifact> {
-        SqliteArtifactStore::new(&self.db, self.base_dir.clone())
-            .register_managed(project_id, source_path, kind)
+        SqliteArtifactStore::new(&self.db, self.base_dir.clone()).register_managed(
+            project_id,
+            source_path,
+            kind,
+        )
     }
 
     fn register_managed_blake3(
@@ -203,8 +206,11 @@ impl ArtifactStore for ArtifactStoreImpl {
         source_path: &std::path::Path,
         kind: NamespacedId,
     ) -> crate::Result<Artifact> {
-        SqliteArtifactStore::new(&self.db, self.base_dir.clone())
-            .register_managed_blake3(project_id, source_path, kind)
+        SqliteArtifactStore::new(&self.db, self.base_dir.clone()).register_managed_blake3(
+            project_id,
+            source_path,
+            kind,
+        )
     }
 
     fn register_external(
@@ -213,8 +219,11 @@ impl ArtifactStore for ArtifactStoreImpl {
         canonical_path: &std::path::Path,
         kind: NamespacedId,
     ) -> crate::Result<Artifact> {
-        SqliteArtifactStore::new(&self.db, self.base_dir.clone())
-            .register_external(project_id, canonical_path, kind)
+        SqliteArtifactStore::new(&self.db, self.base_dir.clone()).register_external(
+            project_id,
+            canonical_path,
+            kind,
+        )
     }
 
     fn verify_artifact(
@@ -241,5 +250,67 @@ impl ArtifactStore for ArtifactStoreImpl {
 
     fn list_by_project(&self, project_id: ProjectId) -> crate::Result<Vec<Artifact>> {
         SqliteArtifactStore::new(&self.db, self.base_dir.clone()).list_by_project(project_id)
+    }
+}
+
+pub struct NativeArtifactStoreImpl(Arc<Database>);
+
+impl NativeArtifactStoreImpl {
+    pub fn new(db: Arc<Database>) -> Self {
+        Self(db)
+    }
+}
+
+impl NativeArtifactStore for NativeArtifactStoreImpl {
+    fn insert(&self, artifact: &NativeArtifact) -> crate::Result<()> {
+        SqliteAliasStore::new(&self.0).insert(artifact)
+    }
+
+    fn get(&self, id: NativeArtifactId) -> crate::Result<Option<NativeArtifact>> {
+        SqliteAliasStore::new(&self.0).get(id)
+    }
+
+    fn list_by_run(&self, run_id: ProviderRunId) -> crate::Result<Vec<NativeArtifact>> {
+        SqliteAliasStore::new(&self.0).list_by_run(run_id)
+    }
+
+    fn list_by_subject_entity(&self, entity_id: EntityId) -> crate::Result<Vec<NativeArtifact>> {
+        SqliteAliasStore::new(&self.0).list_by_subject_entity(entity_id)
+    }
+}
+
+pub struct ProviderAliasStoreImpl(Arc<Database>);
+
+impl ProviderAliasStoreImpl {
+    pub fn new(db: Arc<Database>) -> Self {
+        Self(db)
+    }
+}
+
+impl ProviderAliasStore for ProviderAliasStoreImpl {
+    fn insert_alias(&self, alias: &ProviderEntityAlias) -> crate::Result<()> {
+        SqliteAliasStore::new(&self.0).insert_alias(alias)
+    }
+
+    fn list_aliases_for_run(
+        &self,
+        run_id: ProviderRunId,
+    ) -> crate::Result<Vec<ProviderEntityAlias>> {
+        SqliteAliasStore::new(&self.0).list_aliases_for_run(run_id)
+    }
+
+    fn find_alias(
+        &self,
+        run_id: ProviderRunId,
+        provider_identifier: &str,
+    ) -> crate::Result<Option<ProviderEntityAlias>> {
+        SqliteAliasStore::new(&self.0).find_alias(run_id, provider_identifier)
+    }
+
+    fn list_aliases_for_entity(
+        &self,
+        entity_id: EntityId,
+    ) -> crate::Result<Vec<ProviderEntityAlias>> {
+        SqliteAliasStore::new(&self.0).list_aliases_for_entity(entity_id)
     }
 }
