@@ -286,6 +286,7 @@ dependencies = [
  "crossterm",
  "expectrl",
  "ratatui",
+ "serde_json",
  "tempfile",
  "tokio",
 ]

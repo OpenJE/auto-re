@@ -7,7 +7,7 @@ pub mod tui;
 // Re-export presentation state types for external consumers.
 pub use tui::state::{
     DialogState, EventCursor, FilterState, Focus, Navigation, Notification, NotificationLevel,
-    OperationViewState, ProjectViewState, TuiState, ValidationStatus,
+    OperationViewState, Pane, ProjectViewState, TuiState, ValidationStatus,
 };
 
 // Re-export event loop types for external consumers.

@@ -38,6 +38,8 @@ pub struct TuiState {
     pub operation_views: HashMap<OperationId, OperationViewState>,
     /// Event cursor tracking the last processed sequence.
     pub event_cursor: EventCursor,
+    /// Active secondary pane (presentation-only; does not affect authoritative state).
+    pub active_pane: Pane,
 }
 
 impl TuiState {
@@ -78,7 +80,7 @@ pub enum Navigation {
 /// Which UI element currently has keyboard focus.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Focus {
-    /// First (left) panel — project list / summary.
+    /// First (left) panel — project summary.
     #[default]
     Panel1,
     /// Second (top-right) panel — operations table.
@@ -89,6 +91,36 @@ pub enum Focus {
     Sidebar,
     /// Active modal dialog.
     Dialog,
+}
+
+// ---------------------------------------------------------------------------
+// Pane — secondary tab selection
+// ---------------------------------------------------------------------------
+
+/// Secondary pane/tab shown in the dashboard's right column.
+///
+/// The dashboard preserves the 4-panel physical layout (Panel 1 left 30%,
+/// Panel 2 top-right, Panel 3 bottom-right, with Panel 4 as the active
+/// secondary pane overlaid on top or switched in place of Panel 2/3 based
+/// on focus). The active pane is a presentation-only cursor and does not
+/// affect authoritative state.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Pane {
+    /// Primary dashboard — projects/operations/hypotheses.
+    #[default]
+    Dashboard,
+    /// Providers and provider runs.
+    Providers,
+    /// Native artifacts (stage-0 native provider outputs).
+    NativeArtifacts,
+    /// Selected operation's detail view (progress, cancellation).
+    OperationsDetail,
+    /// Project events log.
+    EventsLog,
+    /// Migration history.
+    MigrationHistory,
+    /// External artifact integrity checks.
+    ExternalArtifactIntegrity,
 }
 
 // ---------------------------------------------------------------------------

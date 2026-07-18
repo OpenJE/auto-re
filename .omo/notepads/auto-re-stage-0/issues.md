@@ -462,3 +462,41 @@
 - `grep -r 'rusqlite\|Database' autore-tui/src` returns no matches.
 - No storage queries execute in the rendering path.
 - Sequence gaps are detected and `missed_events` is set.
+
+## 2026-07-17 (Task 30)
+
+### Secondary pane rendering is presentation-only (DESIGN NOTE)
+- The `active_pane: Pane` field is a presentation-only cursor — it doesn't affect authoritative state.
+- When `active_pane == Dashboard`, the right column shows Panel 2 (Operations) + Panel 3 (Hypotheses + Evidence).
+- When `active_pane` is a secondary pane (Providers, NativeArtifacts, etc.), the right column shows that pane's content instead.
+- The 4-panel physical layout is preserved: Panel 1 (left 30%) always shows the project summary.
+
+### `render_generic_record` never panics (CONTRACT)
+- The generic fallback renderer accepts any `kind: &NamespacedId`, `id: impl Display`, and `fields: impl IntoIterator<Item = (S, S)>`.
+- If `fields` is empty, it renders "no fields".
+- Unknown kinds are handled gracefully — the renderer just displays the kind string as-is.
+- This satisfies §23.8 + Metis requirement: the TUI must render any namespaced record without panicking.
+
+### Progress % in Operations table is heuristic (KNOWN LIMITATION)
+- The operations panel shows a progress % column, but the actual progress data comes from `OperationViewState.progress` (a separate detail view), not from the `Operation` record itself.
+- For now, the progress % is computed heuristically: 0% for `Queued`, 50% for `Running`/`Paused`/`Cancelling`, 100% for `Completed`.
+- A future enhancement could load the actual `ProgressUpdate` records from `operation_views` and compute real progress.
+
+### Secondary panes show summary data, not detail (DESIGN NOTE)
+- `render_providers_pane` shows provider names + a list of recent runs (up to 10).
+- `render_native_artifacts_pane` shows artifact IDs + kinds + sizes (up to 20).
+- `render_operations_detail_pane` shows operation IDs + kinds + states + progress/cancel counts (up to 10).
+- `render_events_log_pane` shows event sequences + kinds + sources (up to 20).
+- `render_migration_history_pane` shows project IDs + schema versions.
+- `render_external_artifact_integrity_pane` shows artifact IDs + kinds + hashes + sizes (up to 20).
+- These are summaries — full detail views would require additional navigation/state.
+
+### No deviations from task requirements
+- All 4-panel physical layout preserved.
+- Panel 1 = Projects (with summary, validation status, counts).
+- Panel 2 = Operations (with id, kind, state, progress %, cancel hint).
+- Panel 3 = Hypotheses + Evidence (gauge).
+- Secondary panes: Providers, NativeArtifacts, OperationsDetail, EventsLog, MigrationHistory, ExternalArtifactIntegrity — all renderable with titles.
+- Generic fallback renderer: `render_generic_record` + `render_extension_data_generic` + `render_metadata_map_generic`.
+- All acceptance tests pass: `tui_dashboard_panels_present`, `tui_dashboard_shows_validation_status`, `tui_generic_fallback_unknown_record`, plus tests for each secondary pane title.
+- `grep -r 'rusqlite\|Database' autore-tui/src` returns no matches.

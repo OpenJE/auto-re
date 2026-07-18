@@ -248,3 +248,16 @@
 - **`TuiEventLoop<'a>` borrows `&'a mut Tui`**: The test driver struct borrows the Tui mutably, which means the render loop cannot coexist with it. For tests, this is fine — tests drive the event loop step-by-step without rendering. For the real `run_tui`, the select logic is inlined directly.
 - **Clippy `collapsible_if` with let-chains**: Nested `if let` and `if` can be collapsed using let-chain syntax (`if cond && let pat = expr && cond2 { ... }`). Clippy with `-D warnings` catches this.
 - **Clippy `single_match` for `match` with one arm + wildcard**: `match x { Pattern => { ... }, _ => {} }` should be `if let Pattern = x { ... }`.
+
+## 2026-07-17 (Task 30)
+
+- **`ratatui::widgets::Tabs` requires `Vec<Line>`**: `Tabs::new(titles)` accepts `Vec<Line>` for tab titles, not bare strings. Use `titles.iter().map(|t| Line::from(*t)).collect::<Vec<_>>()` to convert string slices.
+- **`ratatui::layout::Layout` 2-region split for tab strip + body**: Split the right column vertically with `Constraint::Length(2)` for the tab strip and `Constraint::Min(1)` for the body. This preserves the tab strip height while allowing the body to expand.
+- **`Block::bordered().title()` accepts `impl Into<Title>`**: Both `&str` and `String` work. The title is rendered in the top border of the block.
+- **`Paragraph::new(lines)` accepts `Vec<Line>`**: Each `Line` can be constructed from a `String` or from `vec![Span::raw(...), ...]`. Bold text uses `Span::raw("text").bold()`.
+- **`HashMap::keys().next()` is non-deterministic**: In tests, `project_views.keys().next()` returns different keys across runs because `HashMap` iteration order is randomized. Always use `match &state.navigation { Navigation::Project(pid) => *pid, ... }` to get the project the TUI is actually viewing.
+- **Generic fallback renderer with `impl IntoIterator`**: `render_generic_record(kind, id, fields)` accepts `I: IntoIterator<Item = (S, S)>` where `S: Display`. This lets callers pass `Vec<(String, String)>`, `&[(String, String)]`, or any other iterable. The function never panics on unknown kinds — it just renders the fields it's given.
+- **`serde_json::Value` flattening for `ExtensionData`**: The `flatten_json` helper recursively walks JSON objects/arrays and emits `(key_path, value)` pairs. Object keys are dot-separated (`foo.bar`), array indices are bracketed (`foo[0]`). This lets the generic renderer display arbitrary `ExtensionData` payloads without knowing their schema.
+- **`MetadataMap::iter()` yields `(&NamespacedId, &ExtensionData)`**: Each entry has a schema key and an `ExtensionData` value with `schema`, `version`, and `value` fields. The generic renderer formats these as `schema@version = json_value`.
+- **Alt+1..Alt+7 for pane switching**: `KeyCode::Char('1')` with `KeyModifiers::ALT` switches to `Pane::Dashboard`, `Alt+2` to `Providers`, etc. This avoids conflicts with normal key handlers (which use unmodified keys).
+- **`autore_core::operation::OperationState::to_string()` works**: `OperationState` implements `Display` via `f.write_str(self.kind())`, so `format!("{op.state}")` produces `"Queued"`, `"Running"`, etc. No need for `format!("{:?}", op.state)`.

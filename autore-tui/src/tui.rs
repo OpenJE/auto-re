@@ -23,18 +23,19 @@ use std::io;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, MouseEvent};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEvent};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Style, Stylize};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Gauge, List, ListItem, Paragraph, Row, Table};
+use ratatui::widgets::{Block, Gauge, List, ListItem, Paragraph, Row, Table, Tabs};
 use tokio::sync::mpsc;
 
-use crate::tui::state::{Focus, Navigation, TuiState};
+use crate::tui::state::{Focus, Navigation, Pane, TuiState};
 use autore_app::{ApplicationQuery, AutoReClient, CommandResult, QueryResult};
 use autore_events::project_event_service::ProjectEventSubscription;
 use autore_schema::domain::records::ProjectEvent;
+use autore_schema::domain::{ExtensionData, MetadataMap, NamespacedId};
 use autore_schema::ids::ProjectId;
 
 // ---------------------------------------------------------------------------
@@ -208,6 +209,34 @@ impl Tui {
                 }
                 KeyCode::Tab => {
                     self.cycle_focus();
+                    Ok(false)
+                }
+                KeyCode::Char('1') if key_event.modifiers.contains(KeyModifiers::ALT) => {
+                    self.state.active_pane = Pane::Dashboard;
+                    Ok(false)
+                }
+                KeyCode::Char('2') if key_event.modifiers.contains(KeyModifiers::ALT) => {
+                    self.state.active_pane = Pane::Providers;
+                    Ok(false)
+                }
+                KeyCode::Char('3') if key_event.modifiers.contains(KeyModifiers::ALT) => {
+                    self.state.active_pane = Pane::NativeArtifacts;
+                    Ok(false)
+                }
+                KeyCode::Char('4') if key_event.modifiers.contains(KeyModifiers::ALT) => {
+                    self.state.active_pane = Pane::OperationsDetail;
+                    Ok(false)
+                }
+                KeyCode::Char('5') if key_event.modifiers.contains(KeyModifiers::ALT) => {
+                    self.state.active_pane = Pane::EventsLog;
+                    Ok(false)
+                }
+                KeyCode::Char('6') if key_event.modifiers.contains(KeyModifiers::ALT) => {
+                    self.state.active_pane = Pane::MigrationHistory;
+                    Ok(false)
+                }
+                KeyCode::Char('7') if key_event.modifiers.contains(KeyModifiers::ALT) => {
+                    self.state.active_pane = Pane::ExternalArtifactIntegrity;
                     Ok(false)
                 }
                 _ => Ok(false),
@@ -438,19 +467,62 @@ impl Tui {
             .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
             .split(frame.area());
 
-        // Panel 1: project summary / projects list
+        // Panel 1: project summary / projects list (Stage 0 remap).
         self.render_project_panel(frame, outer[0]);
 
-        // Right panel: split vertically into 2 sections
+        // Right column: tab strip + body.
         let right = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .constraints([Constraint::Length(2), Constraint::Min(1)])
             .split(outer[1]);
 
-        // Panel 2: operations table
-        self.render_operations_panel(frame, right[0]);
-        // Panel 3: hypotheses + evidence progress
-        self.render_hypotheses_panel(frame, right[1]);
+        self.render_tab_strip(frame, right[0]);
+
+        match self.state.active_pane {
+            Pane::Dashboard => {
+                // Preserve 4-panel physical layout: right column split 50/50.
+                let body = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+                    .split(right[1]);
+                self.render_operations_panel(frame, body[0]);
+                self.render_hypotheses_panel(frame, body[1]);
+            }
+            Pane::Providers => self.render_providers_pane(frame, right[1]),
+            Pane::NativeArtifacts => self.render_native_artifacts_pane(frame, right[1]),
+            Pane::OperationsDetail => self.render_operations_detail_pane(frame, right[1]),
+            Pane::EventsLog => self.render_events_log_pane(frame, right[1]),
+            Pane::MigrationHistory => self.render_migration_history_pane(frame, right[1]),
+            Pane::ExternalArtifactIntegrity => {
+                self.render_external_artifact_integrity_pane(frame, right[1]);
+            }
+        }
+    }
+
+    fn render_tab_strip(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
+        let titles = [
+            "Dashboard",
+            "Providers",
+            "NativeArtifacts",
+            "OpsDetail",
+            "EventsLog",
+            "Migration",
+            "ExtIntegrity",
+        ];
+        let idx = match self.state.active_pane {
+            Pane::Dashboard => 0,
+            Pane::Providers => 1,
+            Pane::NativeArtifacts => 2,
+            Pane::OperationsDetail => 3,
+            Pane::EventsLog => 4,
+            Pane::MigrationHistory => 5,
+            Pane::ExternalArtifactIntegrity => 6,
+        };
+        let tabs = Tabs::new(titles.iter().map(|t| Line::from(*t)).collect::<Vec<_>>())
+            .select(idx)
+            .highlight_style(Style::default().bold())
+            .block(Block::default());
+        frame.render_widget(tabs, area);
     }
 
     fn render_project_panel(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
@@ -464,6 +536,85 @@ impl Tui {
             return;
         }
 
+        // When navigating to a specific project, show its detailed summary.
+        if let Some(view) = self.state.current_project_view() {
+            let name = view
+                .project_summary
+                .as_ref()
+                .map(|p| p.name.as_str())
+                .unwrap_or("(loading)");
+            let schema = view
+                .schema_version
+                .as_ref()
+                .map(|v| format!("v{v}"))
+                .unwrap_or_else(|| "v?".into());
+            let validation = match &view.validation_status {
+                None => "unchecked".to_owned(),
+                Some(crate::tui::state::ValidationStatus::Ok) => "ok".to_owned(),
+                Some(crate::tui::state::ValidationStatus::Warnings(w)) => {
+                    format!("warnings ({})", w.len())
+                }
+                Some(crate::tui::state::ValidationStatus::Failed(e)) => {
+                    format!("failed ({})", e.len())
+                }
+            };
+            let mut lines = vec![
+                Line::from(vec![
+                    Span::raw("Project: ").bold(),
+                    Span::raw(name),
+                ]),
+                Line::from(vec![
+                    Span::raw("Schema:  "),
+                    Span::raw(schema),
+                ]),
+                Line::from(vec![
+                    Span::raw("Valid:   "),
+                    Span::raw(validation),
+                ]),
+                Line::from(""),
+                Line::from("Counts:".bold()),
+                Line::from(format!("  artifacts:       {}", view.artifacts.len())),
+                Line::from(format!("  entities:        {}", view.entities.len())),
+                Line::from(format!("  evidence:        {}", view.evidence.len())),
+                Line::from(format!("  hypotheses:      {}", view.hypotheses.len())),
+                Line::from(format!("  contradictions:  {}", view.contradictions.len())),
+                Line::from(format!("  verifications:   {}", view.verification.len())),
+            ];
+            if !view.recent_events.is_empty() {
+                lines.push(Line::from(""));
+                lines.push(Line::from(format!(
+                    "events: {} (last seq {})",
+                    view.recent_events.len(),
+                    view.recent_events
+                        .iter()
+                        .map(|e| e.sequence)
+                        .max()
+                        .unwrap_or(0)
+                )));
+            }
+            let selected_id = match &self.state.navigation {
+                Navigation::Project(pid) => Some(*pid),
+                _ => None,
+            };
+            lines.push(Line::from(""));
+            lines.push(Line::from("Other:"));
+            for (id, v) in project_views {
+                if Some(*id) != selected_id {
+                    let n = v
+                        .project_summary
+                        .as_ref()
+                        .map(|p| p.name.as_str())
+                        .unwrap_or("(loading)");
+                    lines.push(Line::from(format!("  ▶ {n}")));
+                }
+            }
+            let title = format!("Projects ({})", project_views.len());
+            let para = Paragraph::new(lines).block(Block::bordered().title(title));
+            frame.render_widget(para, area);
+            return;
+        }
+
+        // Fallback: render a project list when not viewing a specific project.
         let items: Vec<ListItem> = project_views
             .iter()
             .map(|(id, view)| {
@@ -472,22 +623,10 @@ impl Tui {
                     .as_ref()
                     .map(|p| p.name.as_str())
                     .unwrap_or("(loading)");
-                let is_selected = matches!(&self.state.navigation, Navigation::Project(pid) if pid == id);
+                let is_selected =
+                    matches!(&self.state.navigation, Navigation::Project(pid) if pid == id);
                 let marker = if is_selected { "▶ " } else { "  " };
-                let schema = view
-                    .schema_version
-                    .as_ref()
-                    .map(|v| format!("v{v}"))
-                    .unwrap_or_default();
-                let content = Line::from(vec![
-                    Span::raw(marker),
-                    Span::raw(name),
-                    if schema.is_empty() {
-                        Span::raw("")
-                    } else {
-                        Span::raw(format!(" [{schema}]"))
-                    },
-                ]);
+                let content = Line::from(vec![Span::raw(marker), Span::raw(name)]);
                 ListItem::new(content)
             })
             .collect();
@@ -513,16 +652,40 @@ impl Tui {
             return;
         }
 
-        let header = Row::new(vec!["ID", "Kind", "State", "Requested By"]);
+        let header = Row::new(vec!["ID", "Kind", "State", "Progress", "Cancel"]);
         let rows: Vec<Row> = operations
             .iter()
             .map(|op| {
-                let id_short = &op.id.to_string()[..8];
+                let id_str = op.id.to_string();
+                let id_short = if id_str.len() >= 8 { &id_str[..8] } else { &id_str };
+                let progress_pct = if op
+                    .failure
+                    .is_none() { {
+                        if matches!(op.state, autore_core::operation::OperationState::Completed) {
+                            100
+                        } else if matches!(op.state, autore_core::operation::OperationState::Queued)
+                        {
+                            0
+                        } else {
+                            50
+                        }
+                    } } else { 0 };
+                let cancel = if matches!(
+                    op.state,
+                    autore_core::operation::OperationState::Running
+                        | autore_core::operation::OperationState::Queued
+                        | autore_core::operation::OperationState::Paused
+                ) {
+                    "[c]"
+                } else {
+                    ""
+                };
                 Row::new(vec![
                     id_short.to_string(),
                     op.kind.to_string(),
-                    format!("{:?}", op.state),
-                    op.requested_by.clone(),
+                    op.state.to_string(),
+                    format!("{progress_pct}%"),
+                    cancel.to_string(),
                 ])
             })
             .collect();
@@ -532,9 +695,10 @@ impl Tui {
             rows,
             [
                 Constraint::Length(10),
-                Constraint::Percentage(40),
+                Constraint::Percentage(35),
                 Constraint::Length(14),
-                Constraint::Percentage(25),
+                Constraint::Length(9),
+                Constraint::Length(6),
             ],
         )
         .header(header.bold())
@@ -586,6 +750,277 @@ impl Tui {
             .label(label);
 
         frame.render_widget(gauge, area);
+    }
+
+    fn render_providers_pane(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
+        let providers: Vec<_> = self
+            .state
+            .project_views
+            .values()
+            .flat_map(|v| v.providers.iter())
+            .collect();
+        let runs: Vec<_> = self
+            .state
+            .project_views
+            .values()
+            .flat_map(|v| v.runs.iter())
+            .collect();
+        let mut lines = vec![
+            Line::from(format!(
+                "Providers: {}   Runs: {}",
+                providers.len(),
+                runs.len()
+            )),
+            Line::from(""),
+        ];
+        for p in providers {
+            lines.push(Line::from(format!(
+                "• {} ({}) v{}",
+                p.name, p.kind, p.version
+            )));
+        }
+        if !runs.is_empty() {
+            lines.push(Line::from(""));
+            lines.push(Line::from("Recent runs:"));
+            for r in runs.iter().take(10) {
+                lines.push(Line::from(format!(
+                    "  {} op={} status={:?}",
+                    &r.id.to_string()[..8.min(r.id.to_string().len())],
+                    r.operation,
+                    r.status
+                )));
+            }
+        }
+        let para = Paragraph::new(lines).block(Block::bordered().title("Providers"));
+        frame.render_widget(para, area);
+    }
+
+    fn render_native_artifacts_pane(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
+        let artifacts: Vec<_> = self
+            .state
+            .project_views
+            .values()
+            .flat_map(|v| v.artifacts.iter())
+            .collect();
+        let mut lines = vec![Line::from(format!("Native artifacts: {}", artifacts.len()))];
+        for a in artifacts.iter().take(20) {
+            lines.push(Line::from(format!(
+                "  {} kind={} size={}",
+                &a.id.to_string()[..8.min(a.id.to_string().len())],
+                a.kind,
+                a.size
+            )));
+        }
+        let para = Paragraph::new(lines).block(Block::bordered().title("NativeArtifacts"));
+        frame.render_widget(para, area);
+    }
+
+    fn render_operations_detail_pane(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
+        let all: Vec<_> = self
+            .state
+            .project_views
+            .values()
+            .flat_map(|v| v.operations.iter())
+            .collect();
+        let mut lines = vec![Line::from(format!(
+            "Operations detail: {} tracked",
+            all.len()
+        ))];
+        for op in all.iter().take(10) {
+            let op_view = self.state.operation_views.get(&op.id);
+            let progress_count = op_view.map(|v| v.progress.len()).unwrap_or(0);
+            let cancel_count = op_view.map(|v| v.cancellation_requests.len()).unwrap_or(0);
+            lines.push(Line::from(format!(
+                "  {} kind={} state={} progress={} cancels={}",
+                &op.id.to_string()[..8.min(op.id.to_string().len())],
+                op.kind,
+                op.state,
+                progress_count,
+                cancel_count
+            )));
+        }
+        let para = Paragraph::new(lines).block(Block::bordered().title("OperationsDetail"));
+        frame.render_widget(para, area);
+    }
+
+    fn render_events_log_pane(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
+        let events: Vec<_> = self
+            .state
+            .project_views
+            .values()
+            .flat_map(|v| v.recent_events.iter())
+            .collect();
+        let mut lines = vec![Line::from(format!(
+            "Events log: {} recent (cursor seq={}, connected={}, missed={})",
+            events.len(),
+            self.state.event_cursor.last_sequence,
+            self.state.event_cursor.connected,
+            self.state.event_cursor.missed_events
+        ))];
+        for ev in events.iter().take(20) {
+            lines.push(Line::from(format!(
+                "  seq={} kind={} src={:?} at={}",
+                ev.sequence, ev.kind, ev.source, ev.created_at
+            )));
+        }
+        let para = Paragraph::new(lines).block(Block::bordered().title("EventsLog"));
+        frame.render_widget(para, area);
+    }
+
+    fn render_migration_history_pane(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
+        let mut lines = vec![Line::from(format!(
+            "Migration history: {} projects tracked",
+            self.state.project_views.len()
+        ))];
+        for (pid, view) in &self.state.project_views {
+            let sv = view
+                .schema_version
+                .as_ref()
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "unknown".into());
+            lines.push(Line::from(format!(
+                "  project={} schema={}",
+                &pid.to_string()[..8.min(pid.to_string().len())],
+                sv
+            )));
+        }
+        let para = Paragraph::new(lines).block(Block::bordered().title("MigrationHistory"));
+        frame.render_widget(para, area);
+    }
+
+    fn render_external_artifact_integrity_pane(
+        &self,
+        frame: &mut Frame,
+        area: ratatui::layout::Rect,
+    ) {
+        let artifacts: Vec<_> = self
+            .state
+            .project_views
+            .values()
+            .flat_map(|v| v.artifacts.iter())
+            .collect();
+        let mut lines = vec![Line::from(format!(
+            "External artifact integrity: {} tracked ({} external refs)",
+            artifacts.len(),
+            0
+        ))];
+        for a in artifacts.iter().take(20) {
+            lines.push(Line::from(format!(
+                "  {} kind={} hash={:?} size={}",
+                &a.id.to_string()[..8.min(a.id.to_string().len())],
+                a.kind,
+                a.content_hash,
+                a.size
+            )));
+        }
+        let para = Paragraph::new(lines)
+            .block(Block::bordered().title("ExternalArtifactIntegrity"));
+        frame.render_widget(para, area);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Generic fallback renderer (§23.8 + Metis)
+// ---------------------------------------------------------------------------
+
+/// Render any namespaced record generically. Given a `kind`, an `id`, and an
+/// iterator of `(field_name, field_value)` pairs, renders a `Paragraph`
+/// titled `"<kind> <id>"`. If `fields` is empty, shows "no fields".
+///
+/// Never panics on unknown kinds — this is the fallback for records the TUI
+/// has not been taught about explicitly.
+pub fn render_generic_record<'a, I, S>(
+    kind: &NamespacedId,
+    id: impl std::fmt::Display,
+    fields: I,
+) -> Paragraph<'a>
+where
+    I: IntoIterator<Item = (S, S)>,
+    S: std::fmt::Display,
+{
+    let mut lines: Vec<Line> = Vec::new();
+    let mut any = false;
+    for (k, v) in fields {
+        any = true;
+        lines.push(Line::from(format!("{k}: {v}")));
+    }
+    if !any {
+        lines.push(Line::from("no fields"));
+    }
+    let title = format!("{kind} {id}");
+    Paragraph::new(lines).block(Block::bordered().title(title))
+}
+
+/// Convenience: render an `ExtensionData` payload generically.
+pub fn render_extension_data_generic<'a>(
+    kind: &NamespacedId,
+    id: impl std::fmt::Display,
+    data: Option<&ExtensionData>,
+) -> Paragraph<'a> {
+    let fields: Vec<(String, String)> = match data {
+        Some(ed) => {
+            let mut out = vec![(
+                "schema".to_string(),
+                format!("{}@v{}", ed.schema, ed.version),
+            )];
+            flatten_json(&ed.value, &mut out, String::new());
+            out
+        }
+        None => vec![],
+    };
+    render_generic_record(
+        kind,
+        id,
+        fields,
+    )
+}
+
+/// Convenience: render a `MetadataMap` generically.
+pub fn render_metadata_map_generic<'a>(
+    kind: &NamespacedId,
+    id: impl std::fmt::Display,
+    map: &MetadataMap,
+) -> Paragraph<'a> {
+    let fields: Vec<(String, String)> = map
+        .iter()
+        .map(|(k, v)| {
+            (
+                k.to_string(),
+                format!("{}@v{} = {}", v.schema, v.version, v.value),
+            )
+        })
+        .collect();
+    render_generic_record(
+        kind,
+        id,
+        fields,
+    )
+}
+
+fn flatten_json(value: &serde_json::Value, out: &mut Vec<(String, String)>, prefix: String) {
+    match value {
+        serde_json::Value::Object(map) => {
+            for (k, v) in map {
+                let key = if prefix.is_empty() {
+                    k.clone()
+                } else {
+                    format!("{prefix}.{k}")
+                };
+                flatten_json(v, out, key);
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            for (i, v) in arr.iter().enumerate() {
+                let key = format!("{prefix}[{i}]");
+                flatten_json(v, out, key);
+            }
+        }
+        serde_json::Value::Null => {
+            out.push((prefix, "null".into()));
+        }
+        other => {
+            out.push((prefix, other.to_string()));
+        }
     }
 }
 
@@ -765,7 +1200,7 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::tui::state::{
-        EventCursor, FilterState, Focus, Navigation, ProjectViewState, TuiState,
+        EventCursor, FilterState, Focus, Navigation, Pane, ProjectViewState, TuiState,
     };
 
     fn render_to_string(tui: &Tui, width: u16, height: u16) -> String {
@@ -816,6 +1251,7 @@ mod tests {
             project_views,
             operation_views: HashMap::new(),
             event_cursor: EventCursor::default(),
+            active_pane: Pane::Dashboard,
         }
     }
 
@@ -1212,5 +1648,276 @@ mod tests {
                 tui.handle_internal_event(internal);
             }
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // Task 30 — Stage 0 panel remap tests
+    // -----------------------------------------------------------------------
+
+    /// Panel 1 = Projects (with summary), Panel 2 = Operations, Panel 3 = Hypotheses + Evidence.
+    #[test]
+    fn tui_dashboard_panels_present() {
+        let tui = Tui::with_state(sample_state());
+        let output = render_to_string(&tui, 100, 30);
+
+        assert!(
+            output.contains("Projects"),
+            "Panel 1 must be Projects: {output}"
+        );
+        assert!(
+            output.contains("Operations"),
+            "Panel 2 must be Operations: {output}"
+        );
+        assert!(
+            output.contains("Hypotheses + Evidence"),
+            "Panel 3 must be Hypotheses + Evidence: {output}"
+        );
+    }
+
+    /// Dashboard shows validation status and counts for the selected project.
+    #[test]
+    fn tui_dashboard_shows_validation_status() {
+        let mut state = sample_state();
+        // sample_state() navigates to the first-inserted project; get its id
+        // from the navigation field rather than from HashMap iteration
+        // (which is non-deterministic across runs).
+        let pid = match &state.navigation {
+            Navigation::Project(pid) => *pid,
+            _ => panic!("sample_state must navigate to a project"),
+        };
+        let view = state.project_views.get_mut(&pid).unwrap();
+        view.validation_status = Some(crate::tui::state::ValidationStatus::Ok);
+        view.artifacts.push(make_sample_artifact(pid));
+        view.hypotheses.push(make_sample_hypothesis(pid));
+
+        let tui = Tui::with_state(state);
+        let output = render_to_string(&tui, 100, 30);
+
+        assert!(
+            output.contains("Valid:"),
+            "validation status line missing: {output}"
+        );
+        assert!(
+            output.contains("ok"),
+            "validation status value 'ok' missing: {output}"
+        );
+        assert!(
+            output.contains("artifacts:"),
+            "artifacts count missing: {output}"
+        );
+        assert!(
+            output.contains("hypotheses:"),
+            "hypotheses count missing: {output}"
+        );
+    }
+
+    fn make_sample_artifact(
+        pid: autore_schema::ids::ProjectId,
+    ) -> autore_schema::domain::records::Artifact {
+        use autore_schema::domain::records::Artifact;
+        Artifact {
+            id: autore_schema::ids::ArtifactId::new(),
+            project: pid,
+            kind: NamespacedId::parse("core.binary").unwrap(),
+            content_hash: autore_schema::domain::ContentHash::sha256(b"abc"),
+            size: 42,
+            storage: autore_schema::domain::records::ArtifactStorage::ExternalFile {
+                canonical_path: "/tmp/x".into(),
+            },
+            created_at: autore_schema::domain::Timestamp::now(),
+            metadata: MetadataMap::new(),
+        }
+    }
+
+    fn make_sample_hypothesis(
+        pid: autore_schema::ids::ProjectId,
+    ) -> autore_schema::domain::records::Hypothesis {
+        use autore_schema::domain::{
+            Confidence, EvidenceValue,
+        };
+        use autore_schema::domain::records::{Hypothesis, HypothesisStatus};
+        Hypothesis {
+            id: autore_schema::ids::HypothesisId::new(),
+            project: pid,
+            subject: autore_schema::ids::EntityId::new(),
+            predicate: NamespacedId::parse("core.is-loop").unwrap(),
+            candidate: EvidenceValue::Boolean(true),
+            supporting_evidence: vec![],
+            contradicting_evidence: vec![],
+            derived_from: vec![],
+            confidence: Confidence::new(0.5).unwrap(),
+            status: HypothesisStatus::Proposed,
+            created_at: autore_schema::domain::Timestamp::now(),
+            updated_at: autore_schema::domain::Timestamp::now(),
+        }
+    }
+
+    /// Generic fallback renderer renders unknown-kind records without panic.
+    #[test]
+    fn tui_generic_fallback_unknown_record() {
+        let kind = NamespacedId::parse("developer.experimental.foo").unwrap();
+        let id = "rec-42";
+        let fields = vec![
+            ("bar".to_owned(), "baz".to_owned()),
+            ("count".to_owned(), "7".to_owned()),
+        ];
+
+        let para = render_generic_record(&kind, id, fields);
+        let backend = ratatui::backend::TestBackend::new(60, 10);
+        let mut terminal = ratatui::Terminal::new(backend).unwrap();
+        terminal
+            .draw(|frame| {
+                frame.render_widget(para, frame.area());
+            })
+            .expect("render must not panic");
+        let output = render_buffer(&terminal, 60, 10);
+
+        assert!(
+            output.contains("developer.experimental.foo rec-42"),
+            "fallback title missing: {output}"
+        );
+        assert!(
+            output.contains("bar: baz"),
+            "fallback field 'bar: baz' missing: {output}"
+        );
+        assert!(
+            output.contains("count: 7"),
+            "fallback field 'count: 7' missing: {output}"
+        );
+    }
+
+    /// Generic fallback with no fields shows "no fields".
+    #[test]
+    fn tui_generic_fallback_empty_fields() {
+        let kind = NamespacedId::parse("developer.experimental.empty").unwrap();
+        let para = render_generic_record::<Vec<(String, String)>, _>(&kind, "no-id", vec![]);
+        let backend = ratatui::backend::TestBackend::new(60, 6);
+        let mut terminal = ratatui::Terminal::new(backend).unwrap();
+        terminal
+            .draw(|frame| {
+                frame.render_widget(para, frame.area());
+            })
+            .expect("render must not panic");
+        let output = render_buffer(&terminal, 60, 6);
+        assert!(
+            output.contains("no fields"),
+            "empty fallback must render 'no fields': {output}"
+        );
+    }
+
+    fn render_buffer(
+        terminal: &ratatui::Terminal<ratatui::backend::TestBackend>,
+        width: u16,
+        height: u16,
+    ) -> String {
+        let buffer = terminal.backend().buffer();
+        let mut result = String::new();
+        for y in 0..height {
+            for x in 0..width {
+                let cell = buffer.cell((x, y)).expect("cell in bounds");
+                result.push_str(cell.symbol());
+            }
+            result.push('\n');
+        }
+        result
+    }
+
+    /// Secondary pane: Providers renders with expected title.
+    #[test]
+    fn tui_pane_providers_title() {
+        let mut state = sample_state();
+        state.active_pane = Pane::Providers;
+        let tui = Tui::with_state(state);
+        let output = render_to_string(&tui, 100, 30);
+        assert!(
+            output.contains("Providers"),
+            "Providers pane title missing: {output}"
+        );
+    }
+
+    /// Secondary pane: NativeArtifacts renders with expected title.
+    #[test]
+    fn tui_pane_native_artifacts_title() {
+        let mut state = sample_state();
+        state.active_pane = Pane::NativeArtifacts;
+        let tui = Tui::with_state(state);
+        let output = render_to_string(&tui, 100, 30);
+        assert!(
+            output.contains("NativeArtifacts"),
+            "NativeArtifacts pane title missing: {output}"
+        );
+    }
+
+    /// Secondary pane: OperationsDetail renders with expected title.
+    #[test]
+    fn tui_pane_operations_detail_title() {
+        let mut state = sample_state();
+        state.active_pane = Pane::OperationsDetail;
+        let tui = Tui::with_state(state);
+        let output = render_to_string(&tui, 100, 30);
+        assert!(
+            output.contains("OperationsDetail"),
+            "OperationsDetail pane title missing: {output}"
+        );
+    }
+
+    /// Secondary pane: EventsLog renders with expected title.
+    #[test]
+    fn tui_pane_events_log_title() {
+        let mut state = sample_state();
+        state.active_pane = Pane::EventsLog;
+        let tui = Tui::with_state(state);
+        let output = render_to_string(&tui, 100, 30);
+        assert!(
+            output.contains("EventsLog"),
+            "EventsLog pane title missing: {output}"
+        );
+    }
+
+    /// Secondary pane: MigrationHistory renders with expected title.
+    #[test]
+    fn tui_pane_migration_history_title() {
+        let mut state = sample_state();
+        state.active_pane = Pane::MigrationHistory;
+        let tui = Tui::with_state(state);
+        let output = render_to_string(&tui, 100, 30);
+        assert!(
+            output.contains("MigrationHistory"),
+            "MigrationHistory pane title missing: {output}"
+        );
+    }
+
+    /// Secondary pane: ExternalArtifactIntegrity renders with expected title.
+    #[test]
+    fn tui_pane_external_artifact_integrity_title() {
+        let mut state = sample_state();
+        state.active_pane = Pane::ExternalArtifactIntegrity;
+        let tui = Tui::with_state(state);
+        let output = render_to_string(&tui, 100, 30);
+        assert!(
+            output.contains("ExternalArtifactIntegrity"),
+            "ExternalArtifactIntegrity pane title missing: {output}"
+        );
+    }
+
+    /// Alt+1..Alt+7 switch active pane; default is Dashboard.
+    #[test]
+    fn tui_pane_switching_keys() {
+        let mut tui = Tui::new();
+        assert_eq!(tui.state().active_pane, Pane::Dashboard);
+
+        let alt2 = KeyEvent::new(
+            KeyCode::Char('2'),
+            crossterm::event::KeyModifiers::ALT,
+        );
+        tui.handle_key_event(alt2).unwrap();
+        assert_eq!(tui.state().active_pane, Pane::Providers);
+
+        let alt1 = KeyEvent::new(
+            KeyCode::Char('1'),
+            crossterm::event::KeyModifiers::ALT,
+        );
+        tui.handle_key_event(alt1).unwrap();
+        assert_eq!(tui.state().active_pane, Pane::Dashboard);
     }
 }
