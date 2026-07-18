@@ -44,7 +44,17 @@ pub enum Commands {
     Operation(OperationArgs),
     /// Event stream: list.
     Events(EventsArgs),
+    /// Interactive TUI dashboard.
+    Tui(TuiArgs),
 }
+
+// ---------------------------------------------------------------------------
+// TUI
+// ---------------------------------------------------------------------------
+
+/// Arguments for the interactive TUI subcommand.
+#[derive(Args)]
+pub struct TuiArgs {}
 
 // ---------------------------------------------------------------------------
 // Output format

@@ -112,6 +112,7 @@ pub fn run(cli: AutoReCli) -> Result<(), String> {
         Some(Commands::Verification(args)) => handle_verification(&project_dir, args),
         Some(Commands::Operation(args)) => handle_operation(&project_dir, args),
         Some(Commands::Events(args)) => handle_events(&project_dir, args),
+        Some(Commands::Tui(args)) => handle_tui(&project_dir, args),
     }
 }
 
@@ -911,4 +912,16 @@ fn print_command_result(schema: &str, result: &CommandResult) {
         Ok(val) => print_json_with_schema(schema, &val),
         Err(_) => println!("OK: {result:?}"),
     }
+}
+
+// ---------------------------------------------------------------------------
+// TUI handler
+// ---------------------------------------------------------------------------
+
+fn handle_tui(project_dir: &Path, _args: TuiArgs) -> Result<(), String> {
+    let runtime = tokio::runtime::Runtime::new()
+        .map_err(|e| format!("failed to create tokio runtime: {e}"))?;
+    runtime
+        .block_on(autore_tui::runtime::run_with_project(project_dir))
+        .map_err(|e| format!("TUI exited with error: {e}"))
 }

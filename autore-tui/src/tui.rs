@@ -464,7 +464,7 @@ impl Tui {
         ));
     }
 
-    fn open_selected_project(&self) {
+    pub fn open_selected_project(&self) {
         let Some(project) = self.current_project_id() else {
             return;
         };
@@ -1266,10 +1266,17 @@ impl Default for Tui {
     }
 }
 
-/// Entry point for the TUI.
+/// Entry point for the TUI with default empty state.
 pub async fn run_tui() -> crate::Result<()> {
+    run_tui_with(Tui::new()).await
+}
+
+/// Entry point for the TUI with a preconfigured application instance.
+///
+/// This allows frontends (e.g. `auto-re tui <project>`) to load a project
+/// before the event loop starts while sharing the same lifecycle code.
+pub async fn run_tui_with(mut app: Tui) -> crate::Result<()> {
     let mut terminal = ratatui::init();
-    let mut app = Tui::new();
     let (term_tx, mut term_rx) = mpsc::channel::<TerminalEvent>(64);
 
     let tick_handle = {
@@ -1284,10 +1291,16 @@ pub async fn run_tui() -> crate::Result<()> {
         })
     };
 
+    let shutdown = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+
     let crossterm_handle = {
         let tx = term_tx;
+        let shutdown = std::sync::Arc::clone(&shutdown);
         tokio::task::spawn_blocking(move || {
             loop {
+                if shutdown.load(std::sync::atomic::Ordering::Relaxed) {
+                    break;
+                }
                 if event::poll(Duration::from_millis(50)).unwrap_or(false)
                     && let Ok(ev) = event::read()
                     && let Some(term) = TerminalEvent::from_crossterm(ev)
@@ -1338,6 +1351,7 @@ pub async fn run_tui() -> crate::Result<()> {
         }
     };
 
+    shutdown.store(true, std::sync::atomic::Ordering::Relaxed);
     tick_handle.abort();
     crossterm_handle.abort();
     ratatui::restore();
@@ -2471,3 +2485,9 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod state_machine_tests;
+
+#[cfg(test)]
+mod render_tests;

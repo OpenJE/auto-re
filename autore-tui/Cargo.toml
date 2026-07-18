@@ -8,6 +8,7 @@ autore-core = { path = "../autore-core" }
 autore-schema = { path = "../autore-schema" }
 autore-events = { path = "../autore-events" }
 autore-app = { path = "../autore-app" }
+autore-store = { path = "../autore-store" }
 ratatui.workspace = true
 crossterm.workspace = true
 tokio.workspace = true
