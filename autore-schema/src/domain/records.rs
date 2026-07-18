@@ -1454,6 +1454,9 @@ pub static EVENT_KIND_OPERATION_CANCELLED: std::sync::LazyLock<NamespacedId> =
 pub static EVENT_KIND_PROJECT_VALIDATION_FAILED: std::sync::LazyLock<NamespacedId> =
     std::sync::LazyLock::new(|| NamespacedId::parse("core.project.validation-failed").unwrap());
 
+pub static EVENT_KIND_PROJECT_INDEXES_REBUILT: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("core.project.indexes-rebuilt").unwrap());
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -3132,6 +3135,10 @@ mod tests {
         assert_eq!(
             EVENT_KIND_PROJECT_VALIDATION_FAILED.to_string(),
             "core.project.validation-failed"
+        );
+        assert_eq!(
+            EVENT_KIND_PROJECT_INDEXES_REBUILT.to_string(),
+            "core.project.indexes-rebuilt"
         );
     }
 
