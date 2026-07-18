@@ -1,0 +1,24 @@
+
+running 19 tests
+test project_create_empty_name_fails ... ok
+test project_create_human ... ok
+test events_list_human ... ok
+test operation_list_json ... ok
+test project_info_json ... ok
+test events_list_json ... ok
+test hypothesis_accept_nonexistent_fails ... ok
+test project_migrate ... ok
+test operation_list_human ... ok
+test evidence_add_invalid_json_fails ... ok
+test artifact_add ... ok
+test project_info_human ... ok
+test entity_add ... ok
+test evidence_add ... ok
+test hypothesis_add ... ok
+test hypothesis_accept_enforces_state_machine ... ok
+test project_rebuild_indexes ... ok
+test project_validate ... ok
+test full_create_add_list_workflow ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+

@@ -377,3 +377,39 @@
 - All 4 acceptance-criteria tests pass as specified.
 - Cross-project validation for `RegisterProvider` and `StartProviderRun` was not added because neither request type carries a sub-record with its own `project` field — `Provider` has no project field, and `ProviderRun` is constructed from request fields.
 - `ApplicationService` no longer implements `AutoReClient` (old empty impl removed). This is a necessary breaking change since the trait now has required methods that would conflict with `ApplicationService`'s own inherent methods.
+
+## 2026-07-17 (Task 26)
+
+### Dual project creation path (DESIGN NOTE)
+- `lifecycle::create_project` creates the directory structure but does not insert a project record into the DB.
+- `ApplicationCommand::CreateProject` inserts the DB record but does not create directories.
+- The CLI calls both and overwrites the manifest with the application-layer project ID to ensure consistency between the manifest and DB.
+- This is a temporary scaffolding pattern; a unified `CreateProject` that handles both directory creation and DB insertion should be added in a later task.
+
+### `autore-app/src/lib.rs` re-exports extended (RESOLVED)
+- All request/response structs from `application_service::requests` are now re-exported at the crate root.
+- Required adding `serde.workspace = true` to `autore-app/Cargo.toml` for `Serialize` derives on `CommandResult` and response types.
+
+### `project check-artifacts` is scaffold only (INFORMATIONAL)
+- No `ApplicationCommand` exists for artifact integrity checking.
+- The handler queries `ListArtifacts` and reports the count, with a "not yet implemented" message.
+- Full verification (hash comparison against stored blobs) should be implemented in a later task.
+
+### `autore-cli` depends on `autore-schema` directly (DESIGN NOTE)
+- `ProjectManifest` is not re-exported from `autore-app`.
+- Added `autore-schema` as a direct dependency of `autore-cli` for `ProjectManifest` access.
+- Alternative: re-export `ProjectManifest` from `autore-app`.
+
+## 2026-07-17 (Task 27)
+
+### `hypothesis accept` cannot succeed on freshly created hypotheses (DESIGN GAP)
+- `HypothesisStatus` state machine only allows `Proposed -> UnderInvestigation -> Accepted`.
+- The CLI provides `hypothesis accept` (sets `Accepted`) and `hypothesis reject` (sets `Rejected`) but no command to transition to `UnderInvestigation`.
+- Result: `accept` and `reject` always fail with "invalid state transition" on newly created hypotheses.
+- Resolution: add a `hypothesis investigate` CLI command (or allow `Proposed -> Accepted` directly in the state machine).
+- Integration test `hypothesis_accept_enforces_state_machine` verifies the state machine enforcement instead of a happy-path test.
+
+### `assert_cmd` + `predicates` added as workspace dev-dependencies (RESOLVED)
+- Added `assert_cmd = "2"` and `predicates = "3"` to workspace `[workspace.dependencies]`.
+- Added as dev-dependencies in `autore-cli/Cargo.toml`.
+- These are standard Rust CLI testing crates; no concerns.
