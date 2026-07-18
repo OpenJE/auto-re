@@ -500,3 +500,28 @@
 - Generic fallback renderer: `render_generic_record` + `render_extension_data_generic` + `render_metadata_map_generic`.
 - All acceptance tests pass: `tui_dashboard_panels_present`, `tui_dashboard_shows_validation_status`, `tui_generic_fallback_unknown_record`, plus tests for each secondary pane title.
 - `grep -r 'rusqlite\|Database' autore-tui/src` returns no matches.
+
+## 2026-07-17 (Task 31)
+
+### Synchronous command dispatch in render path (LOW priority, deferred optimization)
+- `dispatch_command` calls `client.execute` synchronously in `handle_key_event`. If the underlying `LocalAutoReClient.execute` is slow (e.g. heavy SQLite writes), this will block the render thread for the duration.
+- Current mitigation: user key presses are rare (~1/s), so typical blocking is tolerable. Real fix: wrap `client.execute` in `spawn_blocking` + post `CommandResult` via `internal_tx`, same as `dispatch_query`.
+- No functional impact on tests (RecordingClient returns immediately).
+
+### Artifact-import dialog is single-field (DESIGN LIMITATION)
+- `RegisterArtifactRequest` takes `source_path` + `kind`, but the dialog collects only the path; `kind` defaults to `"native"`. A multi-field dialog (path, kind, storage) would need a stateful form widget.
+- Documented; can be extended in a future task that adds form dialogs.
+
+### `ProjectSummaryResponse` not re-exported from `autore_app` crate root (MINOR)
+- `autore_app::application_service::requests::ProjectSummaryResponse` is the full path. The `autore_app` lib.rs re-exports many types but not this one.
+- Tests use the full path; not a functional issue. Could add to re-exports for cleanliness.
+
+### No deviations from task requirements
+- All write actions (`a`, `A`, `c`, `o`) route through `AutoReClient.execute` / `AutoReClient.query`.
+- No `rusqlite` or `Database` references in `autore-tui/src` (verified by grep).
+- No direct record mutation from TUI — all mutations go through typed commands.
+- No direct provider process kills — cancellation is via `CancelOperationRequest` (cooperative, §16).
+- Terminal restoration preserved: `tui_shutdown_restores_terminal`, `tui_panic_restores_terminal`, `tui_shutdown_restores_terminal_with_active_operations` all pass.
+- All 31 TUI unit tests + 3 regression tests + 573 workspace tests pass.
+- `cargo clippy --workspace --exclude autore-stage1 --all-targets -- -D warnings` clean.
+- `cargo fmt --all --check` clean.

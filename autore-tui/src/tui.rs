@@ -32,9 +32,13 @@ use ratatui::widgets::{Block, Gauge, List, ListItem, Paragraph, Row, Table, Tabs
 use tokio::sync::mpsc;
 
 use crate::tui::state::{Focus, Navigation, Pane, TuiState};
-use autore_app::{ApplicationQuery, AutoReClient, CommandResult, QueryResult};
+use autore_app::{
+    ApplicationCommand, ApplicationQuery, AutoReClient, CancelOperationRequest,
+    ChangeHypothesisStatusRequest, CommandResult, GetProjectSummaryQuery, QueryResult,
+    RegisterArtifactRequest,
+};
 use autore_events::project_event_service::ProjectEventSubscription;
-use autore_schema::domain::records::ProjectEvent;
+use autore_schema::domain::records::{HypothesisStatus, ProjectEvent};
 use autore_schema::domain::{ExtensionData, MetadataMap, NamespacedId};
 use autore_schema::ids::ProjectId;
 
@@ -194,55 +198,279 @@ impl Tui {
         self.subscription.as_mut()
     }
 
+    /// Dispatches a command through the attached `AutoReClient`.
+    ///
+    /// The TUI never mutates records directly — all write actions route through
+    /// `client.execute` (§23.9). Errors are surfaced as notifications.
+    fn dispatch_command(&mut self, command: ApplicationCommand) {
+        let Some(client) = &self.client else {
+            self.push_notification(
+                "no client attached",
+                crate::tui::state::NotificationLevel::Error,
+            );
+            return;
+        };
+        match client.execute(command) {
+            Ok(result) => {
+                let _ = self
+                    .internal_tx
+                    .try_send(InternalTuiEvent::CommandResult { result });
+            }
+            Err(e) => {
+                self.push_notification(
+                    &format!("command error: {e}"),
+                    crate::tui::state::NotificationLevel::Error,
+                );
+            }
+        }
+    }
+
+    /// Dispatches a query through the attached `AutoReClient` on a background
+    /// task so the render path never blocks (§23.4).
+    fn dispatch_query(&self, query: ApplicationQuery) {
+        let Some(client) = &self.client else {
+            return;
+        };
+        let project = match &query {
+            ApplicationQuery::GetProjectSummary(q) => q.project,
+            _ => return,
+        };
+        let client = Arc::clone(client);
+        let tx = self.internal_tx.clone();
+        tokio::spawn(async move {
+            let result = tokio::task::spawn_blocking(move || client.query(query)).await;
+            match result {
+                Ok(Ok(qr)) => {
+                    let _ = tx
+                        .send(InternalTuiEvent::QueryResult {
+                            project,
+                            result: qr,
+                        })
+                        .await;
+                }
+                Ok(Err(e)) => {
+                    let _ = tx
+                        .send(InternalTuiEvent::QueryError {
+                            project,
+                            error: e.to_string(),
+                        })
+                        .await;
+                }
+                Err(e) => {
+                    let _ = tx
+                        .send(InternalTuiEvent::QueryError {
+                            project,
+                            error: e.to_string(),
+                        })
+                        .await;
+                }
+            }
+        });
+    }
+
+    /// Returns the currently selected project (from navigation state).
+    fn current_project_id(&self) -> Option<ProjectId> {
+        match &self.state.navigation {
+            Navigation::Project(pid) => Some(*pid),
+            _ => None,
+        }
+    }
+
+    /// Opens the artifact-import dialog, collecting a source path.
+    fn open_artifact_import_dialog(&mut self) {
+        if self.current_project_id().is_none() {
+            self.push_notification(
+                "select a project first",
+                crate::tui::state::NotificationLevel::Warning,
+            );
+            return;
+        }
+        self.state
+            .dialogs
+            .push(crate::tui::state::DialogState::Input {
+                prompt: "Artifact source path:".into(),
+                buffer: String::new(),
+            });
+        self.state.focus = Focus::Dialog;
+    }
+
+    /// Confirms the current dialog, dispatching the appropriate command.
+    fn confirm_dialog(&mut self) {
+        let Some(dialog) = self.state.dialogs.pop() else {
+            return;
+        };
+        self.state.focus = Focus::Panel1;
+        match dialog {
+            crate::tui::state::DialogState::Input { buffer, .. } => {
+                let Some(project) = self.current_project_id() else {
+                    return;
+                };
+                let command = ApplicationCommand::RegisterArtifact(RegisterArtifactRequest {
+                    project,
+                    source_path: std::path::PathBuf::from(buffer),
+                    kind: "native".into(),
+                });
+                self.dispatch_command(command);
+            }
+            crate::tui::state::DialogState::Confirm { .. } => {}
+            crate::tui::state::DialogState::Error(_) => {}
+        }
+    }
+
+    /// Cancels the current dialog without dispatching.
+    fn cancel_dialog(&mut self) {
+        self.state.dialogs.pop();
+        self.state.focus = Focus::Panel1;
+    }
+
     /// Handles a key event. Returns `true` if the app should quit.
     pub fn handle_key_event(&mut self, key_event: KeyEvent) -> io::Result<bool> {
-        match key_event.kind {
-            KeyEventKind::Press => match key_event.code {
-                KeyCode::Char('q') => Ok(true),
-                KeyCode::Char('j') | KeyCode::Down => {
-                    self.select_next();
-                    Ok(false)
-                }
-                KeyCode::Char('k') | KeyCode::Up => {
-                    self.select_previous();
-                    Ok(false)
-                }
-                KeyCode::Tab => {
-                    self.cycle_focus();
-                    Ok(false)
-                }
-                KeyCode::Char('1') if key_event.modifiers.contains(KeyModifiers::ALT) => {
-                    self.state.active_pane = Pane::Dashboard;
-                    Ok(false)
-                }
-                KeyCode::Char('2') if key_event.modifiers.contains(KeyModifiers::ALT) => {
-                    self.state.active_pane = Pane::Providers;
-                    Ok(false)
-                }
-                KeyCode::Char('3') if key_event.modifiers.contains(KeyModifiers::ALT) => {
-                    self.state.active_pane = Pane::NativeArtifacts;
-                    Ok(false)
-                }
-                KeyCode::Char('4') if key_event.modifiers.contains(KeyModifiers::ALT) => {
-                    self.state.active_pane = Pane::OperationsDetail;
-                    Ok(false)
-                }
-                KeyCode::Char('5') if key_event.modifiers.contains(KeyModifiers::ALT) => {
-                    self.state.active_pane = Pane::EventsLog;
-                    Ok(false)
-                }
-                KeyCode::Char('6') if key_event.modifiers.contains(KeyModifiers::ALT) => {
-                    self.state.active_pane = Pane::MigrationHistory;
-                    Ok(false)
-                }
-                KeyCode::Char('7') if key_event.modifiers.contains(KeyModifiers::ALT) => {
-                    self.state.active_pane = Pane::ExternalArtifactIntegrity;
-                    Ok(false)
-                }
-                _ => Ok(false),
-            },
+        if !matches!(key_event.kind, KeyEventKind::Press) {
+            return Ok(false);
+        }
+
+        if matches!(self.state.focus, Focus::Dialog) {
+            return self.handle_dialog_key_event(key_event);
+        }
+
+        match key_event.code {
+            KeyCode::Char('q') => Ok(true),
+            KeyCode::Char('j') | KeyCode::Down => {
+                self.select_next();
+                Ok(false)
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                self.select_previous();
+                Ok(false)
+            }
+            KeyCode::Tab => {
+                self.cycle_focus();
+                Ok(false)
+            }
+            KeyCode::Char('a') if !key_event.modifiers.contains(KeyModifiers::ALT) => {
+                self.open_artifact_import_dialog();
+                Ok(false)
+            }
+            KeyCode::Char('A') => {
+                self.accept_selected_hypothesis();
+                Ok(false)
+            }
+            KeyCode::Char('c') if !key_event.modifiers.contains(KeyModifiers::ALT) => {
+                self.cancel_selected_operation();
+                Ok(false)
+            }
+            KeyCode::Char('o') if !key_event.modifiers.contains(KeyModifiers::ALT) => {
+                self.open_selected_project();
+                Ok(false)
+            }
+            KeyCode::Char('1') if key_event.modifiers.contains(KeyModifiers::ALT) => {
+                self.state.active_pane = Pane::Dashboard;
+                Ok(false)
+            }
+            KeyCode::Char('2') if key_event.modifiers.contains(KeyModifiers::ALT) => {
+                self.state.active_pane = Pane::Providers;
+                Ok(false)
+            }
+            KeyCode::Char('3') if key_event.modifiers.contains(KeyModifiers::ALT) => {
+                self.state.active_pane = Pane::NativeArtifacts;
+                Ok(false)
+            }
+            KeyCode::Char('4') if key_event.modifiers.contains(KeyModifiers::ALT) => {
+                self.state.active_pane = Pane::OperationsDetail;
+                Ok(false)
+            }
+            KeyCode::Char('5') if key_event.modifiers.contains(KeyModifiers::ALT) => {
+                self.state.active_pane = Pane::EventsLog;
+                Ok(false)
+            }
+            KeyCode::Char('6') if key_event.modifiers.contains(KeyModifiers::ALT) => {
+                self.state.active_pane = Pane::MigrationHistory;
+                Ok(false)
+            }
+            KeyCode::Char('7') if key_event.modifiers.contains(KeyModifiers::ALT) => {
+                self.state.active_pane = Pane::ExternalArtifactIntegrity;
+                Ok(false)
+            }
             _ => Ok(false),
         }
+    }
+
+    fn handle_dialog_key_event(&mut self, key_event: KeyEvent) -> io::Result<bool> {
+        match key_event.code {
+            KeyCode::Esc => {
+                self.cancel_dialog();
+                Ok(false)
+            }
+            KeyCode::Enter => {
+                self.confirm_dialog();
+                Ok(false)
+            }
+            KeyCode::Char(c) => {
+                if let Some(crate::tui::state::DialogState::Input { buffer, .. }) =
+                    self.state.dialogs.last_mut()
+                {
+                    buffer.push(c);
+                }
+                Ok(false)
+            }
+            KeyCode::Backspace => {
+                if let Some(crate::tui::state::DialogState::Input { buffer, .. }) =
+                    self.state.dialogs.last_mut()
+                {
+                    buffer.pop();
+                }
+                Ok(false)
+            }
+            _ => Ok(false),
+        }
+    }
+
+    fn accept_selected_hypothesis(&mut self) {
+        let (Some(project), Some(hypothesis)) =
+            (self.current_project_id(), self.state.selected_hypothesis)
+        else {
+            self.push_notification(
+                "no hypothesis selected",
+                crate::tui::state::NotificationLevel::Warning,
+            );
+            return;
+        };
+        self.dispatch_command(ApplicationCommand::ChangeHypothesisStatus(
+            ChangeHypothesisStatusRequest {
+                project,
+                id: hypothesis,
+                status: HypothesisStatus::Accepted,
+            },
+        ));
+    }
+
+    fn cancel_selected_operation(&mut self) {
+        let (Some(project), Some(operation)) =
+            (self.current_project_id(), self.state.selected_operation)
+        else {
+            self.push_notification(
+                "no operation selected",
+                crate::tui::state::NotificationLevel::Warning,
+            );
+            return;
+        };
+        self.dispatch_command(ApplicationCommand::CancelOperation(
+            CancelOperationRequest {
+                project,
+                id: operation,
+                requested_by: "tui".into(),
+                reason: None,
+            },
+        ));
+    }
+
+    fn open_selected_project(&self) {
+        let Some(project) = self.current_project_id() else {
+            return;
+        };
+        self.dispatch_query(ApplicationQuery::GetProjectSummary(
+            GetProjectSummaryQuery { project },
+        ));
     }
 
     /// Handles a terminal event. Returns `true` if the app should quit.
@@ -312,11 +540,13 @@ impl Tui {
     }
 
     fn push_notification(&mut self, message: &str, level: crate::tui::state::NotificationLevel) {
-        self.state.notifications.push(crate::tui::state::Notification {
-            message: message.to_string(),
-            level,
-            created_at: autore_schema::domain::Timestamp::now(),
-        });
+        self.state
+            .notifications
+            .push(crate::tui::state::Notification {
+                message: message.to_string(),
+                level,
+                created_at: autore_schema::domain::Timestamp::now(),
+            });
     }
 
     /// Schedules a background catch-up query to fill a sequence gap.
@@ -372,7 +602,12 @@ impl Tui {
             let result = tokio::task::spawn_blocking(move || client.query(query)).await;
             match result {
                 Ok(Ok(qr)) => {
-                    let _ = tx.send(InternalTuiEvent::QueryResult { project, result: qr }).await;
+                    let _ = tx
+                        .send(InternalTuiEvent::QueryResult {
+                            project,
+                            result: qr,
+                        })
+                        .await;
                 }
                 Ok(Err(e)) => {
                     let _ = tx
@@ -394,14 +629,22 @@ impl Tui {
         });
     }
 
-    fn apply_query_result(&mut self, _project: ProjectId, result: QueryResult) {
-        if let QueryResult::Events(response) = result {
-            for ev in &response.events {
-                if let Some(view) = self.state.project_views.get_mut(&ev.project) {
-                    view.recent_events = response.events.clone();
-                    break;
+    fn apply_query_result(&mut self, project: ProjectId, result: QueryResult) {
+        match result {
+            QueryResult::Events(response) => {
+                for ev in &response.events {
+                    if let Some(view) = self.state.project_views.get_mut(&ev.project) {
+                        view.recent_events = response.events.clone();
+                        break;
+                    }
                 }
             }
+            QueryResult::ProjectSummary(response) => {
+                if let Some(view) = self.state.project_views.get_mut(&project) {
+                    view.project_summary = Some(response.project);
+                }
+            }
+            _ => {}
         }
     }
 
@@ -436,7 +679,11 @@ impl Tui {
         match &self.state.navigation {
             Navigation::Project(current) => {
                 if let Some(pos) = project_ids.iter().position(|id| id == current) {
-                    let prev = if pos == 0 { project_ids.len() - 1 } else { pos - 1 };
+                    let prev = if pos == 0 {
+                        project_ids.len() - 1
+                    } else {
+                        pos - 1
+                    };
                     self.state.navigation = Navigation::Project(project_ids[prev]);
                 }
             }
@@ -559,18 +806,9 @@ impl Tui {
                 }
             };
             let mut lines = vec![
-                Line::from(vec![
-                    Span::raw("Project: ").bold(),
-                    Span::raw(name),
-                ]),
-                Line::from(vec![
-                    Span::raw("Schema:  "),
-                    Span::raw(schema),
-                ]),
-                Line::from(vec![
-                    Span::raw("Valid:   "),
-                    Span::raw(validation),
-                ]),
+                Line::from(vec![Span::raw("Project: ").bold(), Span::raw(name)]),
+                Line::from(vec![Span::raw("Schema:  "), Span::raw(schema)]),
+                Line::from(vec![Span::raw("Valid:   "), Span::raw(validation)]),
                 Line::from(""),
                 Line::from("Counts:".bold()),
                 Line::from(format!("  artifacts:       {}", view.artifacts.len())),
@@ -657,10 +895,13 @@ impl Tui {
             .iter()
             .map(|op| {
                 let id_str = op.id.to_string();
-                let id_short = if id_str.len() >= 8 { &id_str[..8] } else { &id_str };
-                let progress_pct = if op
-                    .failure
-                    .is_none() { {
+                let id_short = if id_str.len() >= 8 {
+                    &id_str[..8]
+                } else {
+                    &id_str
+                };
+                let progress_pct = if op.failure.is_none() {
+                    {
                         if matches!(op.state, autore_core::operation::OperationState::Completed) {
                             100
                         } else if matches!(op.state, autore_core::operation::OperationState::Queued)
@@ -669,7 +910,10 @@ impl Tui {
                         } else {
                             50
                         }
-                    } } else { 0 };
+                    }
+                } else {
+                    0
+                };
                 let cancel = if matches!(
                     op.state,
                     autore_core::operation::OperationState::Running
@@ -913,8 +1157,8 @@ impl Tui {
                 a.size
             )));
         }
-        let para = Paragraph::new(lines)
-            .block(Block::bordered().title("ExternalArtifactIntegrity"));
+        let para =
+            Paragraph::new(lines).block(Block::bordered().title("ExternalArtifactIntegrity"));
         frame.render_widget(para, area);
     }
 }
@@ -968,11 +1212,7 @@ pub fn render_extension_data_generic<'a>(
         }
         None => vec![],
     };
-    render_generic_record(
-        kind,
-        id,
-        fields,
-    )
+    render_generic_record(kind, id, fields)
 }
 
 /// Convenience: render a `MetadataMap` generically.
@@ -990,11 +1230,7 @@ pub fn render_metadata_map_generic<'a>(
             )
         })
         .collect();
-    render_generic_record(
-        kind,
-        id,
-        fields,
-    )
+    render_generic_record(kind, id, fields)
 }
 
 fn flatten_json(value: &serde_json::Value, out: &mut Vec<(String, String)>, prefix: String) {
@@ -1050,13 +1286,15 @@ pub async fn run_tui() -> crate::Result<()> {
 
     let crossterm_handle = {
         let tx = term_tx;
-        tokio::task::spawn_blocking(move || loop {
-            if event::poll(Duration::from_millis(50)).unwrap_or(false)
-                && let Ok(ev) = event::read()
-                && let Some(term) = TerminalEvent::from_crossterm(ev)
-                && tx.blocking_send(term).is_err()
-            {
-                break;
+        tokio::task::spawn_blocking(move || {
+            loop {
+                if event::poll(Duration::from_millis(50)).unwrap_or(false)
+                    && let Ok(ev) = event::read()
+                    && let Some(term) = TerminalEvent::from_crossterm(ev)
+                    && tx.blocking_send(term).is_err()
+                {
+                    break;
+                }
             }
         })
     };
@@ -1252,6 +1490,8 @@ mod tests {
             operation_views: HashMap::new(),
             event_cursor: EventCursor::default(),
             active_pane: Pane::Dashboard,
+            selected_operation: None,
+            selected_hypothesis: None,
         }
     }
 
@@ -1495,10 +1735,7 @@ mod tests {
         let action = loop_driver.step(&mut term_rx).await.unwrap();
         assert_eq!(action, LoopAction::Continue);
 
-        term_tx
-            .send(TerminalEvent::Resize(120, 40))
-            .await
-            .unwrap();
+        term_tx.send(TerminalEvent::Resize(120, 40)).await.unwrap();
         let action = loop_driver.step(&mut term_rx).await.unwrap();
         assert_eq!(action, LoopAction::Continue);
 
@@ -1583,9 +1820,9 @@ mod tests {
                 while !self.query_released.load(Ordering::SeqCst) {
                     std::thread::sleep(std::time::Duration::from_millis(5));
                 }
-                Ok(autore_app::QueryResult::Events(autore_app::EventsResponse {
-                    events: vec![],
-                }))
+                Ok(autore_app::QueryResult::Events(
+                    autore_app::EventsResponse { events: vec![] },
+                ))
             }
             fn events_after(
                 &self,
@@ -1732,10 +1969,8 @@ mod tests {
     fn make_sample_hypothesis(
         pid: autore_schema::ids::ProjectId,
     ) -> autore_schema::domain::records::Hypothesis {
-        use autore_schema::domain::{
-            Confidence, EvidenceValue,
-        };
         use autore_schema::domain::records::{Hypothesis, HypothesisStatus};
+        use autore_schema::domain::{Confidence, EvidenceValue};
         Hypothesis {
             id: autore_schema::ids::HypothesisId::new(),
             project: pid,
@@ -1906,18 +2141,333 @@ mod tests {
         let mut tui = Tui::new();
         assert_eq!(tui.state().active_pane, Pane::Dashboard);
 
-        let alt2 = KeyEvent::new(
-            KeyCode::Char('2'),
-            crossterm::event::KeyModifiers::ALT,
-        );
+        let alt2 = KeyEvent::new(KeyCode::Char('2'), crossterm::event::KeyModifiers::ALT);
         tui.handle_key_event(alt2).unwrap();
         assert_eq!(tui.state().active_pane, Pane::Providers);
 
-        let alt1 = KeyEvent::new(
-            KeyCode::Char('1'),
-            crossterm::event::KeyModifiers::ALT,
-        );
+        let alt1 = KeyEvent::new(KeyCode::Char('1'), crossterm::event::KeyModifiers::ALT);
         tui.handle_key_event(alt1).unwrap();
         assert_eq!(tui.state().active_pane, Pane::Dashboard);
+    }
+
+    // -----------------------------------------------------------------------
+    // Task 31 — write actions routed through AutoReClient
+    // -----------------------------------------------------------------------
+
+    /// Test double: records every `execute` / `query` call so tests can assert
+    /// that key actions dispatched the expected command/query.
+    #[derive(Default, Clone)]
+    struct RecordingClient {
+        commands: std::sync::Arc<std::sync::Mutex<Vec<ApplicationCommand>>>,
+        queries: std::sync::Arc<std::sync::Mutex<Vec<ApplicationQuery>>>,
+    }
+
+    impl RecordingClient {
+        fn commands(&self) -> Vec<ApplicationCommand> {
+            self.commands.lock().unwrap().clone()
+        }
+
+        fn queries(&self) -> Vec<ApplicationQuery> {
+            self.queries.lock().unwrap().clone()
+        }
+    }
+
+    impl AutoReClient for RecordingClient {
+        fn execute(&self, command: ApplicationCommand) -> autore_core::Result<CommandResult> {
+            self.commands.lock().unwrap().push(command.clone());
+            Ok(match command {
+                ApplicationCommand::ChangeHypothesisStatus(req) => {
+                    CommandResult::HypothesisStatusChanged(
+                        autore_app::ChangeHypothesisStatusResponse {
+                            hypothesis: autore_schema::domain::records::Hypothesis {
+                                id: req.id,
+                                project: req.project,
+                                subject: autore_schema::ids::EntityId::new(),
+                                predicate: autore_schema::domain::NamespacedId::new(&[
+                                    "test",
+                                    "predicate",
+                                ])
+                                .unwrap(),
+                                candidate: autore_schema::domain::EvidenceValue::Null,
+                                supporting_evidence: vec![],
+                                contradicting_evidence: vec![],
+                                derived_from: vec![],
+                                confidence: autore_schema::domain::Confidence::new(0.5).unwrap(),
+                                status: req.status,
+                                created_at: autore_schema::domain::Timestamp::now(),
+                                updated_at: autore_schema::domain::Timestamp::now(),
+                            },
+                        },
+                    )
+                }
+                ApplicationCommand::CancelOperation(req) => {
+                    CommandResult::OperationCancelled(autore_app::CancelOperationResponse {
+                        operation: autore_schema::domain::records::Operation::new(
+                            req.project,
+                            autore_schema::domain::NamespacedId::new(&["test", "op"]).unwrap(),
+                            "tui",
+                        ),
+                    })
+                }
+                ApplicationCommand::RegisterArtifact(_req) => {
+                    CommandResult::ArtifactRegistered(autore_app::RegisterArtifactResponse {
+                        artifact: autore_schema::domain::records::Artifact {
+                            id: autore_schema::ids::ArtifactId::new(),
+                            project: _req.project,
+                            kind: autore_schema::domain::NamespacedId::parse(&_req.kind)
+                                .unwrap_or_else(|_| {
+                                    autore_schema::domain::NamespacedId::new(&["test", "artifact"])
+                                        .unwrap()
+                                }),
+                            content_hash: autore_schema::domain::ContentHash::blake3(b""),
+                            size: 0,
+                            metadata: Default::default(),
+                            storage:
+                                autore_schema::domain::records::ArtifactStorage::ExternalFile {
+                                    canonical_path: _req.source_path,
+                                },
+                            created_at: autore_schema::domain::Timestamp::now(),
+                        },
+                    })
+                }
+                other => unimplemented!("RecordingClient: unhandled command {other:?}"),
+            })
+        }
+
+        fn query(&self, query: ApplicationQuery) -> autore_core::Result<QueryResult> {
+            self.queries.lock().unwrap().push(query.clone());
+            Ok(match query {
+                ApplicationQuery::GetProjectSummary(_req) => QueryResult::ProjectSummary(
+                    autore_app::application_service::requests::ProjectSummaryResponse {
+                        project: autore_schema::domain::records::Project::new("test"),
+                    },
+                ),
+                other => unimplemented!("RecordingClient: unhandled query {other:?}"),
+            })
+        }
+
+        fn events_after(
+            &self,
+            _project: ProjectId,
+            _sequence: u64,
+            _limit: usize,
+        ) -> autore_core::Result<Vec<ProjectEvent>> {
+            Ok(vec![])
+        }
+
+        fn subscribe_events(
+            &self,
+            _project: ProjectId,
+            _after: u64,
+        ) -> autore_core::Result<ProjectEventSubscription> {
+            unimplemented!()
+        }
+    }
+
+    fn state_with_hypothesis_and_operation() -> TuiState {
+        use autore_schema::domain::NamespacedId;
+        use autore_schema::domain::records::{Hypothesis, Operation};
+        use autore_schema::ids::{EntityId, HypothesisId, OperationId, ProjectId};
+
+        let pid = ProjectId::new();
+        let mut view = ProjectViewState {
+            project_summary: Some(autore_schema::domain::records::Project::new("alpha")),
+            ..Default::default()
+        };
+
+        let hyp_id = HypothesisId::new();
+        view.hypotheses.push(Hypothesis {
+            id: hyp_id,
+            project: pid,
+            subject: EntityId::new(),
+            predicate: NamespacedId::new(&["test", "pred"]).unwrap(),
+            candidate: autore_schema::domain::EvidenceValue::Null,
+            supporting_evidence: vec![],
+            contradicting_evidence: vec![],
+            derived_from: vec![],
+            confidence: autore_schema::domain::Confidence::new(0.5).unwrap(),
+            status: autore_schema::domain::records::HypothesisStatus::UnderInvestigation,
+            created_at: autore_schema::domain::Timestamp::now(),
+            updated_at: autore_schema::domain::Timestamp::now(),
+        });
+
+        let op_id = OperationId::new();
+        let mut op = Operation::new(
+            pid,
+            NamespacedId::new(&["test", "validate"]).unwrap(),
+            "tui",
+        );
+        op.id = op_id;
+        view.operations.push(op);
+
+        let mut project_views = HashMap::new();
+        project_views.insert(pid, view);
+
+        TuiState {
+            navigation: Navigation::Project(pid),
+            focus: Focus::Panel1,
+            filters: FilterState::default(),
+            dialogs: vec![],
+            notifications: vec![],
+            project_views,
+            operation_views: HashMap::new(),
+            event_cursor: EventCursor::default(),
+            active_pane: Pane::Dashboard,
+            selected_operation: Some(op_id),
+            selected_hypothesis: Some(hyp_id),
+        }
+    }
+
+    /// Pressing `A` with a selected hypothesis dispatches
+    /// `ChangeHypothesisStatus(Accepted)` through the client.
+    #[test]
+    fn tui_accept_hypothesis_dispatches_command() {
+        let recorder = RecordingClient::default();
+        let state = state_with_hypothesis_and_operation();
+        let hyp_id = state.selected_hypothesis.unwrap();
+        let pid = match &state.navigation {
+            Navigation::Project(id) => *id,
+            _ => panic!("expected project navigation"),
+        };
+        let mut tui = Tui::with_client(state, Box::new(recorder.clone()));
+
+        let a_event = KeyEvent::new(KeyCode::Char('A'), crossterm::event::KeyModifiers::NONE);
+        tui.handle_key_event(a_event).unwrap();
+
+        let cmds = recorder.commands();
+        assert_eq!(cmds.len(), 1, "exactly one command must be dispatched");
+        match &cmds[0] {
+            ApplicationCommand::ChangeHypothesisStatus(req) => {
+                assert_eq!(req.project, pid);
+                assert_eq!(req.id, hyp_id);
+                assert_eq!(
+                    req.status,
+                    autore_schema::domain::records::HypothesisStatus::Accepted
+                );
+            }
+            other => panic!("expected ChangeHypothesisStatus, got {other:?}"),
+        }
+    }
+
+    /// Pressing `c` with a selected operation dispatches `CancelOperation`
+    /// through the client (cooperative cancellation, §16).
+    #[test]
+    fn tui_cancel_operation_dispatches_command() {
+        let recorder = RecordingClient::default();
+        let state = state_with_hypothesis_and_operation();
+        let op_id = state.selected_operation.unwrap();
+        let pid = match &state.navigation {
+            Navigation::Project(id) => *id,
+            _ => panic!("expected project navigation"),
+        };
+        let mut tui = Tui::with_client(state, Box::new(recorder.clone()));
+
+        let c_event = KeyEvent::new(KeyCode::Char('c'), crossterm::event::KeyModifiers::NONE);
+        tui.handle_key_event(c_event).unwrap();
+
+        let cmds = recorder.commands();
+        assert_eq!(cmds.len(), 1, "exactly one command must be dispatched");
+        match &cmds[0] {
+            ApplicationCommand::CancelOperation(req) => {
+                assert_eq!(req.project, pid);
+                assert_eq!(req.id, op_id);
+                assert_eq!(req.requested_by, "tui");
+            }
+            other => panic!("expected CancelOperation, got {other:?}"),
+        }
+    }
+
+    /// Pressing `a` opens the artifact-import dialog; Enter dispatches
+    /// `RegisterArtifact` with the entered path through the client.
+    #[test]
+    fn tui_artifact_import_dialog_dispatches_command() {
+        let recorder = RecordingClient::default();
+        let state = state_with_hypothesis_and_operation();
+        let pid = match &state.navigation {
+            Navigation::Project(id) => *id,
+            _ => panic!("expected project navigation"),
+        };
+        let mut tui = Tui::with_client(state, Box::new(recorder.clone()));
+
+        let a_event = KeyEvent::new(KeyCode::Char('a'), crossterm::event::KeyModifiers::NONE);
+        tui.handle_key_event(a_event).unwrap();
+        assert_eq!(tui.state().focus, Focus::Dialog);
+        assert_eq!(tui.state().dialogs.len(), 1);
+
+        for ch in "/tmp/x.bin".chars() {
+            tui.handle_key_event(KeyEvent::new(
+                KeyCode::Char(ch),
+                crossterm::event::KeyModifiers::NONE,
+            ))
+            .unwrap();
+        }
+        tui.handle_key_event(KeyEvent::new(
+            KeyCode::Enter,
+            crossterm::event::KeyModifiers::NONE,
+        ))
+        .unwrap();
+
+        let cmds = recorder.commands();
+        assert_eq!(cmds.len(), 1);
+        match &cmds[0] {
+            ApplicationCommand::RegisterArtifact(req) => {
+                assert_eq!(req.project, pid);
+                assert_eq!(req.source_path, std::path::Path::new("/tmp/x.bin"));
+            }
+            other => panic!("expected RegisterArtifact, got {other:?}"),
+        }
+    }
+
+    /// Pressing `Esc` in a dialog cancels without dispatching any command.
+    #[test]
+    fn tui_dialog_esc_cancels_without_dispatch() {
+        let recorder = RecordingClient::default();
+        let state = state_with_hypothesis_and_operation();
+        let mut tui = Tui::with_client(state, Box::new(recorder.clone()));
+
+        let a_event = KeyEvent::new(KeyCode::Char('a'), crossterm::event::KeyModifiers::NONE);
+        tui.handle_key_event(a_event).unwrap();
+        assert_eq!(tui.state().dialogs.len(), 1);
+
+        tui.handle_key_event(KeyEvent::new(
+            KeyCode::Esc,
+            crossterm::event::KeyModifiers::NONE,
+        ))
+        .unwrap();
+
+        assert!(tui.state().dialogs.is_empty());
+        assert!(recorder.commands().is_empty());
+    }
+
+    /// Pressing `o` dispatches `GetProjectSummary` through the client.
+    #[tokio::test]
+    async fn tui_open_project_dispatches_query() {
+        let recorder = RecordingClient::default();
+        let state = state_with_hypothesis_and_operation();
+        let pid = match &state.navigation {
+            Navigation::Project(id) => *id,
+            _ => panic!("expected project navigation"),
+        };
+        let mut tui = Tui::with_client(state, Box::new(recorder.clone()));
+
+        let o_event = KeyEvent::new(KeyCode::Char('o'), crossterm::event::KeyModifiers::NONE);
+        tui.handle_key_event(o_event).unwrap();
+
+        for _ in 0..100 {
+            tokio::task::yield_now().await;
+            if !recorder.queries().is_empty() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(2)).await;
+        }
+
+        let queries = recorder.queries();
+        assert_eq!(queries.len(), 1);
+        match &queries[0] {
+            ApplicationQuery::GetProjectSummary(req) => {
+                assert_eq!(req.project, pid);
+            }
+            other => panic!("expected GetProjectSummary, got {other:?}"),
+        }
     }
 }

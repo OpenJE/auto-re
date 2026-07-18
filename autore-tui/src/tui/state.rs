@@ -10,7 +10,7 @@ use autore_schema::domain::records::{
     Provider, ProviderRun, SemanticEntity, VerificationRecord,
 };
 use autore_schema::domain::{NamespacedId, SchemaVersion, Timestamp};
-use autore_schema::ids::{OperationId, ProjectId};
+use autore_schema::ids::{HypothesisId, OperationId, ProjectId};
 
 // ---------------------------------------------------------------------------
 // TuiState — top-level presentation state
@@ -40,6 +40,12 @@ pub struct TuiState {
     pub event_cursor: EventCursor,
     /// Active secondary pane (presentation-only; does not affect authoritative state).
     pub active_pane: Pane,
+    /// Currently selected operation for dispatch actions (cancel, etc.).
+    /// None means no operation is selected.
+    pub selected_operation: Option<OperationId>,
+    /// Currently selected hypothesis for dispatch actions (accept, etc.).
+    /// None means no hypothesis is selected.
+    pub selected_hypothesis: Option<HypothesisId>,
 }
 
 impl TuiState {
