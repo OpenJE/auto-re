@@ -91,7 +91,10 @@ pub enum ProjectCommand {
     /// Queue a project migration operation.
     Migrate,
     /// Queue a rebuild-indexes operation.
-    RebuildIndexes,
+    RebuildIndexes {
+        #[arg(long, default_value = "human")]
+        output: OutputFormat,
+    },
     /// Check artifact integrity (scaffold — not yet implemented).
     CheckArtifacts,
 }

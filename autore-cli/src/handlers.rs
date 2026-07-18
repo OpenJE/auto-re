@@ -229,7 +229,7 @@ fn handle_project(project_dir: &Path, args: ProjectArgs) -> Result<(), String> {
             print_command_result("project-migrated", &result);
             Ok(())
         }
-        ProjectCommand::RebuildIndexes => {
+        ProjectCommand::RebuildIndexes { output } => {
             let (client, project_id) = build_client(project_dir)?;
             let result = client
                 .execute(ApplicationCommand::RebuildIndexes(
@@ -238,7 +238,19 @@ fn handle_project(project_dir: &Path, args: ProjectArgs) -> Result<(), String> {
                     },
                 ))
                 .map_err(|e| format!("{e}"))?;
-            print_command_result("indexes-rebuilt", &result);
+            match output {
+                OutputFormat::Json => {
+                    print_command_result("indexes-rebuilt", &result);
+                }
+                OutputFormat::Human => {
+                    let op = match &result {
+                        CommandResult::IndexesRebuilt(resp) => &resp.operation,
+                        _ => return Err("unexpected rebuild result".to_owned()),
+                    };
+                    println!("Indexes rebuilt for project {project_id}.");
+                    println!("  Operation: {} ({})", op.id, op.state);
+                }
+            }
             Ok(())
         }
         ProjectCommand::CheckArtifacts => {

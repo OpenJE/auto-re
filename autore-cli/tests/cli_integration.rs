@@ -382,16 +382,32 @@ fn project_validate() {
 }
 
 // ---------------------------------------------------------------------------
-// 11. project rebuild-indexes — happy path
+// 11. project rebuild-indexes — JSON and human output
 // ---------------------------------------------------------------------------
 
 #[test]
-fn project_rebuild_indexes() {
+fn project_rebuild_indexes_cli() {
     let tmp = TempDir::new().unwrap();
     create_project(tmp.path(), "rebuild-test");
-    let stdout = run_cli_ok(tmp.path(), &["project", "rebuild-indexes"]);
+    let stdout = run_cli_ok(
+        tmp.path(),
+        &["project", "rebuild-indexes", "--output", "json"],
+    );
     let v: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
     assert!(v["$schema"].is_string(), "should have $schema");
+    let op_kind = v["IndexesRebuilt"]["operation"]["kind"]
+        .as_str()
+        .expect("operation kind should be a string");
+    assert_eq!(op_kind, "core.project.rebuild-indexes");
+}
+
+#[test]
+fn project_rebuild_indexes_human() {
+    let tmp = TempDir::new().unwrap();
+    create_project(tmp.path(), "rebuild-human-test");
+    let stdout = run_cli_ok(tmp.path(), &["project", "rebuild-indexes"]);
+    assert!(stdout.contains("Indexes rebuilt"));
+    assert!(stdout.contains("Operation:"));
 }
 
 // ---------------------------------------------------------------------------
