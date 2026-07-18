@@ -626,3 +626,189 @@
 - `cargo test --workspace --exclude autore-stage1` — all workspace tests pass.
 - `cargo clippy --workspace --exclude autore-stage1 --all-targets -- -D warnings` — clean.
 - `cargo fmt --all --check` — clean.
+
+## 2026-07-18 (Task 36)
+
+### Full Stage 0 persistence round-trip integration test (RESOLVED)
+- Created `autore-app/tests/persistence_round_trip.rs` with a single test `full_stage0_persistence_round_trip`.
+- The test creates a project via `lifecycle::create_project`, inserts a canonical project record via `ApplicationCommand::CreateProject`, overwrites the manifest with the canonical project, then populates one of every Stage 0 record type:
+  - `Project` (via `CreateProject`)
+  - `Artifact` (binary, via `RegisterArtifact`)
+  - `SemanticEntity` × 2 (via `RegisterEntity`, one with `BinaryLocation` stable key, one without)
+  - `Provider` (via `RegisterProvider`)
+  - `ProviderRun` (via `StartProviderRun`)
+  - `ProviderEntityAlias` (via `SqliteAliasStore`)
+  - `NativeArtifact` (via `SqliteAliasStore`)
+  - `EvidenceRecord` × 2 (via `AddEvidence`)
+  - `Hypothesis` × 2 competing (via `AddHypothesis`, one accepted)
+  - `Contradiction` (via `RecordContradiction`)
+  - `VerificationRecord` × 3 (entity, hypothesis, artifact subjects)
+  - `Operation` + `ProgressUpdate` × 2 (via `RebuildIndexes` then `SqliteOperationStore` transitions)
+  - `ProjectEvent` stream (auto-emitted by commands, verified via `ListEvents`)
+- After populating, the test drops the service, calls `close_project`, reopens via `lifecycle::open_project`, rebuilds the service, and asserts semantic equality for every record type using JSON serialization round-trip.
+- Verification:
+  - `cargo test -p autore-app --test persistence_round_trip` — 1/1 pass.
+  - `cargo test --workspace --exclude autore-stage1` — all workspace tests pass.
+  - `cargo clippy --workspace --exclude autore-stage1 --all-targets -- -D warnings` — clean.
+  - `cargo fmt --all --check` — clean.
+
+### Records without typed commands (DESIGN NOTE)
+- `ProviderEntityAlias`, `NativeArtifact`, and `ProgressUpdate` have no `ApplicationCommand` variant in Stage 0. The integration test inserts them directly through the public `autore_store` traits (`SqliteAliasStore` / `SqliteOperationStore`) while still using `ApplicationService` for all record types that have typed commands.
+
+### Operation completion requires Running intermediate state (DESIGN NOTE)
+- `OperationState` transitions only allow `Queued -> Running -> Completed`. The test transitions the rebuild-indexes operation through `Running` before completing it.
+
+## 2026-07-18 (Task 35)
+
+### V1 fixture database and migration integration tests (RESOLVED)
+- Created committed binary fixture `autore-store/tests/fixtures/v1_project.sqlite3` from `migrations/V1__initial_schema.sql` plus one Campaign, Task, and Claim row.
+- Added `autore-store/tests/fixtures/README.md` documenting exact regeneration steps via `sqlite3` CLI or Python.
+- Added `autore-store/tests/migration_fixture.rs` with 6 scenarios:
+  1. Successful V1->V2 migration (V2 tables present, obsolete V1 tables dropped).
+  2. Failed-migration rollback leaves source usable (divergent `refinery_schema_history` record triggers failure; backup and source remain valid V1).
+  3. Backup `*.bak` is created before mutation and remains a pristine V1 copy.
+  4. Migration history is recorded in `migration_records`.
+  5. Validation passes after migration using `ApplicationService::validate_project`.
+  6. Reopening migrated project via `autore-app::lifecycle::open_project` succeeds.
+- Added `autore-app` and `autore-events` as dev-dependencies of `autore-store` for the integration test.
+- Fixed `migrations/V12__drop_obsolete_v1.sql` to drop tables in dependency order (referencing tables first) because refinery wraps each migration in a transaction, making `PRAGMA foreign_keys=OFF` ineffective. This was exposed by the fixture containing real V1 data with foreign-key relationships.
+- Verification:
+  - `cargo test -p autore-store --test migration_fixture` — 6/6 pass.
+  - `cargo test --workspace --exclude autore-stage1` — all workspace tests pass.
+  - `cargo clippy --workspace --exclude autore-stage1 --all-targets -- -D warnings` — clean.
+  - `cargo fmt --all --check` — clean.
+
+## 2026-07-18 (Task 34)
+
+### Derived-state rebuild implemented (DESIGN NOTE)
+- New `autore-store/src/storage/derived.rs` provides `build_derived_state(project_id)` and `build_derived_state_in_tx(txn, project_id)`.
+- Rebuild runs inside a single explicit `Transaction`, deletes existing derived rows for the project, then repopulates from canonical records only.
+- Canonical tables are never modified; `canonical_row_hashes(db, project_id)` snapshots all project-scoped canonical rows (using deterministic column-ordered blake3 hashes) before/after rebuild for the `does_not_modify_canonical` test.
+
+### V13 migration adds `derived_*` namespace (DESIGN NOTE)
+- `migrations/V13__derived_indexes.sql` creates:
+  - `derived_project_summary` (counts per project),
+  - `derived_hypothesis_progress` (status → count),
+  - `derived_evidence_progress` (latest lifecycle state → count),
+  - `derived_reverse_references` (subject → referencing records).
+- Derived tables are included in `migration.rs` V2_TABLES and `database.rs` migration smoke list so migration validation covers them.
+
+### Evidence progress aggregates latest lifecycle state (DESIGN NOTE)
+- An evidence record with no lifecycle events is counted as `Active`; otherwise its latest event state is used. This matches the append-only lifecycle design from Task 17.
+
+### Reverse-reference cache scope (DESIGN NOTE)
+- Current reverse references cover evidence, hypotheses, contradictions (all referencing an entity subject) and verifications (discriminated subject kind + id). This satisfies Stage 0 needs without rebuilding scheduler/analysis state.
+
+### `RebuildIndexes` now performs actual rebuild (DESIGN NOTE)
+- `ApplicationService::rebuild_indexes` was changed from merely queueing an operation to actually calling `build_derived_state_in_tx` and emitting `core.project.indexes-rebuilt` atomically via `with_event`.
+- An `operations` record of kind `core.project.rebuild-indexes` is still inserted for audit/tracking, but the command now immediately rebuilds derived indexes.
+
+### CLI `--output` support for rebuild-indexes (DESIGN NOTE)
+- `ProjectCommand::RebuildIndexes` gained an `output: OutputFormat` argument (default human), matching the task requirement. JSON output uses the existing `print_command_result` schema wrapper; human output prints project ID and operation state.
+
+### New event kind constant (DESIGN NOTE)
+- Added `EVENT_KIND_PROJECT_INDEXES_REBUILT` (`core.project.indexes-rebuilt`) in `autore-schema/src/domain/records.rs` and re-exported it in `domain/mod.rs`.
+
+### Verification
+- `cargo test -p autore-store -- rebuild_derived_state` — 3/3 pass.
+- `cargo test -p autore-cli -- project_rebuild_indexes_cli` — pass.
+- `cargo test --workspace --exclude autore-stage1` — all workspace tests pass.
+- `cargo clippy --workspace --exclude autore-stage1 --all-targets -- -D warnings` — clean.
+- `cargo fmt --all --check` — clean.
+
+## 2026-07-18 (Task 37)
+
+### Ratatui state-machine and render tests added to `autore-tui` (RESOLVED)
+- Created `autore-tui/src/tui/state_machine_tests.rs` with 20 state-machine tests named `tui_state_machine_*` covering:
+  - navigation (`j`/`k`/`Down`/`Up` wrap around project list)
+  - focus changes (`Tab` cycles Panel1→Panel2→Panel3→Sidebar→Panel1)
+  - filtering (`FilterState.text_search` and `kind_filter` retention)
+  - search (text filter plus `GetProjectSummary` query dispatch)
+  - dialog lifecycle (`a` opens, typing updates buffer, `Enter` confirms, `Esc` cancels)
+  - form validation (empty artifact path still dispatches but dialog closes cleanly)
+  - command dispatch (`A` → `ChangeHypothesisStatus(Accepted)`, `c` → `CancelOperation`, `a`+Enter → `RegisterArtifact`)
+  - query completion (`QueryResult::ProjectSummary` updates `project_summary`)
+  - incoming durable events (`ProjectEvent` advances cursor and appends to recent events)
+  - sequence-gap handling (gap sets `missed_events`; `CatchupEvents` clears it)
+  - loading state (project view with no summary renders `(loading)`)
+  - empty state (no projects renders `No projects loaded` / `Projects (0)`)
+  - error state (failing client produces error notification)
+  - operation progress (Running → 50%, Completed → 100%, Queued → 0%)
+  - unknown namespaced record rendering (generic fallback does not panic)
+  - pane switching (`Alt+1`..`Alt+7`)
+  - query error path (background query failure surfaces notification)
+- Created `autore-tui/src/tui/render_tests.rs` with 5 deterministic render tests named `tui_render_*` using a fixed 80x24 `TestBackend`:
+  - empty dashboard panel titles and empty messages
+  - populated dashboard project summary, schema version, validation status, and counts
+  - operations panel progress percentages and cancel hints
+  - generic fallback renderer output for unknown namespaced records
+  - secondary pane (`EventsLog`) title and event sequence
+- Tests assert presence of semantic strings (titles, counts, labels) rather than exact whitespace snapshots.
+- No TUI public behavior changed; tests use existing `Tui::handle_key_event`, `handle_project_event`, `handle_internal_event`, and `render` via `TestBackend`.
+- No new external dependencies added.
+
+### Verification
+- `cargo test -p autore-tui -- tui_state_machine_` — 20/20 pass.
+- `cargo test -p autore-tui -- tui_render_` — 5/5 pass.
+- `cargo test -p autore-tui` — 60/60 pass (56 lib + 4 integration).
+- `cargo test --workspace --exclude autore-stage1` — all workspace tests pass.
+- `cargo clippy --workspace --exclude autore-stage1 --all-targets -- -D warnings` — clean.
+- `cargo fmt --all --check` — clean.
+
+## 2026-07-18 (Task 38)
+
+### PTY integration test for the Ratatui TUI added (RESOLVED)
+- Created `autore-tui/tests/pty_integration.rs` as an ignored, Linux-only integration test.
+- The test uses the system `script` utility to allocate a real PTY so `ratatui` can open `/dev/tty` in a headless CI/container environment.
+- It launches the real `auto-re tui` binary (via `cargo run -p autore-cli`) against a Stage 0 fixture project created with `autore_app::lifecycle::create_project`.
+- Added `Tui` subcommand to `autore-cli/src/cli.rs` and `handle_tui` wrapper in `autore-cli/src/handlers.rs`.
+- Added `run_with_project(project_dir)` in `autore-tui/src/runtime.rs` to build a `LocalAutoReClient`, open the fixture project, attach a live event subscription, and run the TUI.
+- Refactored `autore-tui/src/tui.rs` `run_tui()` into `run_tui()` + `run_tui_with(Tui)` and made `open_selected_project` public so the test helper can inject a preloaded project.
+- Fixed a TUI shutdown bug: the crossterm `spawn_blocking` reader task did not check for cancellation, so the tokio runtime kept the process alive after the main loop exited and terminal was restored. Added a shared `AtomicBool` shutdown flag so the reader exits promptly when the TUI quits.
+- Asserted in the test:
+  - primary screen renders (`Projects`, `(1)`, `Operations`, `Hypotheses`, `Evidence`, `pty-test`)
+  - a side-process `entity add` is reflected in live state (`events: 2`, `entities: 1`)
+  - `q` exits cleanly with a zero status code
+  - terminal is restored (`ESC[?1049l` leaves alternate screen, `ESC[?25h` shows cursor)
+
+### Verification
+- `cargo test -p autore-tui --test pty_integration -- --ignored --nocapture` — pass.
+- `cargo test --workspace --exclude autore-stage1` — all workspace tests pass.
+- `cargo clippy --workspace --exclude autore-stage1 --all-targets -- -D warnings` — clean.
+- `cargo fmt --all --check` — clean.
+
+## 2026-07-18 (Task 39)
+
+### Stage 0 implementation report written (RESOLVED)
+- Created `docs/stage0-report.md` with all 8 required sections:
+  1. Implemented schemas (every persisted record with table name(s)).
+  2. Storage format (project dir layout, schema version `2.0`, artifact layout, canonical vs derived tables).
+  3. Application commands and queries (all `ApplicationCommand` and `ApplicationQuery` variants).
+  4. Ratatui changes (retained/adapted/moved/deferred/removed code with paths + explanations).
+  5. Architectural decisions (3 irreversible forks + 7 default choices + rationale).
+  6. Deferred capabilities (Stage 1+ functionality explicitly listed).
+  7. Compatibility (supported schema versions V1/V2, migration paths, serialization fixture versions).
+  8. Test results (unit/store/migration/CLI/TUI state/PTY/fmt/clippy outcomes with real evidence).
+- Captured evidence under `.omo/evidence/`:
+  - `.omo/evidence/task-39-auto-re-stage-0-gates.log` (combined summary)
+  - `.omo/evidence/task-39-fmt.log`
+  - `.omo/evidence/task-39-clippy-workspace.log`
+  - `.omo/evidence/task-39-test-workspace.log`
+  - `.omo/evidence/task-39-build-stage1-no-default.log`
+  - `.omo/evidence/task-39-build-stage1.log`
+  - `.omo/evidence/task-39-test-default.log`
+  - `.omo/evidence/task-39-clippy-default.log`
+  - `.omo/evidence/task-39-build-default.log`
+  - `.omo/evidence/task-39-pty-test.log`
+- All gates pass with exit code 0:
+  - `cargo fmt --all --check`
+  - `cargo clippy --workspace --exclude autore-stage1 --all-targets -- -D warnings`
+  - `cargo test --workspace --exclude autore-stage1`
+  - `cargo build -p autore-stage1 --no-default-features`
+  - `cargo build -p autore-stage1`
+  - `cargo test` (default-members)
+  - `cargo clippy --all-targets -- -D warnings` (default-members)
+  - `cargo build` (default-members)
+- PTY integration test passed when run with `--ignored`.
+- Total workspace tests: 609 passed, 0 failed, 1 ignored (PTY); plus 5 doc-tests passed.
+- No code changes were required to make gates pass; no new external dependencies added.
