@@ -25,7 +25,7 @@
     "todo:3": {
       "task_key": "todo:3",
       "task_label": "3",
-      "task_title": "Produce the retain/adapt/move/defer/remove report as a committed doc. Write `docs/stage0-audit.md` (a real file, NOT a .omo artifact \u2014 this is a deliverable the spec \u00a733 requires in the final report; checked in to the repo). For every existing module in the M1 codebase, classify it as RETAIN UNCHANGED / RETAIN WITH ADAPTATION / MOVE BEHIND SHARED SERVICES / DEFER TO LATER STAGE / REMOVE. Cite the M1 source path and the Stage 0 destination. Examples: `define_id!` macro -> RETAIN ADAPTED (move to `autore-schema`, swap v4->v7); `ContentHash(String)` -> RETAIN ADAPTED (add `HashAlgorithm`); `Provenance` -> REMOVE (replaced by `Derivation` + `DerivationMethod`); M1 `Evidence`/`EvidenceKind` -> REMOVE (replaced by append-only `EvidenceRecord`+`EvidenceValue`); `Campaign`/`Task`/`Claim` -> REMOVE (replaced by Project/Operation/Hypothesis); M1 `EntityId` closed enum -> REMOVE (replaced by opaque `EntityId` + namespaced kind); `database.rs` open pattern -> RETAIN ADAPTED (add atomic state+event transactions, no DB-generated IDs, migration backups); `ratatui::init/restore` lifecycle -> RETAIN UNCHANGED; 4-panel layout -> RETAIN ADAPTED (remapped in 0I); `analysis/model/scheduler/worker/engine` -> DEFER (all in `autore-stage1`); M1 `campaign_smoke`/`kill_resume` -> REMOVE (replaced by Stage 0 tests that port the kill\u2192resume guarantee via Operation state + atomic events). Include a \"Decisions and rationale\" section for the 3 forks + adopted defaults. Do NOT leave any M1 file unclassified.",
+      "task_title": "Produce the retain/adapt/move/defer/remove report as a committed doc. Write `docs/stage0-audit.md` (a real file, NOT a .omo artifact — this is a deliverable the spec §33 requires in the final report; checked in to the repo). For every existing module in the M1 codebase, classify it as RETAIN UNCHANGED / RETAIN WITH ADAPTATION / MOVE BEHIND SHARED SERVICES / DEFER TO LATER STAGE / REMOVE. Cite the M1 source path and the Stage 0 destination. Examples: `define_id!` macro -> RETAIN ADAPTED (move to `autore-schema`, swap v4->v7); `ContentHash(String)` -> RETAIN ADAPTED (add `HashAlgorithm`); `Provenance` -> REMOVE (replaced by `Derivation` + `DerivationMethod`); M1 `Evidence`/`EvidenceKind` -> REMOVE (replaced by append-only `EvidenceRecord`+`EvidenceValue`); `Campaign`/`Task`/`Claim` -> REMOVE (replaced by Project/Operation/Hypothesis); M1 `EntityId` closed enum -> REMOVE (replaced by opaque `EntityId` + namespaced kind); `database.rs` open pattern -> RETAIN ADAPTED (add atomic state+event transactions, no DB-generated IDs, migration backups); `ratatui::init/restore` lifecycle -> RETAIN UNCHANGED; 4-panel layout -> RETAIN ADAPTED (remapped in 0I); `analysis/model/scheduler/worker/engine` -> DEFER (all in `autore-stage1`); M1 `campaign_smoke`/`kill_resume` -> REMOVE (replaced by Stage 0 tests that port the kill→resume guarantee via Operation state + atomic events). Include a \"Decisions and rationale\" section for the 3 forks + adopted defaults. Do NOT leave any M1 file unclassified.",
       "session_id": "opencode:ses_08f462467ffeoZCGPPlBwhu7Cb",
       "agent": "Sisyphus-Junior",
       "category": "writing",
@@ -38,7 +38,7 @@
     "todo:4": {
       "task_key": "todo:4",
       "task_label": "4",
-      "task_title": "Verify platform/crate assumptions (uuid v7, sha2, expectrl, refinery fixture path). Confirm the dependencies the plan relies on actually work. (a) Confirm `uuid` crate version supports `v7` feature (v7 added in uuid 1.6.0, Dec 2023); bump `uuid = { version = \"1\", features = [\"v7\",\"serde\"] }` and add a smoke test `uuid_v7_sorts` that creates two `Uuid::now_v7()` 1ms apart and asserts lexicographic ordering. (b) Add `sha2 = \"0.10\"` to `autore-schema` deps and write `content_hash_sha256_deterministic` test. (c) Add `expectrl = \"0.8\"` (or `portable-pty` from wezterm if expectrl fails the platform check) to `autore-tui` dev-dependencies; write a skip-guarded smoke test `pty_smoke_compiles` (uses `#[cfg(not(target_os=\"windows\"))]` or skips if the pty crate is unavailable). This todo does NOT use these crates beyond smoke tests; full integration comes later. (d) Confirm refinery `embed_migrations!(\"migrations/\")` keeps V1 + V2 together for forward migration; write a smoke test `migration_runs_v1_then_v2` that copies a temp V1 SQL fixture, runs `migrations::runner()`, verifies both V1 and V2 tables exist. Do NOT delete V1 \u2014 it stays in `migrations/` so a real V1 project database is forward-migrated. Do NOT commit the v1_project.sqlite3 fixture yet (that's task 41).",
+      "task_title": "Verify platform/crate assumptions (uuid v7, sha2, expectrl, refinery fixture path). Confirm the dependencies the plan relies on actually work. (a) Confirm `uuid` crate version supports `v7` feature (v7 added in uuid 1.6.0, Dec 2023); bump `uuid = { version = \"1\", features = [\"v7\",\"serde\"] }` and add a smoke test `uuid_v7_sorts` that creates two `Uuid::now_v7()` 1ms apart and asserts lexicographic ordering. (b) Add `sha2 = \"0.10\"` to `autore-schema` deps and write `content_hash_sha256_deterministic` test. (c) Add `expectrl = \"0.8\"` (or `portable-pty` from wezterm if expectrl fails the platform check) to `autore-tui` dev-dependencies; write a skip-guarded smoke test `pty_smoke_compiles` (uses `#[cfg(not(target_os=\"windows\"))]` or skips if the pty crate is unavailable). This todo does NOT use these crates beyond smoke tests; full integration comes later. (d) Confirm refinery `embed_migrations!(\"migrations/\")` keeps V1 + V2 together for forward migration; write a smoke test `migration_runs_v1_then_v2` that copies a temp V1 SQL fixture, runs `migrations::runner()`, verifies both V1 and V2 tables exist. Do NOT delete V1 — it stays in `migrations/` so a real V1 project database is forward-migrated. Do NOT commit the v1_project.sqlite3 fixture yet (that's task 41).",
       "session_id": "opencode:ses_08f4608aeffeHjE42EV44OPNm9",
       "agent": "Sisyphus-Junior",
       "category": "unspecified-high",
@@ -51,7 +51,7 @@
     "todo:2": {
       "task_key": "todo:2",
       "task_label": "2",
-      "task_title": "Pre-refactor TUI regression test baseline (capture current useful behavior). BEFORE any TUI refactoring, add tests covering the existing 4-panel Ratatui dashboard's useful behavior so 0I remapping preserves it. Tests belong in `autore-tui` (the new crate home for these). Cover: (a) startup with empty state renders without panic, (b) primary 4-panel screen renders with the panel titles `Campaigns`/`Campaign Status`/`Tasks`/`Claims Progress`, (c) `j`/`Down` and `k`/`Up` navigation moves selection and wraps, (d) `q` quits, (e) clean shutdown restores terminal (raw mode off, leave alt screen) \u2014 use `ratatui::init()`/`ratatui::restore()` and assert via a helper that captures terminal state, (f) Help/empty-state messages render. ALSO add a panic-restores-terminal test using `std::panic::set_hook` that calls `ratatui::restore()` then re-panics (Metis gap: terminal-restoration-on-panic). Use `ratatui::backend::TestBackend` for render tests and `tempfile` for any file artifacts. Do NOT modify the existing `Tui`/`DashboardState`/`TuiUpdate` types yet (they will be remapped in 0I) \u2014 these tests pin current behavior. Do NOT add Stage 0 panels.",
+      "task_title": "Pre-refactor TUI regression test baseline (capture current useful behavior). BEFORE any TUI refactoring, add tests covering the existing 4-panel Ratatui dashboard's useful behavior so 0I remapping preserves it. Tests belong in `autore-tui` (the new crate home for these). Cover: (a) startup with empty state renders without panic, (b) primary 4-panel screen renders with the panel titles `Campaigns`/`Campaign Status`/`Tasks`/`Claims Progress`, (c) `j`/`Down` and `k`/`Up` navigation moves selection and wraps, (d) `q` quits, (e) clean shutdown restores terminal (raw mode off, leave alt screen) — use `ratatui::init()`/`ratatui::restore()` and assert via a helper that captures terminal state, (f) Help/empty-state messages render. ALSO add a panic-restores-terminal test using `std::panic::set_hook` that calls `ratatui::restore()` then re-panics (Metis gap: terminal-restoration-on-panic). Use `ratatui::backend::TestBackend` for render tests and `tempfile` for any file artifacts. Do NOT modify the existing `Tui`/`DashboardState`/`TuiUpdate` types yet (they will be remapped in 0I) — these tests pin current behavior. Do NOT add Stage 0 panels.",
       "session_id": "opencode:ses_08f463f19ffe07VTSSimbc9ytE",
       "agent": "Sisyphus-Junior",
       "category": "visual-engineering",
@@ -76,7 +76,7 @@
     "todo:6": {
       "task_key": "todo:6",
       "task_label": "6",
-      "task_title": "ExtensionData, MetadataMap, EvidenceValue + strict-float validation in `autore-schema`. Implement `ExtensionData { schema: NamespacedId, version: u32, value: serde_json::Value }` with `schema` validated as a `NamespacedId`. Implement `MetadataMap` as a typed wrapper around `BTreeMap<NamespacedId, ExtensionData>` (DO NOT expose unbounded `serde_json::Value` throughout the domain \u2014 \u00a77 mandates versioned extension wrappers). Implement `EvidenceValue` as a tagged enum with explicit `#[serde(tag = \"kind\", content = \"value\")]`: `Null, Boolean(bool), SignedInteger(i128), UnsignedInteger(u128), Float(f64), String(String), Bytes(Vec<u8>), Entity(EntityId), Artifact(ArtifactId), BinaryLocation(BinaryLocation), List(Vec<EvidenceValue>), Map(BTreeMap<String,EvidenceValue>), Extension(ExtensionData)`. Float values MUST reject NaN and infinite on construction AND deserialize; add an `EvidenceValue::float(f64) -> Result<Self, Error>` constructor. Maps use deterministic `BTreeMap` ordering. Commit fixtures for ExtensionData and EvidenceValue (including Map ordering and float rejection).",
+      "task_title": "ExtensionData, MetadataMap, EvidenceValue + strict-float validation in `autore-schema`. Implement `ExtensionData { schema: NamespacedId, version: u32, value: serde_json::Value }` with `schema` validated as a `NamespacedId`. Implement `MetadataMap` as a typed wrapper around `BTreeMap<NamespacedId, ExtensionData>` (DO NOT expose unbounded `serde_json::Value` throughout the domain — §7 mandates versioned extension wrappers). Implement `EvidenceValue` as a tagged enum with explicit `#[serde(tag = \"kind\", content = \"value\")]`: `Null, Boolean(bool), SignedInteger(i128), UnsignedInteger(u128), Float(f64), String(String), Bytes(Vec<u8>), Entity(EntityId), Artifact(ArtifactId), BinaryLocation(BinaryLocation), List(Vec<EvidenceValue>), Map(BTreeMap<String,EvidenceValue>), Extension(ExtensionData)`. Float values MUST reject NaN and infinite on construction AND deserialize; add an `EvidenceValue::float(f64) -> Result<Self, Error>` constructor. Maps use deterministic `BTreeMap` ordering. Commit fixtures for ExtensionData and EvidenceValue (including Map ordering and float rejection).",
       "session_id": "opencode:ses_08f1deb7bffeNZ27NTYZTnu02m",
       "agent": "Sisyphus-Junior",
       "category": "unspecified-high",
@@ -89,7 +89,7 @@
     "todo:7": {
       "task_key": "todo:7",
       "task_label": "7",
-      "task_title": "BinaryLocation + ModuleIdentity + StableEntityKey + Derivation primitives in `autore-schema`. Implement `ModuleIdentity { name: Option<String>, content_hash: ContentHash, image_relative_index: Option<u32> }`. Implement `BinaryLocation { artifact: BinaryArtifactId, module: ModuleIdentity, relative_address: u64 }` \u2014 NOT keyed by absolute load address or filesystem path or IDA id. Replace the minimal `BinaryLocation` placeholder from Task 6 with this refined version. Implement `StableEntityKey` closed enum: `BinaryLocation(BinaryLocation) | BinaryRange { start: BinaryLocation, length: u64 } | ArtifactSymbol { artifact: ArtifactId, symbol: String } | ExternalIdentity { namespace: NamespacedId, value: String }` \u2014 this enum CAN stay closed; document why in a doc comment. Implement `DerivationMethod` closed enum: `DirectObservation, ProviderAnalysis, DeterministicAnalysis, SolverProof, ConcreteExecution, SymbolicExecution, CrossProviderAgreement, LlmInference, HumanAssertion, ImportedKnowledge` (closed OK \u2014 finite derivation methods). Implement `Derivation { method: DerivationMethod, operation: NamespacedId, supporting_evidence: Vec<EvidenceId>, source_hypotheses: Vec<HypothesisId> }`. All serde-tagged explicitly. Commit fixtures for each.",
+      "task_title": "BinaryLocation + ModuleIdentity + StableEntityKey + Derivation primitives in `autore-schema`. Implement `ModuleIdentity { name: Option<String>, content_hash: ContentHash, image_relative_index: Option<u32> }`. Implement `BinaryLocation { artifact: BinaryArtifactId, module: ModuleIdentity, relative_address: u64 }` — NOT keyed by absolute load address or filesystem path or IDA id. Replace the minimal `BinaryLocation` placeholder from Task 6 with this refined version. Implement `StableEntityKey` closed enum: `BinaryLocation(BinaryLocation) | BinaryRange { start: BinaryLocation, length: u64 } | ArtifactSymbol { artifact: ArtifactId, symbol: String } | ExternalIdentity { namespace: NamespacedId, value: String }` — this enum CAN stay closed; document why in a doc comment. Implement `DerivationMethod` closed enum: `DirectObservation, ProviderAnalysis, DeterministicAnalysis, SolverProof, ConcreteExecution, SymbolicExecution, CrossProviderAgreement, LlmInference, HumanAssertion, ImportedKnowledge` (closed OK — finite derivation methods). Implement `Derivation { method: DerivationMethod, operation: NamespacedId, supporting_evidence: Vec<EvidenceId>, source_hypotheses: Vec<HypothesisId> }`. All serde-tagged explicitly. Commit fixtures for each.",
       "session_id": "opencode:ses_08f137c64ffeqtSZbfvd3DsWg8",
       "agent": "Sisyphus-Junior",
       "category": "unspecified-high",
@@ -102,7 +102,7 @@
     "todo:8": {
       "task_key": "todo:8",
       "task_label": "8",
-      "task_title": "Core Stage 0 error type (thiserror) replacing IDAError in core path. In `autore-core`, implement `#[derive(Debug, thiserror::Error)] pub enum Error` with \u00a727 categories: `Io(#[from] std::io::Error), Database(String), Serialization(String), Validation(String), NotFound(String), Conflict(String), HashMismatch, SchemaMismatch { expected: SchemaVersion, actual: SchemaVersion }, Migration(String), InvalidStateTransition(String), Subscription(String), Operation(String), Unsupported(String)`. Add `pub type Result<T, E = Error> = std::result::Result<T, E>;`. `IDAError` is NOT a core variant \u2014 it lives only in `autore-stage1` as a wrapped provider error (\u00a727 explicit). Use `thiserror` for message formatting. Each variant preserves the underlying source where applicable (`#[from]` or `#[source]`). Do NOT carry raw `String` validation messages throughout \u2014 typed helpers in `autore-schema` (e.g. `NamespacedIdError`) convert via `Error::Validation` with structure.",
+      "task_title": "Core Stage 0 error type (thiserror) replacing IDAError in core path. In `autore-core`, implement `#[derive(Debug, thiserror::Error)] pub enum Error` with §27 categories: `Io(#[from] std::io::Error), Database(String), Serialization(String), Validation(String), NotFound(String), Conflict(String), HashMismatch, SchemaMismatch { expected: SchemaVersion, actual: SchemaVersion }, Migration(String), InvalidStateTransition(String), Subscription(String), Operation(String), Unsupported(String)`. Add `pub type Result<T, E = Error> = std::result::Result<T, E>;`. `IDAError` is NOT a core variant — it lives only in `autore-stage1` as a wrapped provider error (§27 explicit). Use `thiserror` for message formatting. Each variant preserves the underlying source where applicable (`#[from]` or `#[source]`). Do NOT carry raw `String` validation messages throughout — typed helpers in `autore-schema` (e.g. `NamespacedIdError`) convert via `Error::Validation` with structure.",
       "session_id": "opencode:ses_08f04ff0bffeIJQL5JwBMXSR3o",
       "agent": "Sisyphus-Junior",
       "category": "unspecified-high",
@@ -115,7 +115,7 @@
     "todo:9": {
       "task_key": "todo:9",
       "task_label": "9",
-      "task_title": "Logging wiring (tracing, file/JSON-safe, panic-aware) + validation primitives in `autore-core`. Wire `tracing` + `tracing-subscriber` with `env-filter` and `json` features into `autore-core`. Provide `LoggingConfig { log_file: Option<PathBuf>, json: bool }` and `init_logging(config) -> Result<()>` that: (a) writes logs to file or stderr, (b) CLI JSON output path is NOT polluted by log output (\u00a728 \"CLI log output must not corrupt JSON output\" \u2014 separate writer), (c) does NOT write over the terminal in TUI mode (writes to file or a sidecar, never stdout in TUI), (d) defaults to redacting fields named `*key*`, `*token*`, `*secret*`, `*password*`, `*credential*` (\u00a728 \"secrets must not be logged by default\"). Add a panic hook that calls a registered terminal-restoration callback if a TUI was active (panic-aware) and preserves panic details after restoration (\u00a728 + Metis panic-restoration gap). Add a small validation primitives module: `validate_id_exists`, `validate_namespaced_id`, `validate_confidence_range`, `validate_no_cycle(ids: &[&str], edges: &[(usize,usize)])`. Do NOT integrate logging into CLI/TUI yet (that's 0H/0I); this just delivers the harness.",
+      "task_title": "Logging wiring (tracing, file/JSON-safe, panic-aware) + validation primitives in `autore-core`. Wire `tracing` + `tracing-subscriber` with `env-filter` and `json` features into `autore-core`. Provide `LoggingConfig { log_file: Option<PathBuf>, json: bool }` and `init_logging(config) -> Result<()>` that: (a) writes logs to file or stderr, (b) CLI JSON output path is NOT polluted by log output (§28 \"CLI log output must not corrupt JSON output\" — separate writer), (c) does NOT write over the terminal in TUI mode (writes to file or a sidecar, never stdout in TUI), (d) defaults to redacting fields named `*key*`, `*token*`, `*secret*`, `*password*`, `*credential*` (§28 \"secrets must not be logged by default\"). Add a panic hook that calls a registered terminal-restoration callback if a TUI was active (panic-aware) and preserves panic details after restoration (§28 + Metis panic-restoration gap). Add a small validation primitives module: `validate_id_exists`, `validate_namespaced_id`, `validate_confidence_range`, `validate_no_cycle(ids: &[&str], edges: &[(usize,usize)])`. Do NOT integrate logging into CLI/TUI yet (that's 0H/0I); this just delivers the harness.",
       "session_id": "opencode:ses_08eefb13fffeP7AbM9OIRH752S",
       "agent": "Sisyphus-Junior",
       "category": "unspecified-high",
@@ -283,7 +283,7 @@
     "todo:22": {
       "task_key": "todo:22",
       "task_label": "22",
-      "task_title": "Intermediate Stage 0 kill\u2192resume-equivalent: Operation restart durability (Metis 0F-test hazard)",
+      "task_title": "Intermediate Stage 0 kill→resume-equivalent: Operation restart durability (Metis 0F-test hazard)",
       "session_id": "opencode:ses_08de0b477ffekufSurHqBEmjgF",
       "agent": "Sisyphus-Junior",
       "category": "unspecified-high",
@@ -361,7 +361,7 @@
     "todo:28": {
       "task_key": "todo:28",
       "task_label": "28",
-      "task_title": "TUI state remap: DashboardState \u2192 presentation-only TuiState + ProjectView",
+      "task_title": "TUI state remap: DashboardState → presentation-only TuiState + ProjectView",
       "session_id": "opencode:ses_08d6fd36fffeAjIvFrLXPQV3WX",
       "agent": "Sisyphus-Junior",
       "category": "visual-engineering",
@@ -465,7 +465,7 @@
     "todo:36": {
       "task_key": "todo:36",
       "task_label": "36",
-      "task_title": "Full persistence round-trip fixture (\u00a729.9)",
+      "task_title": "Full persistence round-trip fixture (§29.9)",
       "session_id": "opencode:ses_089261196ffex1pRuHi4blhgR4",
       "agent": "Sisyphus-Junior",
       "category": "deep",
@@ -478,7 +478,7 @@
     "todo:37": {
       "task_key": "todo:37",
       "task_label": "37",
-      "task_title": "Ratatui state-machine + render tests with deterministic data (\u00a729.13, \u00a729.14)",
+      "task_title": "Ratatui state-machine + render tests with deterministic data (§29.13, §29.14)",
       "session_id": "opencode:ses_0891cee41ffeJOj9M3bHJe8JSu",
       "agent": "Sisyphus-Junior",
       "category": "deep",
@@ -491,7 +491,7 @@
     "todo:38": {
       "task_key": "todo:38",
       "task_label": "38",
-      "task_title": "Pseudo-terminal integration test for the Ratatui app (\u00a729.15)",
+      "task_title": "Pseudo-terminal integration test for the Ratatui app (§29.15)",
       "session_id": "opencode:ses_089155dfaffeZU7leU1wDnHFev",
       "agent": "Sisyphus-Junior",
       "category": "deep",
@@ -500,6 +500,31 @@
       "status": "completed",
       "ended_at": "2026-07-18T21:21:37.736Z",
       "elapsed_ms": 127857
+    },
+    "todo:40": {
+      "task_key": "todo:40",
+      "task_label": "40",
+      "task_title": "Final commit ordering + workflow handoff (placeholder for executor)",
+      "session_id": "opencode:ses_088de71e7ffetZ2x29KIj23m5K",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-07-18T21:33:13.584Z",
+      "started_at": "2026-07-18T21:32:40.184Z",
+      "status": "completed",
+      "ended_at": "2026-07-18T21:33:13.584Z",
+      "elapsed_ms": 33400
+    },
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "Plan compliance audit",
+      "session_id": "opencode:ses_088d92b04ffeT33EJyWA8nfTnv",
+      "agent": "oracle",
+      "started_at": "2026-07-18T21:36:36.660Z",
+      "status": "completed",
+      "updated_at": "2026-07-18T21:47:02.050Z",
+      "ended_at": "2026-07-18T21:47:02.050Z",
+      "elapsed_ms": 625390
     }
   },
   "schema_version": 2,
@@ -711,7 +736,7 @@
         "todo:20": {
           "task_key": "todo:20",
           "task_label": "20",
-          "task_title": "End-to-end crash recovery: kill\u2192resume without duplicate accepted claims",
+          "task_title": "End-to-end crash recovery: kill→resume without duplicate accepted claims",
           "session_id": "opencode:ses_091fc4fd8ffeZXBuhVuljhc3Ve",
           "agent": "Sisyphus-Junior",
           "category": "unspecified-high",
@@ -724,7 +749,7 @@
         "final-wave:f1": {
           "task_key": "final-wave:f1",
           "task_label": "F1",
-          "task_title": "Plan compliance audit: verify every spec \u00a742 file exists, every \u00a743 required test is present, no domain file imports adapter crates, `cargo build` succeeds without optional features, and TUI runs without IDA.",
+          "task_title": "Plan compliance audit: verify every spec §42 file exists, every §43 required test is present, no domain file imports adapter crates, `cargo build` succeeds without optional features, and TUI runs without IDA.",
           "session_id": "opencode:ses_091e410f2ffewYKVtu9TAcgTIm",
           "agent": "Sisyphus-Junior",
           "category": "unspecified-high",
@@ -745,7 +770,7 @@
       "plan_name": "auto-re-stage-0",
       "status": "completed",
       "started_at": "2026-07-17T14:55:46.277Z",
-      "updated_at": "2026-07-18T21:31:07.671Z",
+      "updated_at": "2026-07-18T21:47:02.050Z",
       "session_ids": [
         "opencode:ses_08faf87f5ffekwxelYS83C7goH"
       ],
@@ -770,7 +795,7 @@
         "todo:3": {
           "task_key": "todo:3",
           "task_label": "3",
-          "task_title": "Produce the retain/adapt/move/defer/remove report as a committed doc. Write `docs/stage0-audit.md` (a real file, NOT a .omo artifact \u2014 this is a deliverable the spec \u00a733 requires in the final report; checked in to the repo). For every existing module in the M1 codebase, classify it as RETAIN UNCHANGED / RETAIN WITH ADAPTATION / MOVE BEHIND SHARED SERVICES / DEFER TO LATER STAGE / REMOVE. Cite the M1 source path and the Stage 0 destination. Examples: `define_id!` macro -> RETAIN ADAPTED (move to `autore-schema`, swap v4->v7); `ContentHash(String)` -> RETAIN ADAPTED (add `HashAlgorithm`); `Provenance` -> REMOVE (replaced by `Derivation` + `DerivationMethod`); M1 `Evidence`/`EvidenceKind` -> REMOVE (replaced by append-only `EvidenceRecord`+`EvidenceValue`); `Campaign`/`Task`/`Claim` -> REMOVE (replaced by Project/Operation/Hypothesis); M1 `EntityId` closed enum -> REMOVE (replaced by opaque `EntityId` + namespaced kind); `database.rs` open pattern -> RETAIN ADAPTED (add atomic state+event transactions, no DB-generated IDs, migration backups); `ratatui::init/restore` lifecycle -> RETAIN UNCHANGED; 4-panel layout -> RETAIN ADAPTED (remapped in 0I); `analysis/model/scheduler/worker/engine` -> DEFER (all in `autore-stage1`); M1 `campaign_smoke`/`kill_resume` -> REMOVE (replaced by Stage 0 tests that port the kill\u2192resume guarantee via Operation state + atomic events). Include a \"Decisions and rationale\" section for the 3 forks + adopted defaults. Do NOT leave any M1 file unclassified.",
+          "task_title": "Produce the retain/adapt/move/defer/remove report as a committed doc. Write `docs/stage0-audit.md` (a real file, NOT a .omo artifact — this is a deliverable the spec §33 requires in the final report; checked in to the repo). For every existing module in the M1 codebase, classify it as RETAIN UNCHANGED / RETAIN WITH ADAPTATION / MOVE BEHIND SHARED SERVICES / DEFER TO LATER STAGE / REMOVE. Cite the M1 source path and the Stage 0 destination. Examples: `define_id!` macro -> RETAIN ADAPTED (move to `autore-schema`, swap v4->v7); `ContentHash(String)` -> RETAIN ADAPTED (add `HashAlgorithm`); `Provenance` -> REMOVE (replaced by `Derivation` + `DerivationMethod`); M1 `Evidence`/`EvidenceKind` -> REMOVE (replaced by append-only `EvidenceRecord`+`EvidenceValue`); `Campaign`/`Task`/`Claim` -> REMOVE (replaced by Project/Operation/Hypothesis); M1 `EntityId` closed enum -> REMOVE (replaced by opaque `EntityId` + namespaced kind); `database.rs` open pattern -> RETAIN ADAPTED (add atomic state+event transactions, no DB-generated IDs, migration backups); `ratatui::init/restore` lifecycle -> RETAIN UNCHANGED; 4-panel layout -> RETAIN ADAPTED (remapped in 0I); `analysis/model/scheduler/worker/engine` -> DEFER (all in `autore-stage1`); M1 `campaign_smoke`/`kill_resume` -> REMOVE (replaced by Stage 0 tests that port the kill→resume guarantee via Operation state + atomic events). Include a \"Decisions and rationale\" section for the 3 forks + adopted defaults. Do NOT leave any M1 file unclassified.",
           "session_id": "opencode:ses_08f462467ffeoZCGPPlBwhu7Cb",
           "agent": "Sisyphus-Junior",
           "category": "writing",
@@ -783,7 +808,7 @@
         "todo:4": {
           "task_key": "todo:4",
           "task_label": "4",
-          "task_title": "Verify platform/crate assumptions (uuid v7, sha2, expectrl, refinery fixture path). Confirm the dependencies the plan relies on actually work. (a) Confirm `uuid` crate version supports `v7` feature (v7 added in uuid 1.6.0, Dec 2023); bump `uuid = { version = \"1\", features = [\"v7\",\"serde\"] }` and add a smoke test `uuid_v7_sorts` that creates two `Uuid::now_v7()` 1ms apart and asserts lexicographic ordering. (b) Add `sha2 = \"0.10\"` to `autore-schema` deps and write `content_hash_sha256_deterministic` test. (c) Add `expectrl = \"0.8\"` (or `portable-pty` from wezterm if expectrl fails the platform check) to `autore-tui` dev-dependencies; write a skip-guarded smoke test `pty_smoke_compiles` (uses `#[cfg(not(target_os=\"windows\"))]` or skips if the pty crate is unavailable). This todo does NOT use these crates beyond smoke tests; full integration comes later. (d) Confirm refinery `embed_migrations!(\"migrations/\")` keeps V1 + V2 together for forward migration; write a smoke test `migration_runs_v1_then_v2` that copies a temp V1 SQL fixture, runs `migrations::runner()`, verifies both V1 and V2 tables exist. Do NOT delete V1 \u2014 it stays in `migrations/` so a real V1 project database is forward-migrated. Do NOT commit the v1_project.sqlite3 fixture yet (that's task 41).",
+          "task_title": "Verify platform/crate assumptions (uuid v7, sha2, expectrl, refinery fixture path). Confirm the dependencies the plan relies on actually work. (a) Confirm `uuid` crate version supports `v7` feature (v7 added in uuid 1.6.0, Dec 2023); bump `uuid = { version = \"1\", features = [\"v7\",\"serde\"] }` and add a smoke test `uuid_v7_sorts` that creates two `Uuid::now_v7()` 1ms apart and asserts lexicographic ordering. (b) Add `sha2 = \"0.10\"` to `autore-schema` deps and write `content_hash_sha256_deterministic` test. (c) Add `expectrl = \"0.8\"` (or `portable-pty` from wezterm if expectrl fails the platform check) to `autore-tui` dev-dependencies; write a skip-guarded smoke test `pty_smoke_compiles` (uses `#[cfg(not(target_os=\"windows\"))]` or skips if the pty crate is unavailable). This todo does NOT use these crates beyond smoke tests; full integration comes later. (d) Confirm refinery `embed_migrations!(\"migrations/\")` keeps V1 + V2 together for forward migration; write a smoke test `migration_runs_v1_then_v2` that copies a temp V1 SQL fixture, runs `migrations::runner()`, verifies both V1 and V2 tables exist. Do NOT delete V1 — it stays in `migrations/` so a real V1 project database is forward-migrated. Do NOT commit the v1_project.sqlite3 fixture yet (that's task 41).",
           "session_id": "opencode:ses_08f4608aeffeHjE42EV44OPNm9",
           "agent": "Sisyphus-Junior",
           "category": "unspecified-high",
@@ -796,7 +821,7 @@
         "todo:2": {
           "task_key": "todo:2",
           "task_label": "2",
-          "task_title": "Pre-refactor TUI regression test baseline (capture current useful behavior). BEFORE any TUI refactoring, add tests covering the existing 4-panel Ratatui dashboard's useful behavior so 0I remapping preserves it. Tests belong in `autore-tui` (the new crate home for these). Cover: (a) startup with empty state renders without panic, (b) primary 4-panel screen renders with the panel titles `Campaigns`/`Campaign Status`/`Tasks`/`Claims Progress`, (c) `j`/`Down` and `k`/`Up` navigation moves selection and wraps, (d) `q` quits, (e) clean shutdown restores terminal (raw mode off, leave alt screen) \u2014 use `ratatui::init()`/`ratatui::restore()` and assert via a helper that captures terminal state, (f) Help/empty-state messages render. ALSO add a panic-restores-terminal test using `std::panic::set_hook` that calls `ratatui::restore()` then re-panics (Metis gap: terminal-restoration-on-panic). Use `ratatui::backend::TestBackend` for render tests and `tempfile` for any file artifacts. Do NOT modify the existing `Tui`/`DashboardState`/`TuiUpdate` types yet (they will be remapped in 0I) \u2014 these tests pin current behavior. Do NOT add Stage 0 panels.",
+          "task_title": "Pre-refactor TUI regression test baseline (capture current useful behavior). BEFORE any TUI refactoring, add tests covering the existing 4-panel Ratatui dashboard's useful behavior so 0I remapping preserves it. Tests belong in `autore-tui` (the new crate home for these). Cover: (a) startup with empty state renders without panic, (b) primary 4-panel screen renders with the panel titles `Campaigns`/`Campaign Status`/`Tasks`/`Claims Progress`, (c) `j`/`Down` and `k`/`Up` navigation moves selection and wraps, (d) `q` quits, (e) clean shutdown restores terminal (raw mode off, leave alt screen) — use `ratatui::init()`/`ratatui::restore()` and assert via a helper that captures terminal state, (f) Help/empty-state messages render. ALSO add a panic-restores-terminal test using `std::panic::set_hook` that calls `ratatui::restore()` then re-panics (Metis gap: terminal-restoration-on-panic). Use `ratatui::backend::TestBackend` for render tests and `tempfile` for any file artifacts. Do NOT modify the existing `Tui`/`DashboardState`/`TuiUpdate` types yet (they will be remapped in 0I) — these tests pin current behavior. Do NOT add Stage 0 panels.",
           "session_id": "opencode:ses_08f463f19ffe07VTSSimbc9ytE",
           "agent": "Sisyphus-Junior",
           "category": "visual-engineering",
@@ -821,7 +846,7 @@
         "todo:6": {
           "task_key": "todo:6",
           "task_label": "6",
-          "task_title": "ExtensionData, MetadataMap, EvidenceValue + strict-float validation in `autore-schema`. Implement `ExtensionData { schema: NamespacedId, version: u32, value: serde_json::Value }` with `schema` validated as a `NamespacedId`. Implement `MetadataMap` as a typed wrapper around `BTreeMap<NamespacedId, ExtensionData>` (DO NOT expose unbounded `serde_json::Value` throughout the domain \u2014 \u00a77 mandates versioned extension wrappers). Implement `EvidenceValue` as a tagged enum with explicit `#[serde(tag = \"kind\", content = \"value\")]`: `Null, Boolean(bool), SignedInteger(i128), UnsignedInteger(u128), Float(f64), String(String), Bytes(Vec<u8>), Entity(EntityId), Artifact(ArtifactId), BinaryLocation(BinaryLocation), List(Vec<EvidenceValue>), Map(BTreeMap<String,EvidenceValue>), Extension(ExtensionData)`. Float values MUST reject NaN and infinite on construction AND deserialize; add an `EvidenceValue::float(f64) -> Result<Self, Error>` constructor. Maps use deterministic `BTreeMap` ordering. Commit fixtures for ExtensionData and EvidenceValue (including Map ordering and float rejection).",
+          "task_title": "ExtensionData, MetadataMap, EvidenceValue + strict-float validation in `autore-schema`. Implement `ExtensionData { schema: NamespacedId, version: u32, value: serde_json::Value }` with `schema` validated as a `NamespacedId`. Implement `MetadataMap` as a typed wrapper around `BTreeMap<NamespacedId, ExtensionData>` (DO NOT expose unbounded `serde_json::Value` throughout the domain — §7 mandates versioned extension wrappers). Implement `EvidenceValue` as a tagged enum with explicit `#[serde(tag = \"kind\", content = \"value\")]`: `Null, Boolean(bool), SignedInteger(i128), UnsignedInteger(u128), Float(f64), String(String), Bytes(Vec<u8>), Entity(EntityId), Artifact(ArtifactId), BinaryLocation(BinaryLocation), List(Vec<EvidenceValue>), Map(BTreeMap<String,EvidenceValue>), Extension(ExtensionData)`. Float values MUST reject NaN and infinite on construction AND deserialize; add an `EvidenceValue::float(f64) -> Result<Self, Error>` constructor. Maps use deterministic `BTreeMap` ordering. Commit fixtures for ExtensionData and EvidenceValue (including Map ordering and float rejection).",
           "session_id": "opencode:ses_08f1deb7bffeNZ27NTYZTnu02m",
           "agent": "Sisyphus-Junior",
           "category": "unspecified-high",
@@ -834,7 +859,7 @@
         "todo:7": {
           "task_key": "todo:7",
           "task_label": "7",
-          "task_title": "BinaryLocation + ModuleIdentity + StableEntityKey + Derivation primitives in `autore-schema`. Implement `ModuleIdentity { name: Option<String>, content_hash: ContentHash, image_relative_index: Option<u32> }`. Implement `BinaryLocation { artifact: BinaryArtifactId, module: ModuleIdentity, relative_address: u64 }` \u2014 NOT keyed by absolute load address or filesystem path or IDA id. Replace the minimal `BinaryLocation` placeholder from Task 6 with this refined version. Implement `StableEntityKey` closed enum: `BinaryLocation(BinaryLocation) | BinaryRange { start: BinaryLocation, length: u64 } | ArtifactSymbol { artifact: ArtifactId, symbol: String } | ExternalIdentity { namespace: NamespacedId, value: String }` \u2014 this enum CAN stay closed; document why in a doc comment. Implement `DerivationMethod` closed enum: `DirectObservation, ProviderAnalysis, DeterministicAnalysis, SolverProof, ConcreteExecution, SymbolicExecution, CrossProviderAgreement, LlmInference, HumanAssertion, ImportedKnowledge` (closed OK \u2014 finite derivation methods). Implement `Derivation { method: DerivationMethod, operation: NamespacedId, supporting_evidence: Vec<EvidenceId>, source_hypotheses: Vec<HypothesisId> }`. All serde-tagged explicitly. Commit fixtures for each.",
+          "task_title": "BinaryLocation + ModuleIdentity + StableEntityKey + Derivation primitives in `autore-schema`. Implement `ModuleIdentity { name: Option<String>, content_hash: ContentHash, image_relative_index: Option<u32> }`. Implement `BinaryLocation { artifact: BinaryArtifactId, module: ModuleIdentity, relative_address: u64 }` — NOT keyed by absolute load address or filesystem path or IDA id. Replace the minimal `BinaryLocation` placeholder from Task 6 with this refined version. Implement `StableEntityKey` closed enum: `BinaryLocation(BinaryLocation) | BinaryRange { start: BinaryLocation, length: u64 } | ArtifactSymbol { artifact: ArtifactId, symbol: String } | ExternalIdentity { namespace: NamespacedId, value: String }` — this enum CAN stay closed; document why in a doc comment. Implement `DerivationMethod` closed enum: `DirectObservation, ProviderAnalysis, DeterministicAnalysis, SolverProof, ConcreteExecution, SymbolicExecution, CrossProviderAgreement, LlmInference, HumanAssertion, ImportedKnowledge` (closed OK — finite derivation methods). Implement `Derivation { method: DerivationMethod, operation: NamespacedId, supporting_evidence: Vec<EvidenceId>, source_hypotheses: Vec<HypothesisId> }`. All serde-tagged explicitly. Commit fixtures for each.",
           "session_id": "opencode:ses_08f137c64ffeqtSZbfvd3DsWg8",
           "agent": "Sisyphus-Junior",
           "category": "unspecified-high",
@@ -847,7 +872,7 @@
         "todo:8": {
           "task_key": "todo:8",
           "task_label": "8",
-          "task_title": "Core Stage 0 error type (thiserror) replacing IDAError in core path. In `autore-core`, implement `#[derive(Debug, thiserror::Error)] pub enum Error` with \u00a727 categories: `Io(#[from] std::io::Error), Database(String), Serialization(String), Validation(String), NotFound(String), Conflict(String), HashMismatch, SchemaMismatch { expected: SchemaVersion, actual: SchemaVersion }, Migration(String), InvalidStateTransition(String), Subscription(String), Operation(String), Unsupported(String)`. Add `pub type Result<T, E = Error> = std::result::Result<T, E>;`. `IDAError` is NOT a core variant \u2014 it lives only in `autore-stage1` as a wrapped provider error (\u00a727 explicit). Use `thiserror` for message formatting. Each variant preserves the underlying source where applicable (`#[from]` or `#[source]`). Do NOT carry raw `String` validation messages throughout \u2014 typed helpers in `autore-schema` (e.g. `NamespacedIdError`) convert via `Error::Validation` with structure.",
+          "task_title": "Core Stage 0 error type (thiserror) replacing IDAError in core path. In `autore-core`, implement `#[derive(Debug, thiserror::Error)] pub enum Error` with §27 categories: `Io(#[from] std::io::Error), Database(String), Serialization(String), Validation(String), NotFound(String), Conflict(String), HashMismatch, SchemaMismatch { expected: SchemaVersion, actual: SchemaVersion }, Migration(String), InvalidStateTransition(String), Subscription(String), Operation(String), Unsupported(String)`. Add `pub type Result<T, E = Error> = std::result::Result<T, E>;`. `IDAError` is NOT a core variant — it lives only in `autore-stage1` as a wrapped provider error (§27 explicit). Use `thiserror` for message formatting. Each variant preserves the underlying source where applicable (`#[from]` or `#[source]`). Do NOT carry raw `String` validation messages throughout — typed helpers in `autore-schema` (e.g. `NamespacedIdError`) convert via `Error::Validation` with structure.",
           "session_id": "opencode:ses_08f04ff0bffeIJQL5JwBMXSR3o",
           "agent": "Sisyphus-Junior",
           "category": "unspecified-high",
@@ -860,7 +885,7 @@
         "todo:9": {
           "task_key": "todo:9",
           "task_label": "9",
-          "task_title": "Logging wiring (tracing, file/JSON-safe, panic-aware) + validation primitives in `autore-core`. Wire `tracing` + `tracing-subscriber` with `env-filter` and `json` features into `autore-core`. Provide `LoggingConfig { log_file: Option<PathBuf>, json: bool }` and `init_logging(config) -> Result<()>` that: (a) writes logs to file or stderr, (b) CLI JSON output path is NOT polluted by log output (\u00a728 \"CLI log output must not corrupt JSON output\" \u2014 separate writer), (c) does NOT write over the terminal in TUI mode (writes to file or a sidecar, never stdout in TUI), (d) defaults to redacting fields named `*key*`, `*token*`, `*secret*`, `*password*`, `*credential*` (\u00a728 \"secrets must not be logged by default\"). Add a panic hook that calls a registered terminal-restoration callback if a TUI was active (panic-aware) and preserves panic details after restoration (\u00a728 + Metis panic-restoration gap). Add a small validation primitives module: `validate_id_exists`, `validate_namespaced_id`, `validate_confidence_range`, `validate_no_cycle(ids: &[&str], edges: &[(usize,usize)])`. Do NOT integrate logging into CLI/TUI yet (that's 0H/0I); this just delivers the harness.",
+          "task_title": "Logging wiring (tracing, file/JSON-safe, panic-aware) + validation primitives in `autore-core`. Wire `tracing` + `tracing-subscriber` with `env-filter` and `json` features into `autore-core`. Provide `LoggingConfig { log_file: Option<PathBuf>, json: bool }` and `init_logging(config) -> Result<()>` that: (a) writes logs to file or stderr, (b) CLI JSON output path is NOT polluted by log output (§28 \"CLI log output must not corrupt JSON output\" — separate writer), (c) does NOT write over the terminal in TUI mode (writes to file or a sidecar, never stdout in TUI), (d) defaults to redacting fields named `*key*`, `*token*`, `*secret*`, `*password*`, `*credential*` (§28 \"secrets must not be logged by default\"). Add a panic hook that calls a registered terminal-restoration callback if a TUI was active (panic-aware) and preserves panic details after restoration (§28 + Metis panic-restoration gap). Add a small validation primitives module: `validate_id_exists`, `validate_namespaced_id`, `validate_confidence_range`, `validate_no_cycle(ids: &[&str], edges: &[(usize,usize)])`. Do NOT integrate logging into CLI/TUI yet (that's 0H/0I); this just delivers the harness.",
           "session_id": "opencode:ses_08eefb13fffeP7AbM9OIRH752S",
           "agent": "Sisyphus-Junior",
           "category": "unspecified-high",
@@ -1028,7 +1053,7 @@
         "todo:22": {
           "task_key": "todo:22",
           "task_label": "22",
-          "task_title": "Intermediate Stage 0 kill\u2192resume-equivalent: Operation restart durability (Metis 0F-test hazard)",
+          "task_title": "Intermediate Stage 0 kill→resume-equivalent: Operation restart durability (Metis 0F-test hazard)",
           "session_id": "opencode:ses_08de0b477ffekufSurHqBEmjgF",
           "agent": "Sisyphus-Junior",
           "category": "unspecified-high",
@@ -1106,7 +1131,7 @@
         "todo:28": {
           "task_key": "todo:28",
           "task_label": "28",
-          "task_title": "TUI state remap: DashboardState \u2192 presentation-only TuiState + ProjectView",
+          "task_title": "TUI state remap: DashboardState → presentation-only TuiState + ProjectView",
           "session_id": "opencode:ses_08d6fd36fffeAjIvFrLXPQV3WX",
           "agent": "Sisyphus-Junior",
           "category": "visual-engineering",
@@ -1210,7 +1235,7 @@
         "todo:36": {
           "task_key": "todo:36",
           "task_label": "36",
-          "task_title": "Full persistence round-trip fixture (\u00a729.9)",
+          "task_title": "Full persistence round-trip fixture (§29.9)",
           "session_id": "opencode:ses_089261196ffex1pRuHi4blhgR4",
           "agent": "Sisyphus-Junior",
           "category": "deep",
@@ -1223,7 +1248,7 @@
         "todo:37": {
           "task_key": "todo:37",
           "task_label": "37",
-          "task_title": "Ratatui state-machine + render tests with deterministic data (\u00a729.13, \u00a729.14)",
+          "task_title": "Ratatui state-machine + render tests with deterministic data (§29.13, §29.14)",
           "session_id": "opencode:ses_0891cee41ffeJOj9M3bHJe8JSu",
           "agent": "Sisyphus-Junior",
           "category": "deep",
@@ -1236,7 +1261,7 @@
         "todo:38": {
           "task_key": "todo:38",
           "task_label": "38",
-          "task_title": "Pseudo-terminal integration test for the Ratatui app (\u00a729.15)",
+          "task_title": "Pseudo-terminal integration test for the Ratatui app (§29.15)",
           "session_id": "opencode:ses_089155dfaffeZU7leU1wDnHFev",
           "agent": "Sisyphus-Junior",
           "category": "deep",
@@ -1245,6 +1270,31 @@
           "status": "completed",
           "ended_at": "2026-07-18T21:21:37.736Z",
           "elapsed_ms": 127857
+        },
+        "todo:40": {
+          "task_key": "todo:40",
+          "task_label": "40",
+          "task_title": "Final commit ordering + workflow handoff (placeholder for executor)",
+          "session_id": "opencode:ses_088de71e7ffetZ2x29KIj23m5K",
+          "agent": "Sisyphus-Junior",
+          "category": "deep",
+          "updated_at": "2026-07-18T21:33:13.584Z",
+          "started_at": "2026-07-18T21:32:40.184Z",
+          "status": "completed",
+          "ended_at": "2026-07-18T21:33:13.584Z",
+          "elapsed_ms": 33400
+        },
+        "final-wave:f1": {
+          "task_key": "final-wave:f1",
+          "task_label": "F1",
+          "task_title": "Plan compliance audit",
+          "session_id": "opencode:ses_088d92b04ffeT33EJyWA8nfTnv",
+          "agent": "oracle",
+          "started_at": "2026-07-18T21:36:36.660Z",
+          "status": "completed",
+          "updated_at": "2026-07-18T21:47:02.050Z",
+          "ended_at": "2026-07-18T21:47:02.050Z",
+          "elapsed_ms": 625390
         }
       },
       "elapsed_ms": 110121394,
@@ -1252,7 +1302,9 @@
     }
   },
   "active_work_id": "auto-re-stage-0-e378660c",
-  "updated_at": "2026-07-18T21:31:07.671Z",
-  "status": "active",
-  "agent": "atlas"
+  "updated_at": "2026-07-18T21:47:02.050Z",
+  "status": "completed",
+  "agent": "atlas",
+  "ended_at": "2026-07-18T21:31:07.671Z",
+  "elapsed_ms": 110121394
 }

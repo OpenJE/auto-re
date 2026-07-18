@@ -5,11 +5,16 @@
 //! artifacts directory, and a packages lock file.
 
 use std::path::Path;
+use std::sync::Arc;
 
 use autore_core::{Error, Result};
+use autore_events::project_event_service::{EventBroadcaster, LocalProjectEventService};
 use autore_schema::domain::records::Project;
+use autore_schema::ids::ProjectId;
 use autore_schema::manifest::ProjectManifest;
 use autore_store::Database;
+
+use crate::{ApplicationService, LocalAutoReClient};
 
 /// The project directory name within the parent directory.
 const PROJECT_DIR_NAME: &str = "project.auto-re";
@@ -123,6 +128,39 @@ pub fn close_project(_project: &mut Project) {
     // No-op: Database handles are released when Database is dropped.
     // This function exists to document the lifecycle and provide a
     // future hook for explicit cleanup if needed.
+}
+
+/// Opens an existing project and returns a fully-wired local client.
+///
+/// This factory loads the project manifest, opens the SQLite database, builds
+/// the in-process event service, and constructs an [`ApplicationService`] +
+/// [`LocalAutoReClient`] pair. It is the canonical entry point for frontends
+/// such as the TUI that need to connect to a project without touching the
+/// store layer directly.
+///
+/// `project_dir` is the parent directory containing the `project.auto-re/`
+/// subdirectory.
+///
+/// # Errors
+/// Returns an error if the manifest cannot be loaded, the schema version
+/// doesn't match, or the database cannot be opened.
+pub fn open_project_client(project_dir: &Path) -> Result<(LocalAutoReClient, ProjectId)> {
+    let auto_re_dir = project_dir.join(PROJECT_DIR_NAME);
+    let manifest_path = auto_re_dir.join(MANIFEST_FILE_NAME);
+
+    let manifest = ProjectManifest::load(&manifest_path)?;
+    let project_id = manifest.project.id;
+
+    let database_path = auto_re_dir.join(DATABASE_FILE_NAME);
+    let db = Arc::new(Database::open(&database_path)?);
+
+    let broadcaster = Arc::new(EventBroadcaster::new());
+    let events: Arc<dyn autore_events::project_event_service::ProjectEventService + Send + Sync> =
+        Arc::new(LocalProjectEventService::new(Arc::clone(&db), broadcaster));
+
+    let service = ApplicationService::new(db, events, project_dir);
+    let client = LocalAutoReClient::new(Arc::new(service));
+    Ok((client, project_id))
 }
 
 #[cfg(test)]

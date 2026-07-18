@@ -287,7 +287,6 @@ dependencies = [
  "autore-core",
  "autore-events",
  "autore-schema",
- "autore-store",
  "crossterm",
  "expectrl",
  "ratatui",

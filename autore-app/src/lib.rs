@@ -8,7 +8,7 @@ pub mod lifecycle;
 #[cfg(test)]
 mod operation;
 
-pub use lifecycle::{close_project, create_project, open_project};
+pub use lifecycle::{close_project, create_project, open_project, open_project_client};
 
 pub mod application_service;
 
