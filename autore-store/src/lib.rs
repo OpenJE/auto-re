@@ -12,5 +12,6 @@ pub use storage::{
     SqliteAliasStore, SqliteArtifactStore, SqliteContradictionStore, SqliteEntityStore,
     SqliteEventStore, SqliteEvidenceStore, SqliteHypothesisStore, SqliteOperationStore,
     SqliteProjectStore, SqliteProviderStore, SqliteVerificationStore, Transaction,
-    VerificationStore, emit_in_tx, next_project_event_sequence, with_event,
+    VerificationStore, build_derived_state, build_derived_state_in_tx, emit_in_tx,
+    next_project_event_sequence, with_event,
 };

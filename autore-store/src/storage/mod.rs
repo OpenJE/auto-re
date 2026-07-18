@@ -4,6 +4,7 @@ pub mod alias_store;
 pub mod artifact_store;
 pub mod contradiction_store;
 pub mod database;
+pub mod derived;
 pub mod entity_store;
 pub mod event_store;
 pub mod evidence_store;
@@ -19,6 +20,7 @@ pub use alias_store::{NativeArtifactStore, ProviderAliasStore, SqliteAliasStore}
 pub use artifact_store::{ArtifactIntegrity, ArtifactStore, SqliteArtifactStore};
 pub use contradiction_store::{ContradictionStore, SqliteContradictionStore};
 pub use database::{Database, Transaction};
+pub use derived::{build_derived_state, build_derived_state_in_tx};
 pub use entity_store::{EntityColumn, EntityPage, EntityStore, SqliteEntityStore};
 pub use event_store::{
     EventStore, SqliteEventStore, emit_in_tx, next_project_event_sequence, with_event,
