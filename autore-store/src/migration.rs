@@ -42,6 +42,10 @@ const V2_TABLES: &[&str] = &[
     "progress_updates",
     "cancellation_requests",
     "project_events",
+    "derived_project_summary",
+    "derived_hypothesis_progress",
+    "derived_evidence_progress",
+    "derived_reverse_references",
 ];
 
 /// A recorded schema migration.

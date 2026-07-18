@@ -204,6 +204,10 @@ mod tests {
             "progress_updates",
             "cancellation_requests",
             "project_events",
+            "derived_project_summary",
+            "derived_hypothesis_progress",
+            "derived_evidence_progress",
+            "derived_reverse_references",
         ];
         for table in v2_tables {
             assert!(
