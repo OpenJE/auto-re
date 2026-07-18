@@ -9,3 +9,6 @@ pub use tui::state::{
     DialogState, EventCursor, FilterState, Focus, Navigation, Notification, NotificationLevel,
     OperationViewState, ProjectViewState, TuiState, ValidationStatus,
 };
+
+// Re-export event loop types for external consumers.
+pub use tui::{InternalTuiEvent, LoopAction, TerminalEvent, TuiEvent, TuiEventLoop};
