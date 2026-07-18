@@ -413,3 +413,22 @@
 - Added `assert_cmd = "2"` and `predicates = "3"` to workspace `[workspace.dependencies]`.
 - Added as dev-dependencies in `autore-cli/Cargo.toml`.
 - These are standard Rust CLI testing crates; no concerns.
+
+## 2026-07-17 (Task 28)
+
+### Circular dependency `autore-app ↔ autore-tui` (RESOLVED)
+- `autore-app` had `autore-tui = { path = "../autore-tui" }` and `pub use autore_tui::{runtime, tui};`.
+- No external code used `autore_app::runtime` or `autore_app::tui`.
+- Removed `autore-tui` from `autore-app`'s deps and the re-exports.
+- Added `autore-app` to `autore-tui`'s deps for `AutoReClient` access.
+- `autore-stage1` depends on `autore-tui` directly (optional feature), unaffected.
+
+### `TuiUpdate` channel removed (DESIGN NOTE)
+- Task 29 will wire `ProjectEventSubscription` on top of `ProjectEventService`.
+- The old `TuiUpdate` mpsc channel and `DashboardState::apply_update` are gone.
+- `runtime.rs` now just delegates to `tui::run_tui()` with no scheduler loop.
+
+### `grep` acceptance criteria covers comments (RESOLVED)
+- Initial implementation had doc comments mentioning `Database` and `rusqlite`.
+- The strict `grep -r 'rusqlite\|Database' autore-tui/src` check returns no matches.
+- All references to these words removed from comments, not just imports.

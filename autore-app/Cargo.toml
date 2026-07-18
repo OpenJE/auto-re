@@ -8,8 +8,6 @@ autore-core = { path = "../autore-core" }
 autore-schema = { path = "../autore-schema" }
 autore-store = { path = "../autore-store" }
 autore-events = { path = "../autore-events" }
-autore-tui = { path = "../autore-tui" }
-
 rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true

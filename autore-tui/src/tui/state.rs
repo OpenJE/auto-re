@@ -1,271 +1,223 @@
-//! Dashboard state — read-only snapshot of campaigns, tasks, and claims.
+//! Presentation-only TUI state — snapshots loaded via [`AutoReClient`].
 //!
-//! The TUI receives a `DashboardState` populated from repository traits
-//! (or in-memory stubs for M1). The TUI never mutates this state.
+//! The TUI never holds a direct storage handle (§3.9 + §23.3). All data
+//! access goes through `Box<dyn AutoReClient>`.
 
-use crate::domain::{Campaign, CampaignState, Claim, ClaimState, Task, TaskState};
+use std::collections::HashMap;
 
-/// Top-level dashboard state: a snapshot of all displayable data.
-#[derive(Debug, Clone, Default)]
-pub struct DashboardState {
-    /// All campaigns in the system.
-    pub campaigns: Vec<Campaign>,
-    /// All tasks across all campaigns.
-    pub tasks: Vec<Task>,
-    /// All claims across all campaigns.
-    pub claims: Vec<Claim>,
-    /// Index of the currently selected campaign in `campaigns`.
-    pub selected_campaign: usize,
-}
+use autore_schema::domain::records::{
+    Artifact, Contradiction, EvidenceRecord, Hypothesis, Operation, Project, ProjectEvent,
+    Provider, ProviderRun, SemanticEntity, VerificationRecord,
+};
+use autore_schema::domain::{NamespacedId, SchemaVersion, Timestamp};
+use autore_schema::ids::{OperationId, ProjectId};
 
-impl DashboardState {
-    /// Returns the currently selected campaign, if any.
-    #[must_use]
-    pub fn selected(&self) -> Option<&Campaign> {
-        self.campaigns.get(self.selected_campaign)
-    }
+// ---------------------------------------------------------------------------
+// TuiState — top-level presentation state
+// ---------------------------------------------------------------------------
 
-    /// Returns tasks belonging to the selected campaign.
-    #[must_use]
-    pub fn selected_tasks(&self) -> Vec<&Task> {
-        let Some(campaign) = self.selected() else {
-            return Vec::new();
-        };
-        self.tasks
-            .iter()
-            .filter(|t| t.campaign_id == campaign.id)
-            .collect()
-    }
-
-    /// Returns claims belonging to tasks in the selected campaign.
-    #[must_use]
-    pub fn selected_claims(&self) -> Vec<&Claim> {
-        let Some(campaign) = self.selected() else {
-            return Vec::new();
-        };
-        let task_ids: Vec<_> = self
-            .tasks
-            .iter()
-            .filter(|t| t.campaign_id == campaign.id)
-            .map(|t| t.id)
-            .collect();
-        // For M1, claims are not directly linked to campaigns via task IDs
-        // in the domain model. Return all claims as a flat summary.
-        let _ = task_ids;
-        self.claims.iter().collect()
-    }
-
-    /// Moves selection to the next campaign (wraps around).
-    pub fn select_next(&mut self) {
-        if !self.campaigns.is_empty() {
-            self.selected_campaign = (self.selected_campaign + 1) % self.campaigns.len();
-        }
-    }
-
-    /// Moves selection to the previous campaign (wraps around).
-    pub fn select_previous(&mut self) {
-        if !self.campaigns.is_empty() {
-            self.selected_campaign = if self.selected_campaign == 0 {
-                self.campaigns.len() - 1
-            } else {
-                self.selected_campaign - 1
-            };
-        }
-    }
-}
-
-/// Summary counts for claims by state.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct ClaimSummary {
-    pub proposed: usize,
-    pub under_review: usize,
-    pub accepted: usize,
-    pub rejected: usize,
-    pub superseded: usize,
-    pub invalidated: usize,
-}
-
-impl ClaimSummary {
-    /// Computes a summary from a slice of claims.
-    #[must_use]
-    pub fn from_claims(claims: &[&Claim]) -> Self {
-        let mut summary = Self::default();
-        for claim in claims {
-            match claim.state {
-                ClaimState::Proposed => summary.proposed += 1,
-                ClaimState::UnderReview => summary.under_review += 1,
-                ClaimState::Accepted => summary.accepted += 1,
-                ClaimState::Rejected => summary.rejected += 1,
-                ClaimState::Superseded => summary.superseded += 1,
-                ClaimState::Invalidated => summary.invalidated += 1,
-            }
-        }
-        summary
-    }
-
-    /// Total number of claims.
-    #[must_use]
-    pub fn total(&self) -> usize {
-        self.proposed
-            + self.under_review
-            + self.accepted
-            + self.rejected
-            + self.superseded
-            + self.invalidated
-    }
-
-    /// Progress as a fraction (accepted / total), in 0.0..=1.0.
-    #[must_use]
-    pub fn progress(&self) -> f64 {
-        let total = self.total();
-        if total == 0 {
-            return 0.0;
-        }
-        self.accepted as f64 / total as f64
-    }
-}
-
-/// Summary counts for tasks by state.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct TaskSummary {
-    pub pending: usize,
-    pub ready: usize,
-    pub leased: usize,
-    pub running: usize,
-    pub blocked: usize,
-    pub completed: usize,
-    pub failed: usize,
-    pub cancelled: usize,
-    pub stale: usize,
-}
-
-impl TaskSummary {
-    /// Computes a summary from a slice of tasks.
-    #[must_use]
-    pub fn from_tasks(tasks: &[&Task]) -> Self {
-        let mut summary = Self::default();
-        for task in tasks {
-            match task.state {
-                TaskState::Pending => summary.pending += 1,
-                TaskState::Ready => summary.ready += 1,
-                TaskState::Leased => summary.leased += 1,
-                TaskState::Running => summary.running += 1,
-                TaskState::Blocked => summary.blocked += 1,
-                TaskState::Completed => summary.completed += 1,
-                TaskState::Failed => summary.failed += 1,
-                TaskState::Cancelled => summary.cancelled += 1,
-                TaskState::Stale => summary.stale += 1,
-            }
-        }
-        summary
-    }
-
-    /// Total number of tasks.
-    #[must_use]
-    pub fn total(&self) -> usize {
-        self.pending
-            + self.ready
-            + self.leased
-            + self.running
-            + self.blocked
-            + self.completed
-            + self.failed
-            + self.cancelled
-            + self.stale
-    }
-
-    /// Progress as a fraction (completed / total), in 0.0..=1.0.
-    #[must_use]
-    pub fn progress(&self) -> f64 {
-        let total = self.total();
-        if total == 0 {
-            return 0.0;
-        }
-        self.completed as f64 / total as f64
-    }
-}
-
-/// Formats a `CampaignState` for display.
-#[must_use]
-pub fn format_campaign_state(state: CampaignState) -> &'static str {
-    match state {
-        CampaignState::Pending => "Pending",
-        CampaignState::Active => "Active",
-        CampaignState::Paused => "Paused",
-        CampaignState::Complete => "Complete",
-        CampaignState::Blocked => "Blocked",
-    }
-}
-
-/// An update event sent from the scheduler (or other producers) to the TUI.
+/// Top-level TUI state: presentation-only snapshots of project data.
 ///
-/// The TUI applies these updates to its `DashboardState` to reflect
-/// changes in campaigns, tasks, and claims without polling repositories.
-#[derive(Debug, Clone)]
-pub enum TuiUpdate {
-    /// A campaign was created or its state changed.
-    CampaignUpdated(Campaign),
-    /// A task was created or its state changed.
-    TaskUpdated(Task),
-    /// A new claim was produced.
-    ClaimAdded(Claim),
-    /// Replace the entire dashboard state (e.g., initial load).
-    Snapshot(DashboardState),
+/// The TUI receives this state populated from queries via `AutoReClient`.
+/// It never mutates the database directly.
+#[derive(Debug, Clone, Default)]
+pub struct TuiState {
+    /// Current navigation target.
+    pub navigation: Navigation,
+    /// Which UI element has keyboard focus.
+    pub focus: Focus,
+    /// Active text/kind filters.
+    pub filters: FilterState,
+    /// Modal dialogs stacked on top of the main view.
+    pub dialogs: Vec<DialogState>,
+    /// Transient notification messages.
+    pub notifications: Vec<Notification>,
+    /// Per-project data snapshots keyed by project ID.
+    pub project_views: HashMap<ProjectId, ProjectViewState>,
+    /// Per-operation detail views keyed by operation ID.
+    pub operation_views: HashMap<OperationId, OperationViewState>,
+    /// Event cursor tracking the last processed sequence.
+    pub event_cursor: EventCursor,
 }
 
-impl DashboardState {
-    /// Applies a `TuiUpdate` to this dashboard state.
-    ///
-    /// - `CampaignUpdated`: upserts the campaign (replace if exists, append otherwise).
-    /// - `TaskUpdated`: upserts the task.
-    /// - `ClaimAdded`: appends the claim if not already present.
-    /// - `Snapshot`: replaces campaigns, tasks, and claims entirely.
-    pub fn apply_update(&mut self, update: TuiUpdate) {
-        match update {
-            TuiUpdate::CampaignUpdated(campaign) => {
-                if let Some(existing) = self.campaigns.iter_mut().find(|c| c.id == campaign.id) {
-                    *existing = campaign;
-                } else {
-                    self.campaigns.push(campaign);
-                }
-            }
-            TuiUpdate::TaskUpdated(task) => {
-                if let Some(existing) = self.tasks.iter_mut().find(|t| t.id == task.id) {
-                    *existing = task;
-                } else {
-                    self.tasks.push(task);
-                }
-            }
-            TuiUpdate::ClaimAdded(claim) => {
-                if !self.claims.iter().any(|c| c.id == claim.id) {
-                    self.claims.push(claim);
-                }
-            }
-            TuiUpdate::Snapshot(snapshot) => {
-                self.campaigns = snapshot.campaigns;
-                self.tasks = snapshot.tasks;
-                self.claims = snapshot.claims;
-                // Preserve the caller's selection if still in bounds.
-                if self.selected_campaign >= self.campaigns.len() && !self.campaigns.is_empty() {
-                    self.selected_campaign = self.campaigns.len() - 1;
-                }
-            }
+impl TuiState {
+    /// Returns the project view for the current navigation target, if any.
+    #[must_use]
+    pub fn current_project_view(&self) -> Option<&ProjectViewState> {
+        match &self.navigation {
+            Navigation::Project(id) => self.project_views.get(id),
+            _ => None,
         }
     }
 }
 
-/// Formats a `TaskState` for display.
-#[must_use]
-pub fn format_task_state(state: TaskState) -> &'static str {
-    match state {
-        TaskState::Pending => "Pending",
-        TaskState::Ready => "Ready",
-        TaskState::Leased => "Leased",
-        TaskState::Running => "Running",
-        TaskState::Blocked => "Blocked",
-        TaskState::Completed => "Completed",
-        TaskState::Failed => "Failed",
-        TaskState::Cancelled => "Cancelled",
-        TaskState::Stale => "Stale",
-    }
+// ---------------------------------------------------------------------------
+// Navigation
+// ---------------------------------------------------------------------------
+
+/// Which screen/panel the user is viewing.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum Navigation {
+    /// Project overview / project list.
+    #[default]
+    Dashboard,
+    /// Viewing a specific project.
+    Project(ProjectId),
+    /// Viewing a specific operation.
+    Operation(OperationId),
+    /// Raw event stream.
+    Events,
+    /// Application settings.
+    Settings,
+}
+
+// ---------------------------------------------------------------------------
+// Focus
+// ---------------------------------------------------------------------------
+
+/// Which UI element currently has keyboard focus.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Focus {
+    /// First (left) panel — project list / summary.
+    #[default]
+    Panel1,
+    /// Second (top-right) panel — operations table.
+    Panel2,
+    /// Third (bottom-right) panel — hypotheses / evidence.
+    Panel3,
+    /// Sidebar / tab bar.
+    Sidebar,
+    /// Active modal dialog.
+    Dialog,
+}
+
+// ---------------------------------------------------------------------------
+// FilterState
+// ---------------------------------------------------------------------------
+
+/// Active text and kind filters for list views.
+#[derive(Debug, Clone, Default)]
+pub struct FilterState {
+    /// Free-text search query (empty = no filter).
+    pub text_search: String,
+    /// Optional kind filter for entities/artifacts.
+    pub kind_filter: Option<NamespacedId>,
+}
+
+// ---------------------------------------------------------------------------
+// DialogState
+// ---------------------------------------------------------------------------
+
+/// Modal dialog variants.
+#[derive(Debug, Clone)]
+pub enum DialogState {
+    /// Error dialog with a message.
+    Error(String),
+    /// Confirmation dialog with a message and pending callback.
+    Confirm { message: String },
+    /// Text input dialog with a prompt and current buffer.
+    Input { prompt: String, buffer: String },
+}
+
+// ---------------------------------------------------------------------------
+// Notification
+// ---------------------------------------------------------------------------
+
+/// Severity level for transient notifications.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotificationLevel {
+    Info,
+    Warning,
+    Error,
+}
+
+/// A transient notification message.
+#[derive(Debug, Clone)]
+pub struct Notification {
+    pub message: String,
+    pub level: NotificationLevel,
+    pub created_at: Timestamp,
+}
+
+// ---------------------------------------------------------------------------
+// ProjectViewState
+// ---------------------------------------------------------------------------
+
+/// Presentation snapshot for a single project.
+///
+/// All fields are option/embedded snapshots loaded from queries — never
+/// authoritative over the database.
+#[derive(Debug, Clone, Default)]
+pub struct ProjectViewState {
+    /// Project summary (None if not yet loaded).
+    pub project_summary: Option<Project>,
+    /// Artifacts in the project.
+    pub artifacts: Vec<Artifact>,
+    /// Semantic entities in the project.
+    pub entities: Vec<SemanticEntity>,
+    /// Providers registered for the project.
+    pub providers: Vec<Provider>,
+    /// Provider runs in the project.
+    pub runs: Vec<ProviderRun>,
+    /// Evidence records in the project.
+    pub evidence: Vec<EvidenceRecord>,
+    /// Hypotheses in the project.
+    pub hypotheses: Vec<Hypothesis>,
+    /// Contradictions in the project.
+    pub contradictions: Vec<Contradiction>,
+    /// Verification records in the project.
+    pub verification: Vec<VerificationRecord>,
+    /// Operations in the project.
+    pub operations: Vec<Operation>,
+    /// Recent project events (newest first).
+    pub recent_events: Vec<ProjectEvent>,
+    /// Schema version of the project (if loaded).
+    pub schema_version: Option<SchemaVersion>,
+    /// Validation status (if checked).
+    pub validation_status: Option<ValidationStatus>,
+}
+
+// ---------------------------------------------------------------------------
+// EventCursor
+// ---------------------------------------------------------------------------
+
+/// Tracks the TUI's position in the project event stream (§23.5).
+#[derive(Debug, Clone, Default)]
+pub struct EventCursor {
+    /// Last processed event sequence number.
+    pub last_sequence: u64,
+    /// Whether the event stream subscription is active.
+    pub connected: bool,
+    /// Whether any events were missed (gap detected).
+    pub missed_events: bool,
+}
+
+// ---------------------------------------------------------------------------
+// OperationViewState
+// ---------------------------------------------------------------------------
+
+/// Presentation snapshot for a single operation's detail view.
+#[derive(Debug, Clone, Default)]
+pub struct OperationViewState {
+    /// The operation record (None if not yet loaded).
+    pub operation: Option<Operation>,
+    /// Progress updates for the operation.
+    pub progress: Vec<autore_schema::domain::records::ProgressUpdate>,
+    /// Cancellation requests for the operation.
+    pub cancellation_requests: Vec<autore_schema::domain::records::CancellationRequest>,
+}
+
+// ---------------------------------------------------------------------------
+// ValidationStatus
+// ---------------------------------------------------------------------------
+
+/// Result of a project validation check.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ValidationStatus {
+    /// Validation passed with no issues.
+    Ok,
+    /// Validation passed with warnings.
+    Warnings(Vec<String>),
+    /// Validation failed with errors.
+    Failed(Vec<String>),
 }

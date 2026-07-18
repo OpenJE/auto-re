@@ -163,7 +163,6 @@ dependencies = [
  "autore-events",
  "autore-schema",
  "autore-store",
- "autore-tui",
  "rusqlite",
  "serde",
  "serde_json",
@@ -280,6 +279,7 @@ dependencies = [
 name = "autore-tui"
 version = "0.1.0"
 dependencies = [
+ "autore-app",
  "autore-core",
  "autore-events",
  "autore-schema",
