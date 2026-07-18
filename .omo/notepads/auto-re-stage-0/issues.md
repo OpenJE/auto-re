@@ -812,3 +812,25 @@
 - PTY integration test passed when run with `--ignored`.
 - Total workspace tests: 609 passed, 0 failed, 1 ignored (PTY); plus 5 doc-tests passed.
 - No code changes were required to make gates pass; no new external dependencies added.
+
+## 2026-07-18 (Task 40)
+
+### Stage 0 closure and workflow handoff completed (RESOLVED)
+- Inspected git history and working tree; found uncommitted changes from Tasks 36-39.
+- Committed remaining changes atomically in dependency order:
+  - `fd5b9c5` test(app): Task 36 persistence round-trip integration test.
+  - `3471f8f` test(tui): Task 37 deterministic render and state-machine tests.
+  - `1351895` feat(tui,cli): Task 38 PTY integration test and TUI/CLI wiring.
+  - `5778b27` docs(stage0): Task 39 Stage 0 implementation report and notepad updates.
+  - `dc5d01e` chore(ledger): mark Stage 0 work completed in `.omo/boulder.json`.
+- Verified legacy M1 tests `tests/campaign_smoke.rs` and `tests/kill_resume.rs` exist only inside `autore-stage1/tests/`; `autore-stage1` is excluded from workspace `default-members`, so they do not run on the default path.
+- Confirmed `docs/stage0-audit.md` is tracked and `docs/stage0-report.md` is now committed.
+- Updated `.omo/boulder.json`: set `works.auto-re-stage-0-e378660c.status` to `"completed"`, populated `elapsed_ms` from `started_at` to current UTC, and set `ended_at`/`updated_at`.
+- Ran Stage 0 final verification gates; all pass with exit code 0:
+  - `cargo build -p autore-stage1 --no-default-features`
+  - `cargo build -p autore-stage1`
+  - `cargo test --workspace --exclude autore-stage1` (workspace tests pass)
+  - `cargo clippy --workspace --exclude autore-stage1 --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+- No Stage 1 work was started; no new dependencies were added.
+- Closure summary appended to this issues file.
