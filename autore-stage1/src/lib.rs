@@ -13,7 +13,7 @@ pub use autore_schema::{
         WorkerRunId,
     },
 };
-pub use autore_store::storage;
+pub mod storage;
 
 mod error;
 pub use error::{Error, Result};
