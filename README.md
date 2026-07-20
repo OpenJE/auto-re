@@ -16,8 +16,8 @@ cargo run -p autore-cli -- project create --name my-binary
 # Inspect it
 cargo run -p autore-cli -- project info
 
-# Register a binary artifact
-cargo run -p autore-cli -- artifact add --file ./target.bin --kind core.binary
+# Register a binary artifact (import the project's own built binary as an example)
+cargo run -p autore-cli -- artifact add --file ./target/debug/auto-re --kind core.binary
 
 # Register a semantic entity
 cargo run -p autore-cli -- entity add --kind core.function --display-name main

@@ -472,8 +472,12 @@ fn handle_evidence(project_dir: &Path, args: EvidenceArgs) -> Result<(), String>
     let (client, project_id) = build_client(project_dir)?;
     match args.command {
         EvidenceCommand::Add { record } => {
-            let json_str = std::fs::read_to_string(&record)
-                .map_err(|e| format!("failed to read evidence record file: {e}"))?;
+            let json_str = std::fs::read_to_string(&record).map_err(|e| {
+                format!(
+                    "failed to read evidence record file {}: {e}",
+                    record.display()
+                )
+            })?;
             let evidence_record: EvidenceRecord = serde_json::from_str(&json_str)
                 .map_err(|e| format!("invalid evidence record JSON: {e}"))?;
             let result = client

@@ -45,7 +45,15 @@ pub fn insert_artifact_managed(
     kind: NamespacedId,
     artifact_id: ArtifactId,
 ) -> Result<Artifact> {
-    let data = std::fs::read(source_path).map_err(Error::Io)?;
+    let data = std::fs::read(source_path).map_err(|e| {
+        Error::Io(std::io::Error::new(
+            e.kind(),
+            format!(
+                "failed to read artifact source file {}: {e}",
+                source_path.display()
+            ),
+        ))
+    })?;
     let size = data.len() as u64;
     let hash = ContentHash::sha256(&data);
     let digest_hex = hash.digest_hex();
