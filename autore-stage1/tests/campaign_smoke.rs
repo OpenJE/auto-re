@@ -4,6 +4,8 @@
 //! scheduler, worker runner, and TUI channel. Runs a campaign with the
 //! 10-function fixture and asserts completion, claims, and TUI updates.
 
+#![cfg(feature = "tui")]
+
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 

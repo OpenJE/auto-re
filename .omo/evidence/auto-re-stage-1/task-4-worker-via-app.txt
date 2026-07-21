@@ -60,3 +60,21 @@ Structural changes in runner.rs:
 ClaimRepository and EvidenceRepository traits: NOT deleted (still in storage/repositories/)
 scheduler.rs: untouched
 WorkerOutput struct: preserved (claims, evidence, analysis fields unchanged)
+
+Feature-gate fix (follow-up)
+----------------------------
+Added #![cfg(feature = "tui")] to tests/campaign_smoke.rs to skip it when
+--no-default-features is active. This test imports autore_stage1::tui which
+requires the tui feature.
+
+$ cargo test -p autore-stage1 --no-default-features worker_routes_writes_through_application -- --nocapture
+running 1 test
+test worker::runner::tests::worker_routes_writes_through_application ... ok
+test result: ok. 1 passed; 0 failed
+
+$ cargo build -p autore-stage1 --no-default-features
+    Finished `dev` profile [unoptimized + debuginfo] target(s)
+
+$ cargo test -p autore-stage1 --no-default-features --lib worker::runner -- --nocapture
+running 5 tests
+test result: ok. 5 passed; 0 failed
