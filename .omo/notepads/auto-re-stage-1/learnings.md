@@ -277,3 +277,22 @@
 - `cargo build` (default members): clean
 - `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --all-targets -- -D warnings`: clean
 - Evidence: `.omo/evidence/auto-re-stage-1/task-10-fixture-provider.txt`
+
+## 2026-07-21 Wave 3 Todo 11 (Additive Migrations V14..V23)
+
+### Key findings
+- **Refinery embed is automatic**: `refinery::embed_migrations!("../migrations")` in `database.rs` picks up any new `.sql` files placed in `migrations/`. No code changes needed beyond adding SQL files.
+- **V5 `provider_runs` naming collision**: The Stage 0 schema (V5) already defines `provider_runs`. The Stage 1 V21 migration needed a distinct table name (`stage1_provider_runs`) to avoid `CREATE TABLE IF NOT EXISTS` being silently ignored. This follows the `stage0_artifacts` precedent.
+- **SQLite DDL is transactional**: Unlike PostgreSQL/MySQL, SQLite wraps DDL in transactions. The rollback test proves V14..V23 can be rolled back cleanly within a `BEGIN IMMEDIATE` / `ROLLBACK` block.
+- **Migration count is 23**: `refinery_schema_history` shows exactly 23 entries after all migrations apply (V1 through V23). V12 (drop_obsolete_v1) counts as a migration entry.
+
+### Patterns established
+- Stage 1 tables that would collide with Stage 0 names use a `stage1_` prefix.
+- Reconstruction tables use `reconstruction_` prefix for the top-level entities and `work_` prefix for work-item-related tables.
+- Each migration file has a header comment explaining purpose and conventions.
+- Nullable BLOB FKs use `BLOB NULL REFERENCES table(id)` pattern.
+
+### Verification
+- `cargo test -p autore-store`: 168/168 passed
+- `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --all-targets -- -D warnings`: clean
+- Evidence: `.omo/evidence/auto-re-stage-1/task-11-migrations-v14-v23.txt`

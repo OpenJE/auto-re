@@ -1,0 +1,57 @@
+Task 11: Additive V14..V23 migrations for reconstruction records
+=================================================================
+Date: 2026-07-21
+Status: COMPLETE
+
+Files created:
+  migrations/V14__reconstruction_campaigns.sql
+  migrations/V15__work_items.sql
+  migrations/V16__work_dependencies.sql
+  migrations/V17__work_fingerprints.sql
+  migrations/V18__work_leases.sql
+  migrations/V19__provider_installations.sql
+  migrations/V20__provider_instances.sql
+  migrations/V21__provider_runs.sql
+  migrations/V22__capability_descriptors.sql
+  migrations/V23__native_snapshots_and_dynamic_observations.sql
+  autore-store/tests/migrations_stage1.rs
+
+Tables created (11 total across 10 migrations):
+  V14: reconstruction_campaigns
+  V15: reconstruction_work_items
+  V16: work_dependencies
+  V17: work_fingerprints
+  V18: work_leases
+  V19: provider_installations
+  V20: provider_instances
+  V21: stage1_provider_runs (renamed to avoid collision with V5 provider_runs)
+  V22: capability_descriptors
+  V23: native_snapshots, dynamic_observations
+
+Naming deviation:
+  V21 table is named `stage1_provider_runs` instead of `provider_runs` because
+  V5 already defines a `provider_runs` table. The CREATE TABLE IF NOT EXISTS
+  semantics would make V21 a no-op with the original name. The stage1_ prefix
+  follows the precedent set by stage0_artifacts (V3).
+
+Convention compliance:
+  - All tables use CREATE TABLE IF NOT EXISTS
+  - All IDs are BLOB PRIMARY KEY NOT NULL (application-assigned UUIDv7)
+  - No AUTOINCREMENT or DB-generated IDs
+  - No foreign-key CASCADE deletes
+  - No destructive DDL (no DROP TABLE, DROP COLUMN, ALTER TABLE DROP)
+  - JSON columns stored as TEXT
+  - Timestamps stored as TEXT (ISO-8601)
+  - Indexes use CREATE INDEX IF NOT EXISTS with idx_<table>_<columns> naming
+
+Tests added (autore-store/tests/migrations_stage1.rs):
+  1. migrations_apply_clean: V1..V23 apply, refinery_schema_history has 23 entries, all 11 Stage 1 tables present
+  2. migrations_v14_to_v23_idempotent: re-running migrations is a no-op with no history duplication
+  3. migrations_v14_to_v23_rollback_safe: V14..V23 applied within a transaction and rolled back, tables absent after rollback
+
+Verification:
+  cargo test -p autore-store: 168/168 passed (158 unit + 6 fixture + 1 smoke + 3 stage1)
+  cargo clippy -p autore-store --all-targets -- -D warnings: clean
+  cargo build (default members): clean
+  cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --all-targets -- -D warnings: clean
+  cargo fmt --all: clean
