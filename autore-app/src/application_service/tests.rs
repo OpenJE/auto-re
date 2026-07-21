@@ -992,3 +992,72 @@ fn validation_failed_emits_single_validation_failed_event() {
         "validation-failed event should carry the report payload"
     );
 }
+
+#[test]
+fn application_command_stage1_variants_roundtrip() {
+    let project = ProjectId::new();
+    let work_id = "work-item-001".to_string();
+    let worker = "worker-alpha".to_string();
+
+    let create = CreateWorkItemsRequest {
+        project,
+        campaign_id: "campaign-1".into(),
+        descriptions: vec!["analyze main".into(), "trace entry".into()],
+    };
+    let promote = PromoteWorkItemRequest {
+        project,
+        work_item_id: work_id.clone(),
+    };
+    let lease = LeaseWorkItemRequest {
+        project,
+        work_item_id: work_id.clone(),
+        worker_id: worker.clone(),
+    };
+    let renew = RenewWorkLeaseRequest {
+        project,
+        work_item_id: work_id.clone(),
+        worker_id: worker.clone(),
+    };
+    let complete = CompleteWorkItemRequest {
+        project,
+        work_item_id: work_id.clone(),
+    };
+    let fail = FailWorkItemRequest {
+        project,
+        work_item_id: work_id.clone(),
+        reason: "timeout".into(),
+    };
+    let block = BlockWorkItemRequest {
+        project,
+        work_item_id: work_id.clone(),
+        reason: "missing dependency".into(),
+    };
+    let invalidate = InvalidateWorkItemRequest {
+        project,
+        work_item_id: work_id.clone(),
+        reason: "stale result".into(),
+    };
+    let requeue = RequeueWorkItemRequest {
+        project,
+        work_item_id: work_id.clone(),
+    };
+
+    roundtrip("CreateWorkItems", &create);
+    roundtrip("PromoteWorkItem", &promote);
+    roundtrip("LeaseWorkItem", &lease);
+    roundtrip("RenewWorkLease", &renew);
+    roundtrip("CompleteWorkItem", &complete);
+    roundtrip("FailWorkItem", &fail);
+    roundtrip("BlockWorkItem", &block);
+    roundtrip("InvalidateWorkItem", &invalidate);
+    roundtrip("RequeueWorkItem", &requeue);
+}
+
+fn roundtrip<T: serde::Serialize + serde::de::DeserializeOwned + PartialEq + std::fmt::Debug>(
+    label: &str,
+    value: &T,
+) {
+    let json = serde_json::to_string(value).unwrap_or_else(|e| panic!("{label} serialize: {e}"));
+    let back: T = serde_json::from_str(&json).unwrap_or_else(|e| panic!("{label} deserialize: {e}"));
+    assert_eq!(*value, back, "{label} roundtrip mismatch");
+}

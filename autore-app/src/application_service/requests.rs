@@ -206,6 +206,344 @@ pub struct RebuildIndexesResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Stage 1 – Reconstruction campaign & work-item lifecycle commands
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreateReconstructionCampaignRequest {
+    pub project: ProjectId,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreateReconstructionCampaignResponse {
+    pub campaign_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreateWorkItemsRequest {
+    pub project: ProjectId,
+    pub campaign_id: String,
+    pub descriptions: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreateWorkItemsResponse {
+    pub work_item_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RecordWorkDependencyRequest {
+    pub project: ProjectId,
+    pub work_item_id: String,
+    pub depends_on: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RecordWorkDependencyResponse {
+    pub work_item_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct PromoteWorkItemRequest {
+    pub project: ProjectId,
+    pub work_item_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct PromoteWorkItemResponse {
+    pub work_item_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct LeaseWorkItemRequest {
+    pub project: ProjectId,
+    pub work_item_id: String,
+    pub worker_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct LeaseWorkItemResponse {
+    pub work_item_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RenewWorkLeaseRequest {
+    pub project: ProjectId,
+    pub work_item_id: String,
+    pub worker_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RenewWorkLeaseResponse {
+    pub work_item_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CompleteWorkItemRequest {
+    pub project: ProjectId,
+    pub work_item_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CompleteWorkItemResponse {
+    pub work_item_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct FailWorkItemRequest {
+    pub project: ProjectId,
+    pub work_item_id: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct FailWorkItemResponse {
+    pub work_item_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BlockWorkItemRequest {
+    pub project: ProjectId,
+    pub work_item_id: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BlockWorkItemResponse {
+    pub work_item_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct InvalidateWorkItemRequest {
+    pub project: ProjectId,
+    pub work_item_id: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct InvalidateWorkItemResponse {
+    pub work_item_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RequeueWorkItemRequest {
+    pub project: ProjectId,
+    pub work_item_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RequeueWorkItemResponse {
+    pub work_item_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BlockWorkWithReasonRequest {
+    pub project: ProjectId,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BlockWorkWithReasonResponse {
+    pub blocked_count: u32,
+}
+
+// ---------------------------------------------------------------------------
+// Stage 1 – Provider installation & instance commands
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RegisterProviderInstallationRequest {
+    pub project: ProjectId,
+    pub provider_id: ProviderId,
+    pub version: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RegisterProviderInstallationResponse {
+    pub installation_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RegisterProviderInstanceRequest {
+    pub project: ProjectId,
+    pub installation_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RegisterProviderInstanceResponse {
+    pub instance_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct StopProviderInstanceRequest {
+    pub project: ProjectId,
+    pub instance_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct StopProviderInstanceResponse {
+    pub instance_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ImportProviderRunResultRequest {
+    pub project: ProjectId,
+    pub run_id: ProviderRunId,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ImportProviderRunResultResponse {
+    pub run_id: ProviderRunId,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ImportDynamicObservationRequest {
+    pub project: ProjectId,
+    pub observation: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ImportDynamicObservationResponse {
+    pub observation_id: String,
+}
+
+// ---------------------------------------------------------------------------
+// Stage 1 – Build, verification, and generated-source commands
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RecordBuildAttemptRequest {
+    pub project: ProjectId,
+    pub work_item_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RecordBuildAttemptResponse {
+    pub attempt_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RunBuildRequest {
+    pub project: ProjectId,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RunBuildResponse {
+    pub build_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RecordVerificationComparisonRequest {
+    pub project: ProjectId,
+    pub work_item_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RecordVerificationComparisonResponse {
+    pub comparison_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RegisterGeneratedSourceMappingRequest {
+    pub project: ProjectId,
+    pub work_item_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RegisterGeneratedSourceMappingResponse {
+    pub mapping_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct InvalidateGeneratedSourceRequest {
+    pub project: ProjectId,
+    pub mapping_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct InvalidateGeneratedSourceResponse {
+    pub mapping_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ImportGeneratedSourceCandidatesRequest {
+    pub project: ProjectId,
+    pub candidates: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ImportGeneratedSourceCandidatesResponse {
+    pub imported_count: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ScheduleVerificationRegressionRequest {
+    pub project: ProjectId,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ScheduleVerificationRegressionResponse {
+    pub regression_id: String,
+}
+
+// ---------------------------------------------------------------------------
+// Stage 1 – Repair, hypothesis policy, and coordinator commands
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RecordRepairAttemptRequest {
+    pub project: ProjectId,
+    pub work_item_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RecordRepairAttemptResponse {
+    pub repair_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AcceptHypothesisPolicyDrivenRequest {
+    pub project: ProjectId,
+    pub hypothesis_id: HypothesisId,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AcceptHypothesisPolicyDrivenResponse {
+    pub hypothesis_id: HypothesisId,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct PauseCoordinatorRequest {
+    pub project: ProjectId,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct PauseCoordinatorResponse {
+    pub project: ProjectId,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ResumeCoordinatorRequest {
+    pub project: ProjectId,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ResumeCoordinatorResponse {
+    pub project: ProjectId,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct StopCoordinatorRequest {
+    pub project: ProjectId,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct StopCoordinatorResponse {
+    pub project: ProjectId,
+}
+
+// ---------------------------------------------------------------------------
 // Validation report types
 // ---------------------------------------------------------------------------
 
@@ -305,6 +643,36 @@ pub enum ApplicationCommand {
     ValidateProject(ValidateProjectRequest),
     MigrateProject(MigrateProjectRequest),
     RebuildIndexes(RebuildIndexesRequest),
+    // Stage 1 variants
+    CreateReconstructionCampaign(CreateReconstructionCampaignRequest),
+    CreateWorkItems(CreateWorkItemsRequest),
+    RecordWorkDependency(RecordWorkDependencyRequest),
+    PromoteWorkItem(PromoteWorkItemRequest),
+    LeaseWorkItem(LeaseWorkItemRequest),
+    RenewWorkLease(RenewWorkLeaseRequest),
+    CompleteWorkItem(CompleteWorkItemRequest),
+    FailWorkItem(FailWorkItemRequest),
+    BlockWorkItem(BlockWorkItemRequest),
+    InvalidateWorkItem(InvalidateWorkItemRequest),
+    RequeueWorkItem(RequeueWorkItemRequest),
+    BlockWorkWithReason(BlockWorkWithReasonRequest),
+    RegisterProviderInstallation(RegisterProviderInstallationRequest),
+    RegisterProviderInstance(RegisterProviderInstanceRequest),
+    StopProviderInstance(StopProviderInstanceRequest),
+    ImportProviderRunResult(ImportProviderRunResultRequest),
+    ImportDynamicObservation(ImportDynamicObservationRequest),
+    RecordBuildAttempt(RecordBuildAttemptRequest),
+    RunBuild(RunBuildRequest),
+    RecordVerificationComparison(RecordVerificationComparisonRequest),
+    RegisterGeneratedSourceMapping(RegisterGeneratedSourceMappingRequest),
+    InvalidateGeneratedSource(InvalidateGeneratedSourceRequest),
+    ImportGeneratedSourceCandidates(ImportGeneratedSourceCandidatesRequest),
+    ScheduleVerificationRegression(ScheduleVerificationRegressionRequest),
+    RecordRepairAttempt(RecordRepairAttemptRequest),
+    AcceptHypothesisPolicyDriven(AcceptHypothesisPolicyDrivenRequest),
+    PauseCoordinator(PauseCoordinatorRequest),
+    ResumeCoordinator(ResumeCoordinatorRequest),
+    StopCoordinator(StopCoordinatorRequest),
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
@@ -323,6 +691,36 @@ pub enum CommandResult {
     ProjectValidated(ValidateProjectResponse),
     ProjectMigrated(MigrateProjectResponse),
     IndexesRebuilt(RebuildIndexesResponse),
+    // Stage 1 variants
+    CampaignCreated(CreateReconstructionCampaignResponse),
+    WorkItemsCreated(CreateWorkItemsResponse),
+    WorkDependencyRecorded(RecordWorkDependencyResponse),
+    WorkItemPromoted(PromoteWorkItemResponse),
+    WorkItemLeased(LeaseWorkItemResponse),
+    WorkLeaseRenewed(RenewWorkLeaseResponse),
+    WorkItemCompleted(CompleteWorkItemResponse),
+    WorkItemFailed(FailWorkItemResponse),
+    WorkItemBlocked(BlockWorkItemResponse),
+    WorkItemInvalidated(InvalidateWorkItemResponse),
+    WorkItemRequeued(RequeueWorkItemResponse),
+    WorkBlocked(BlockWorkWithReasonResponse),
+    ProviderInstallationRegistered(RegisterProviderInstallationResponse),
+    ProviderInstanceRegistered(RegisterProviderInstanceResponse),
+    ProviderInstanceStopped(StopProviderInstanceResponse),
+    ProviderRunResultImported(ImportProviderRunResultResponse),
+    DynamicObservationImported(ImportDynamicObservationResponse),
+    BuildAttemptRecorded(RecordBuildAttemptResponse),
+    BuildRun(RunBuildResponse),
+    VerificationComparisonRecorded(RecordVerificationComparisonResponse),
+    GeneratedSourceMappingRegistered(RegisterGeneratedSourceMappingResponse),
+    GeneratedSourceInvalidated(InvalidateGeneratedSourceResponse),
+    GeneratedSourceCandidatesImported(ImportGeneratedSourceCandidatesResponse),
+    VerificationRegressionScheduled(ScheduleVerificationRegressionResponse),
+    RepairAttemptRecorded(RecordRepairAttemptResponse),
+    HypothesisAcceptedPolicyDriven(AcceptHypothesisPolicyDrivenResponse),
+    CoordinatorPaused(PauseCoordinatorResponse),
+    CoordinatorResumed(ResumeCoordinatorResponse),
+    CoordinatorStopped(StopCoordinatorResponse),
 }
 
 // ---------------------------------------------------------------------------
@@ -547,6 +945,181 @@ pub struct ValidationReportResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Stage 1 – Campaign & work-item queries
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct GetCampaignQuery {
+    pub campaign_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CampaignResponse {
+    pub campaign_id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ListWorkItemsQuery {
+    pub project: ProjectId,
+    pub campaign_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct WorkItemsResponse {
+    pub work_items: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct GetWorkItemQuery {
+    pub work_item_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct WorkItemResponse {
+    pub work_item_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ListWorkItemDependenciesQuery {
+    pub work_item_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct WorkItemDependenciesResponse {
+    pub dependencies: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ListWorkItemBlockersQuery {
+    pub work_item_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct WorkItemBlockersResponse {
+    pub blockers: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ListExpiredLeasesQuery {
+    pub project: ProjectId,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ExpiredLeasesResponse {
+    pub expired: Vec<String>,
+}
+
+// ---------------------------------------------------------------------------
+// Stage 1 – Provider installation & instance queries
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct GetProviderInstallationQuery {
+    pub installation_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ProviderInstallationResponse {
+    pub installation_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ListProviderInstallationsQuery {
+    pub project: ProjectId,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ProviderInstallationsResponse {
+    pub installations: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ListProviderInstancesQuery {
+    pub project: ProjectId,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ProviderInstancesResponse {
+    pub instances: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct GetProviderInstanceQuery {
+    pub instance_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ProviderInstanceResponse {
+    pub instance_id: String,
+}
+
+// ---------------------------------------------------------------------------
+// Stage 1 – Build, verification, and source-mapping queries
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct GetBuildStatusQuery {
+    pub project: ProjectId,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BuildStatusResponse {
+    pub status: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ListBuildDiagnosticsQuery {
+    pub project: ProjectId,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BuildDiagnosticsResponse {
+    pub diagnostics: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct GetVerificationCoverageQuery {
+    pub project: ProjectId,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct VerificationCoverageResponse {
+    pub covered: u32,
+    pub total: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ListGeneratedSourceMappingsQuery {
+    pub project: ProjectId,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct GeneratedSourceMappingsResponse {
+    pub mappings: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ListConflictsQuery {
+    pub project: ProjectId,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ConflictsResponse {
+    pub conflicts: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ListBlockedReasonsQuery {
+    pub project: ProjectId,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BlockedReasonsResponse {
+    pub reasons: Vec<String>,
+}
+
+// ---------------------------------------------------------------------------
 // Query enum and result enum
 // ---------------------------------------------------------------------------
 
@@ -573,6 +1146,23 @@ pub enum ApplicationQuery {
     ListOperations(ListOperationsQuery),
     ListEvents(ListEventsQuery),
     GetValidationReport(GetValidationReportQuery),
+    // Stage 1 variants
+    GetCampaign(GetCampaignQuery),
+    ListWorkItems(ListWorkItemsQuery),
+    GetWorkItem(GetWorkItemQuery),
+    ListWorkItemDependencies(ListWorkItemDependenciesQuery),
+    ListWorkItemBlockers(ListWorkItemBlockersQuery),
+    ListExpiredLeases(ListExpiredLeasesQuery),
+    GetProviderInstallation(GetProviderInstallationQuery),
+    ListProviderInstallations(ListProviderInstallationsQuery),
+    ListProviderInstances(ListProviderInstancesQuery),
+    GetProviderInstance(GetProviderInstanceQuery),
+    GetBuildStatus(GetBuildStatusQuery),
+    ListBuildDiagnostics(ListBuildDiagnosticsQuery),
+    GetVerificationCoverage(GetVerificationCoverageQuery),
+    ListGeneratedSourceMappings(ListGeneratedSourceMappingsQuery),
+    ListConflicts(ListConflictsQuery),
+    ListBlockedReasons(ListBlockedReasonsQuery),
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
@@ -598,6 +1188,23 @@ pub enum QueryResult {
     Operations(OperationsResponse),
     Events(EventsResponse),
     ValidationReport(ValidationReportResponse),
+    // Stage 1 variants
+    Campaign(CampaignResponse),
+    WorkItems(WorkItemsResponse),
+    WorkItem(WorkItemResponse),
+    WorkItemDependencies(WorkItemDependenciesResponse),
+    WorkItemBlockers(WorkItemBlockersResponse),
+    ExpiredLeases(ExpiredLeasesResponse),
+    ProviderInstallation(ProviderInstallationResponse),
+    ProviderInstallations(ProviderInstallationsResponse),
+    ProviderInstances(ProviderInstancesResponse),
+    ProviderInstance(ProviderInstanceResponse),
+    BuildStatus(BuildStatusResponse),
+    BuildDiagnostics(BuildDiagnosticsResponse),
+    VerificationCoverage(VerificationCoverageResponse),
+    GeneratedSourceMappings(GeneratedSourceMappingsResponse),
+    Conflicts(ConflictsResponse),
+    BlockedReasons(BlockedReasonsResponse),
 }
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,68 @@
+Task 2: Stage 1 ApplicationCommand/Query variant skeletons
+============================================================
+Date: 2026-07-21
+
+== cargo build -p autore-app ==
+   Compiling autore-app v0.1.0
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.16s
+
+== cargo test -p autore-app -- --nocapture ==
+running 29 tests
+test application_service::tests::application_command_stage1_variants_roundtrip ... ok
+test application_service::tests::add_verification_emits_event ... ok
+test application_service::tests::record_contradiction_emits_event ... ok
+test application_service::tests::register_provider_round_trips ... ok
+test application_service::tests::local_client_routes_subscription ... ok
+test operation::operation_failure_details_stored ... ok
+test application_service::tests::local_client_routes_query ... ok
+test application_service::tests::hypothesis_accept_emits_event_and_keeps_competitors ... ok
+test operation::operation_cooperative_cancellation_request ... ok
+test application_service::tests::local_client_routes_command ... ok
+test application_service::tests::create_project_emits_event ... ok
+test application_service::tests::cross_project_reference_rejected ... ok
+test operation::operation_terminal_states_terminal ... ok
+test application_service::tests::command_rejects_invalid_request ... ok
+test application_service::tests::cancel_operation_is_cooperative ... ok
+test application_service::tests::start_provider_run_round_trips ... ok
+test application_service::tests::add_evidence_records_event ... ok
+test application_service::tests::register_artifact_emits_event ... ok
+test application_service::tests::validation_failed_emits_single_validation_failed_event ... ok
+test application_service::tests::validation_passes_for_empty_project ... ok
+test application_service::tests::validation_detects_event_sequence_violation ... ok
+test application_service::tests::validation_detects_broken_references ... ok
+test application_service::tests::validation_detects_modified_external_artifact ... ok
+test application_service::tests::validation_detects_operation_parent_cycle ... ok
+test application_service::tests::validation_detects_hypothesis_supersession_cycle ... ok
+test lifecycle::tests::project_close_is_idempotent ... ok
+test lifecycle::tests::project_manifest_records_schema_version ... ok
+test lifecycle::tests::project_create_layout ... ok
+test lifecycle::tests::project_reopen_roundtrips ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+
+Running tests/persistence_round_trip.rs
+running 1 test
+test full_stage0_persistence_round_trip ... ok
+test result: ok. 1 passed; 0 failed
+
+== cargo clippy -p autore-app --all-targets -- -D warnings ==
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 5.59s
+    (zero warnings)
+
+== Full workspace test (cargo test --workspace --exclude autore-stage1) ==
+614 tests passed, 0 failed, 1 ignored (PTY integration)
+
+== Summary ==
+- 29 new ApplicationCommand variants added
+- 29 new CommandResult variants added
+- 16 new ApplicationQuery variants added
+- 16 new QueryResult variants added
+- 58 new command request/response structs
+- 32 new query request/response structs
+- All new structs derive Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize
+- All new execute() and query() arms return Err(Error::Validation("not yet implemented: ..."))
+- Roundtrip test covers 9 work-item lifecycle variants: Create, Promote, Lease, Renew, Complete, Fail, Block, Invalidate, Requeue
+- LocalAutoReClient left untouched
+- No new dependencies added
+- No SQLite/migration logic
+- No CLI/TUI changes
