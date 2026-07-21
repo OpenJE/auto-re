@@ -1,0 +1,104 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+     Running unittests src/lib.rs (target/debug/deps/autore_core-1aa90afdf93912d0)
+
+running 15 tests
+test tests::error_enum_conflict_display ... ok
+test tests::error_enum_migration_display ... ok
+test tests::error_enum_not_found_display ... ok
+test tests::error_enum_database_display ... ok
+test tests::error_enum_hash_mismatch_display ... ok
+test tests::error_enum_io_from_std ... ok
+test tests::error_enum_operation_display ... ok
+test tests::error_enum_validation_display ... ok
+test tests::error_enum_unsupported_display ... ok
+test tests::error_enum_invalid_state_transition_display ... ok
+test tests::error_enum_subscription_display ... ok
+test tests::error_enum_serialization_display ... ok
+test tests::result_alias_default_error ... ok
+test tests::result_alias_explicit_type ... ok
+test tests::error_enum_schema_mismatch_display ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests autore_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.22s
+     Running unittests src/lib.rs (target/debug/deps/autore_stage1-282f32992d31890d)
+
+running 35 tests
+test cli::tests::cli_no_subcommand_no_tui ... ok
+test analysis::mock::tests::mock_backend_capabilities ... ok
+test analysis::packet::tests::packet_builder_uses_mock_backend ... ok
+test analysis::mock::tests::unsupported_capability_returns_error ... ok
+test analysis::mock::tests::mock_backend_inventory_returns_ten_functions ... ok
+test analysis::packet::tests::packet_hashes_equal_for_equal_input ... ok
+test analysis::mock::tests::mock_backend_analyze_is_deterministic ... ok
+test analysis::packet::tests::packet_is_deterministic ... ok
+test model::mock::tests::mock_provider_cancels_on_token ... ok
+test model::router::tests::model_router_enforces_concurrency_limits ... ok
+test analysis::packet::tests::packet_is_serializable ... ok
+test model::mock::tests::mock_provider_descriptor_capabilities ... ok
+test model::mock::tests::mock_provider_lists_models ... ok
+test model::router::tests::model_router_errors_on_missing_class ... ok
+test cli::tests::cli_task_status_missing_id_errors ... ok
+test model::router::tests::model_router_selects_by_class ... ok
+test scheduler::scheduler::tests::campaign_tests::scheduler_evaluates_complete ... ok
+test model::mock::tests::mock_provider_complete_returns_valid_json ... ok
+test scheduler::scheduler::tests::priority_score_is_stable ... ok
+test scheduler::scheduler::tests::priority_factors_are_inspectable ... ok
+test scheduler::scheduler::tests::priority_score_verification_bonus ... ok
+test scheduler::scheduler::tests::campaign_tests::scheduler_idle_sleeps ... ok
+test scheduler::scheduler::tests::scheduler_score_tasks_batch ... ok
+test scheduler::scheduler::tests::campaign_tests::scheduler_invalidates_stale_work ... ok
+test scheduler::scheduler::tests::campaign_tests::scheduler_recovers_expired_lease ... ok
+test scheduler::scheduler::tests::campaign_tests::scheduler_respects_dependencies ... ok
+test cli::tests::cli_task_list_runs ... ok
+test cli::tests::cli_campaign_status_runs ... ok
+test cli::tests::cli_task_status_invalid_uuid_errors ... ok
+test cli::tests::cli_task_status_nonexistent_id_errors ... ok
+test cli::tests::cli_campaign_status_with_nonexistent_id ... ok
+test worker::runner::tests::worker_times_out ... ok
+test worker::runner::tests::worker_cancels_on_token ... ok
+test worker::runner::tests::worker_rejects_malformed_schema ... ok
+test worker::runner::tests::worker_runs_valid_output_to_claims ... ok
+
+test result: ok. 35 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+
+     Running unittests src/main.rs (target/debug/deps/auto_re_stage1-22361df0d1ca8a68)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/campaign_smoke.rs (target/debug/deps/campaign_smoke-123beee2d14192cb)
+
+running 4 tests
+test campaign_smoke_analyzes_all_functions ... ok
+test campaign_smoke_completes ... ok
+test campaign_smoke_updates_tui ... ok
+test campaign_smoke_produces_claims ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s
+
+     Running tests/kill_resume.rs (target/debug/deps/kill_resume-5a0af676119fed4e)
+
+running 3 tests
+test accepted_claims_persist_after_kill ... ok
+test kill_resume_no_duplicate_claims ... ok
+test campaign_completes_after_resume ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.03s
+
+   Doc-tests autore_stage1
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+---
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.21s

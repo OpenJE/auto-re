@@ -1,0 +1,24 @@
+# Task 39: Stage 0 Final Hardening Gates
+# Evidence captured on 2026-07-18
+
+All commands run from workspace root: /mnt/shanes-ssd-1tb/code/shane/auto-re
+
+## Gate Results Summary
+
+| # | Command | Exit Code | Evidence File |
+|---|---------|-----------|---------------|
+| 1 | cargo fmt --all --check | 0 | .omo/evidence/task-39-fmt.log |
+| 2 | cargo clippy --workspace --exclude autore-stage1 --all-targets -- -D warnings | 0 | .omo/evidence/task-39-clippy-workspace.log |
+| 3 | cargo test --workspace --exclude autore-stage1 | 0 | .omo/evidence/task-39-test-workspace.log |
+| 4 | cargo build -p autore-stage1 --no-default-features | 0 | .omo/evidence/task-39-build-stage1-no-default.log |
+| 5 | cargo build -p autore-stage1 | 0 | .omo/evidence/task-39-build-stage1.log |
+| 6 | cargo test (default-members) | 0 | .omo/evidence/task-39-test-default.log |
+| 7 | cargo clippy --all-targets -- -D warnings (default-members) | 0 | .omo/evidence/task-39-clippy-default.log |
+| 8 | cargo build (default-members) | 0 | .omo/evidence/task-39-build-default.log |
+| 9 | cargo test -p autore-tui --test pty_integration -- --ignored --nocapture | 0 | .omo/evidence/task-39-pty-test.log |
+
+## Detailed Output
+
+Each gate's full stdout/stderr is preserved in the per-command evidence files listed above.
+This combined log is a summary; refer to the individual files for complete compiler/test output.
+

@@ -1,0 +1,17 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.29s
+     Running unittests src/lib.rs (target/debug/deps/autore_app-c974c4651e68d0ac)
+
+running 4 tests
+test application_service::tests::local_client_routes_command ... ok
+test application_service::tests::cross_project_reference_rejected ... ok
+test application_service::tests::local_client_routes_query ... ok
+test application_service::tests::local_client_routes_subscription ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 17 filtered out; finished in 0.03s
+
+   Doc-tests autore_app
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

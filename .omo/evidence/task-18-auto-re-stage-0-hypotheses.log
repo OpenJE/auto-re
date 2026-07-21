@@ -1,0 +1,45 @@
+Task 18: Hypothesis + Confidence + HypothesisStore with supersession
+======================================================================
+Date: 2026-07-17
+
+## Files Modified/Created
+
+- `autore-schema/src/domain/mod.rs`: Updated Confidence from transparent f32 newtype to struct with score + rationale
+- `autore-schema/src/domain/records.rs`: Added HypothesisStatus enum, Hypothesis struct, status constants, 14 tests
+- `autore-schema/src/worker_output.rs`: Updated JsonSchema impl for Confidence to match new object format
+- `autore-schema/src/domain/claim.rs`: Fixed Confidence copy -> clone for ProposedClaim construction
+- `autore-store/src/storage/hypothesis_store.rs`: Created HypothesisStore trait + SqliteHypothesisStore (15 tests)
+- `autore-store/src/storage/mod.rs`: Exported HypothesisStore + SqliteHypothesisStore
+- `migrations/V8__hypotheses.sql`: Created hypotheses table with FK constraints
+
+## Verification Results
+
+### cargo build --workspace --exclude autore-stage1
+PASS (0 errors, 0 warnings)
+
+### cargo test --workspace --exclude autore-stage1
+PASS (402 tests: 66 core + 210 schema + 106 store + 4 app + 12 tui + 2 regression + 1 migration + 5 doctests + 2 integration)
+
+### Specific hypothesis tests
+- hypothesis_state_transitions_valid: PASS
+- hypothesis_state_transitions_reject_invalid: PASS
+- hypothesis_supersession_cycle_rejected: PASS
+- confidence_independent_of_status: PASS
+- hypothesis_store_* (15 tests): ALL PASS
+- hypothesis_competing_coexist: PASS
+
+### cargo clippy --workspace --exclude autore-stage1 --all-targets -- -D warnings
+PASS (0 warnings, 0 errors)
+
+## Design Decisions
+
+1. HypothesisStatus in autore-schema (not autore-core): Follows ProviderRunStatus pattern.
+   autore-core cannot depend on autore-schema (circular dependency).
+2. Confidence serialization changed from bare f32 to {"score": f32, "rationale": Option<String>}.
+   This is a breaking change but no persisted data exists yet.
+3. Status stored as TEXT discriminant + optional superseded_by BLOB in SQLite.
+   Clean SQL filtering via status column; superseded_by is a FK to hypotheses(id).
+4. EvidenceRecordId used for supporting/contradicting evidence (not M1 EvidenceId).
+   Documented in Hypothesis struct doc comment.
+5. Verification tests run under -p autore-schema (not -p autore-core) because
+   HypothesisStatus lives in autore-schema per the circular dependency constraint.

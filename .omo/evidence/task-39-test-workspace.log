@@ -1,0 +1,737 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.32s
+     Running unittests src/lib.rs (target/debug/deps/autore_app-53cba99fc069cfce)
+
+running 28 tests
+test application_service::tests::register_artifact_emits_event ... ok
+test application_service::tests::command_rejects_invalid_request ... ok
+test application_service::tests::local_client_routes_query ... ok
+test application_service::tests::local_client_routes_command ... ok
+test application_service::tests::register_provider_round_trips ... ok
+test application_service::tests::record_contradiction_emits_event ... ok
+test application_service::tests::create_project_emits_event ... ok
+test application_service::tests::cross_project_reference_rejected ... ok
+test application_service::tests::start_provider_run_round_trips ... ok
+test application_service::tests::add_evidence_records_event ... ok
+test application_service::tests::local_client_routes_subscription ... ok
+test application_service::tests::cancel_operation_is_cooperative ... ok
+test application_service::tests::add_verification_emits_event ... ok
+test application_service::tests::hypothesis_accept_emits_event_and_keeps_competitors ... ok
+test application_service::tests::validation_detects_event_sequence_violation ... ok
+test application_service::tests::validation_detects_broken_references ... ok
+test operation::operation_cooperative_cancellation_request ... ok
+test application_service::tests::validation_failed_emits_single_validation_failed_event ... ok
+test application_service::tests::validation_passes_for_empty_project ... ok
+test operation::operation_failure_details_stored ... ok
+test application_service::tests::validation_detects_hypothesis_supersession_cycle ... ok
+test application_service::tests::validation_detects_modified_external_artifact ... ok
+test application_service::tests::validation_detects_operation_parent_cycle ... ok
+test operation::operation_terminal_states_terminal ... ok
+test lifecycle::tests::project_manifest_records_schema_version ... ok
+test lifecycle::tests::project_close_is_idempotent ... ok
+test lifecycle::tests::project_create_layout ... ok
+test lifecycle::tests::project_reopen_roundtrips ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+
+     Running tests/persistence_round_trip.rs (target/debug/deps/persistence_round_trip-c1894c026aa0a82b)
+
+running 1 test
+test full_stage0_persistence_round_trip ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running unittests src/main.rs (target/debug/deps/auto_re-d8d06b0d4c3041fe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/cli_integration.rs (target/debug/deps/cli_integration-3d7f4415493898ef)
+
+running 20 tests
+test project_create_empty_name_fails ... ok
+test project_create_human ... ok
+test evidence_add_invalid_json_fails ... ok
+test hypothesis_accept_nonexistent_fails ... ok
+test operation_list_human ... ok
+test artifact_add ... ok
+test events_list_json ... ok
+test project_info_json ... ok
+test project_migrate ... ok
+test entity_add ... ok
+test operation_list_json ... ok
+test events_list_human ... ok
+test project_info_human ... ok
+test evidence_add ... ok
+test hypothesis_add ... ok
+test hypothesis_accept_enforces_state_machine ... ok
+test project_validate ... ok
+test project_rebuild_indexes_human ... ok
+test project_rebuild_indexes_cli ... ok
+test full_create_add_list_workflow ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+
+     Running unittests src/lib.rs (target/debug/deps/autore_core-781c081acfe790dc)
+
+running 74 tests
+test logging::tests::is_sensitive_field_detects_credential ... ok
+test logging::tests::is_sensitive_field_detects_token ... ok
+test logging::tests::is_sensitive_field_detects_secret ... ok
+test logging::tests::is_sensitive_field_detects_key ... ok
+test logging::tests::is_sensitive_field_rejects_safe_names ... ok
+test logging::tests::is_sensitive_field_detects_password ... ok
+test logging::tests::logging_config_default ... ok
+test logging::tests::logging_config_custom ... ok
+test logging::tests::no_secret_in_logs_redacts_api_key_field ... ok
+test logging::tests::no_secret_in_logs_redacts_password_field ... ok
+test logging::tests::panic_hook_restores_terminal ... ok
+test logging::tests::redact_if_sensitive_preserves_safe ... ok
+test logging::tests::redact_if_sensitive_redacts ... ok
+test operation::tests::operation_state_display ... ok
+test operation::tests::operation_parent_cycle_rejected ... ok
+test operation::tests::operation_state_from_str_round_trip ... ok
+test operation::tests::operation_state_kind_strings ... ok
+test logging::tests::no_secret_in_logs_plain_output_redacts ... ok
+test operation::tests::operation_state_serialize_round_trip ... ok
+test logging::tests::logging_json_file_output ... ok
+test operation::tests::operation_state_terminal_classification ... ok
+test operation::tests::operation_state_transitions_reject_invalid ... ok
+test operation::tests::operation_state_transitions_valid ... ok
+test tests::error_enum_conflict_display ... ok
+test tests::error_enum_database_display ... ok
+test tests::error_enum_hash_mismatch_display ... ok
+test tests::error_enum_invalid_state_transition_display ... ok
+test tests::error_enum_io_from_std ... ok
+test tests::error_enum_migration_display ... ok
+test tests::error_enum_not_found_display ... ok
+test tests::error_enum_operation_display ... ok
+test tests::error_enum_schema_mismatch_display ... ok
+test tests::error_enum_serialization_display ... ok
+test tests::error_enum_subscription_display ... ok
+test tests::error_enum_unsupported_display ... ok
+test tests::error_enum_validation_display ... ok
+test tests::result_alias_default_error ... ok
+test tests::result_alias_explicit_type ... ok
+test validation::tests::validate_all_references_exist_all_present ... ok
+test validation::tests::validate_all_references_exist_empty_references ... ok
+test validation::tests::validate_all_references_exist_some_missing ... ok
+test validation::tests::validate_confidence_accepts_large_value ... ok
+test validation::tests::validate_confidence_accepts_midpoint ... ok
+test validation::tests::validate_confidence_accepts_one ... ok
+test validation::tests::validate_confidence_accepts_small_value ... ok
+test validation::tests::validate_confidence_accepts_zero ... ok
+test validation::tests::validate_confidence_rejects_greater_than_one ... ok
+test validation::tests::validate_confidence_rejects_nan ... ok
+test validation::tests::validate_confidence_rejects_negative ... ok
+test validation::tests::validate_confidence_rejects_negative_infinity ... ok
+test validation::tests::validate_confidence_rejects_positive_infinity ... ok
+test validation::tests::validate_id_exists_empty_collection ... ok
+test validation::tests::validate_id_exists_finds_present_id ... ok
+test validation::tests::validate_id_exists_rejects_missing_id ... ok
+test validation::tests::validate_namespaced_id_accepts_valid_simple ... ok
+test validation::tests::validate_namespaced_id_accepts_valid_with_digits ... ok
+test validation::tests::validate_namespaced_id_accepts_valid_with_hyphens ... ok
+test validation::tests::validate_namespaced_id_accepts_valid_with_underscores ... ok
+test validation::tests::validate_namespaced_id_rejects_empty_identifier ... ok
+test validation::tests::validate_namespaced_id_rejects_empty_namespace ... ok
+test validation::tests::validate_namespaced_id_rejects_multiple_dots ... ok
+test validation::tests::validate_namespaced_id_rejects_no_dot ... ok
+test validation::tests::validate_namespaced_id_rejects_special_chars_in_namespace ... ok
+test validation::tests::validate_namespaced_id_rejects_uppercase_identifier ... ok
+test validation::tests::validate_namespaced_id_rejects_uppercase_namespace ... ok
+test validation::tests::validate_no_cycle_accepts_dag ... ok
+test validation::tests::validate_no_cycle_accepts_empty_graph ... ok
+test validation::tests::validate_no_cycle_accepts_linear_chain ... ok
+test validation::tests::validate_no_cycle_accepts_single_node ... ok
+test validation::tests::validate_no_cycle_accepts_tree ... ok
+test validation::tests::validate_no_cycle_rejects_cycle_in_component ... ok
+test validation::tests::validate_no_cycle_rejects_invalid_edge_index ... ok
+test validation::tests::validate_no_cycle_rejects_self_loop ... ok
+test validation::tests::validate_no_cycle_rejects_simple_cycle ... ok
+
+test result: ok. 74 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/autore_events-f93bf646eb16b5c2)
+
+running 12 tests
+test tests::operation_event_kind_str_matches_constants ... ok
+test tests::operation_event_queued_to_running_to_completed ... ok
+test tests::operation_events_emitted_for_transitions ... ok
+test project_event_service::tests::sequence_gap_recovery ... ok
+test project_event_service::tests::subscriber_lag_resyncs_from_store ... ok
+test project_event_service::tests::emit_event_with_state_change_in_tx ... ok
+test project_event_service::tests::events_after_replays_strictly_after ... ok
+test project_event_service::tests::subscription_cancellable ... ok
+test project_event_service::tests::emit_event_persists_before_broadcast ... ok
+test project_event_service::tests::multiple_subscribers_all_receive ... ok
+test project_event_service::tests::replay_to_live_no_gap ... ok
+test project_event_service::tests::subscription_recovers_from_broadcast_gap ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running unittests src/lib.rs (target/debug/deps/autore_schema-ee941282acccace2)
+
+running 248 tests
+test domain::campaign::tests::campaign_complete_from_active ... ok
+test domain::campaign::tests::campaign_pause_and_resume ... ok
+test domain::campaign::tests::campaign_block_and_unblock ... ok
+test domain::campaign::tests::campaign_rejects_invalid_transitions ... ok
+test domain::campaign::tests::campaign_start_transitions_to_active ... ok
+test domain::campaign::tests::campaign_starts_pending ... ok
+test domain::claim::tests::claim_add_dependency ... ok
+test domain::claim::tests::claim_dependency_deduplicated ... ok
+test domain::claim::tests::claim_evidence_is_deduplicated ... ok
+test domain::claim::tests::claim_evidence_link ... ok
+test domain::claim::tests::claim_dependencies_recorded ... ok
+test domain::campaign::tests::campaign_serialize_roundtrip ... ok
+test domain::claim::tests::claim_full_acceptance_lifecycle ... ok
+test domain::claim::tests::claim_full_rejection_lifecycle ... ok
+test domain::claim::tests::claim_rejects_invalid_transitions ... ok
+test domain::claim::tests::claim_starts_proposed ... ok
+test domain::claim::tests::claim_state_transitions ... ok
+test domain::claim::tests::claim_unlink_evidence ... ok
+test domain::claim::tests::claim_with_complex_value ... ok
+test domain::claim::tests::claim_serialize_roundtrip ... ok
+test domain::claim::tests::claims_start_in_proposed_state ... ok
+test domain::claim::tests::evidence_links_to_claims ... ok
+test domain::evidence::tests::artifact_id_default_creates_unique ... ok
+test domain::claim::tests::worker_output_to_proposed_claims ... ok
+test domain::evidence::tests::artifact_id_roundtrip ... ok
+test domain::evidence::tests::entity_id_display ... ok
+test domain::evidence::tests::evidence_constructs ... ok
+test domain::evidence::tests::evidence_location_with_address_only ... ok
+test domain::evidence::tests::evidence_location_with_path_only ... ok
+test domain::evidence::tests::evidence_with_artifact ... ok
+test domain::evidence::tests::evidence_without_location ... ok
+test domain::function::tests::function_bump_revision ... ok
+test domain::evidence::tests::evidence_serialize_roundtrip ... ok
+test domain::function::tests::function_lock_and_unlock ... ok
+test domain::function::tests::function_new_constructs ... ok
+test domain::function::tests::function_rename ... ok
+test domain::function::tests::function_with_control_flow_hash ... ok
+test domain::records::tests::artifact_kinds_registered ... ok
+test domain::function::tests::function_serialize_roundtrip ... ok
+test domain::records::tests::assumption_round_trip_json ... ok
+test domain::records::tests::binary_artifact_metadata_round_trip ... ok
+test domain::records::tests::binary_artifact_metadata_all_none ... ok
+test domain::records::tests::artifact_fixture_external_round_trip ... ok
+test domain::records::tests::artifact_fixture_managed_round_trip ... ok
+test domain::records::tests::artifact_round_trip_managed ... ok
+test domain::records::tests::artifact_round_trip_external ... ok
+test domain::records::tests::cancellation_request_round_trip ... ok
+test domain::records::tests::contradiction_new_defaults ... ok
+test domain::records::tests::contradiction_status_display ... ok
+test domain::records::tests::contradiction_status_constants_registered ... ok
+test domain::records::tests::contradiction_status_kind ... ok
+test domain::records::tests::contradiction_status_terminal ... ok
+test domain::records::tests::confidence_independent_of_status ... ok
+test domain::records::tests::contradiction_status_transitions_reject_invalid ... ok
+test domain::records::tests::contradiction_round_trip_json ... ok
+test domain::records::tests::contradiction_status_transitions_valid ... ok
+test domain::records::tests::contradiction_transition_open_to_resolved ... ok
+test domain::records::tests::contradiction_transition_to_non_resolved_rejects_resolution ... ok
+test domain::records::tests::contradiction_transition_to_resolved_requires_resolution ... ok
+test domain::records::tests::endianness_variants_serialize ... ok
+test domain::records::tests::entity_kinds_registered ... ok
+test domain::records::tests::event_source_display ... ok
+test domain::records::tests::event_subject_round_trip ... ok
+test domain::records::tests::environment_identity_round_trip_json ... ok
+test domain::records::tests::evidence_lifecycle_state_display ... ok
+test domain::records::tests::evidence_lifecycle_event_round_trip_json ... ok
+test domain::records::tests::evidence_lifecycle_state_serialize_round_trip ... ok
+test domain::records::tests::evidence_predicate_constants_registered ... ok
+test domain::records::tests::contradiction_status_serialize_round_trip ... ok
+test domain::records::tests::hypothesis_new_defaults ... ok
+test domain::records::tests::hypothesis_state_transitions_reject_invalid ... ok
+test domain::records::tests::evidence_record_round_trip_json ... ok
+test domain::records::tests::hypothesis_state_transitions_valid ... ok
+test domain::records::tests::hypothesis_status_constants_registered ... ok
+test domain::records::tests::hypothesis_status_display ... ok
+test domain::records::tests::hypothesis_round_trip_json ... ok
+test domain::records::tests::hypothesis_status_kind ... ok
+test domain::records::tests::generate_fixtures ... ok
+test domain::records::tests::hypothesis_status_terminal ... ok
+test domain::records::tests::hypothesis_status_serialize_round_trip ... ok
+test domain::records::tests::hypothesis_transition_rejects_invalid ... ok
+test domain::records::tests::hypothesis_transition_updates_status ... ok
+test domain::records::tests::hypothesis_supersession_cycle_rejected ... ok
+test domain::records::tests::native_artifact_no_subjects_no_description ... ok
+test domain::records::tests::native_format_constants_registered ... ok
+test domain::records::tests::operation_failure_round_trip ... ok
+test domain::records::tests::operation_kind_constants ... ok
+test domain::records::tests::operation_new_defaults ... ok
+test domain::records::tests::native_artifact_round_trip_json ... ok
+test domain::records::tests::operation_transition_cancellation_flow ... ok
+test domain::records::tests::operation_transition_full_lifecycle ... ok
+test domain::records::tests::operation_transition_queued_to_running ... ok
+test domain::records::tests::operation_round_trip_json ... ok
+test domain::records::tests::project_event_new_defaults ... ok
+test domain::records::tests::project_event_kind_constants_registered ... ok
+test domain::records::tests::progress_update_round_trip ... ok
+test domain::records::tests::project_event_with_subject_and_source ... ok
+test domain::records::tests::project_fixture_round_trip ... ok
+test domain::records::tests::project_new_sets_name_and_timestamps ... ok
+test domain::records::tests::project_event_round_trip_json ... ok
+test domain::records::tests::project_metadata_is_typed_not_raw_json ... ok
+test domain::records::tests::project_round_trip_json ... ok
+test domain::records::tests::provider_kinds_registered ... ok
+test domain::records::tests::provider_entity_alias_round_trip_json ... ok
+test domain::records::tests::provider_run_complete_rejects_invalid_transition ... ok
+test domain::records::tests::provider_round_trip_json ... ok
+test domain::records::tests::provider_run_complete_transitions ... ok
+test domain::records::tests::provider_run_status_display ... ok
+test domain::records::tests::provider_run_status_invalid_transitions ... ok
+test domain::records::tests::provider_run_status_serialize_round_trip ... ok
+test domain::records::tests::provider_run_status_terminal ... ok
+test domain::records::tests::provider_run_status_valid_transitions ... ok
+test domain::records::tests::verification_check_constants_registered ... ok
+test domain::records::tests::semantic_entity_null_stable_key_round_trip ... ok
+test domain::records::tests::verification_does_not_change_confidence ... ok
+test domain::records::tests::verification_record_new_defaults ... ok
+test domain::records::tests::verification_state_kind ... ok
+test domain::records::tests::semantic_entity_round_trip_json ... ok
+test domain::records::tests::verification_state_serialize_round_trip ... ok
+test domain::records::tests::verification_state_terminal ... ok
+test domain::records::tests::verification_state_transitions_reject_invalid ... ok
+test domain::records::tests::verification_record_round_trip_json ... ok
+test domain::records::tests::verification_state_transitions_valid ... ok
+test domain::records::tests::verification_subject_kinds ... ok
+test domain::task::tests::task_cancel_from_non_terminal ... ok
+test domain::records::tests::verification_subject_round_trip_json ... ok
+test domain::task::tests::task_full_lifecycle ... ok
+test domain::task::tests::task_dependencies ... ok
+test domain::task::tests::task_no_dependencies ... ok
+test domain::task::tests::task_pending_dependencies ... ok
+test domain::task::tests::task_priority_display ... ok
+test domain::task::tests::task_rejects_invalid_transitions ... ok
+test domain::task::tests::task_requeue_exhausts_attempts ... ok
+test domain::task::tests::task_required_capabilities_extras ... ok
+test domain::task::tests::task_starts_pending ... ok
+test domain::task::tests::task_state_transitions ... ok
+test domain::tests::address_display_format ... ok
+test domain::task::tests::task_serialize_roundtrip ... ok
+test domain::tests::address_serialize_roundtrip ... ok
+test domain::tests::address_spaces_deserialize ... ok
+test domain::tests::address_spaces_serialize ... ok
+test domain::tests::confidence_accepts_boundary_values ... ok
+test domain::tests::address_spaces_deserialize_rejects_invalid ... ok
+test domain::tests::confidence_deserialize_rejects_out_of_range ... ok
+test domain::tests::confidence_error_message ... ok
+test domain::tests::confidence_rejects_out_of_range ... ok
+test domain::tests::confidence_serialize_roundtrip ... ok
+test domain::tests::confidence_valid_mid_range ... ok
+test domain::tests::confidence_with_rationale ... ok
+test domain::tests::confidence_with_rationale_serialize_roundtrip ... ok
+test domain::tests::content_hash_blake3_deterministic ... ok
+test domain::tests::content_hash_different_algorithms_differ ... ok
+test domain::tests::content_hash_display_format ... ok
+test domain::tests::content_hash_from_bytes_is_blake3 ... ok
+test domain::tests::content_hash_fixture_roundtrip ... ok
+test domain::tests::content_hash_serialize_roundtrip ... ok
+test domain::tests::content_hash_sha256_deterministic ... ok
+test domain::tests::content_hash_serialize_tagged_format ... ok
+test domain::tests::namespaced_id_deserialize_rejects_invalid ... ok
+test domain::tests::namespaced_id_fixture_roundtrip ... ok
+test domain::tests::namespaced_id_from_segments ... ok
+test domain::tests::namespaced_id_rejects_backslash ... ok
+test domain::tests::namespaced_id_rejects_empty ... ok
+test domain::tests::namespaced_id_rejects_empty_segment ... ok
+test domain::tests::namespaced_id_rejects_leading_dot ... ok
+test domain::tests::namespaced_id_rejects_slash ... ok
+test domain::tests::namespaced_id_rejects_trailing_dot ... ok
+test domain::tests::namespaced_id_rejects_uppercase ... ok
+test domain::tests::namespaced_id_rejects_whitespace ... ok
+test domain::tests::namespaced_id_serialize_roundtrip ... ok
+test domain::tests::namespaced_id_valid_simple ... ok
+test domain::tests::namespaced_id_valid_three_segments ... ok
+test domain::tests::provenance_agent_serialize_roundtrip ... ok
+test domain::tests::provenance_deserialize_rejects_invalid ... ok
+test domain::tests::provenances_deserialize ... ok
+test domain::tests::provenances_display_and_serialize ... ok
+test domain::tests::schema_version_display ... ok
+test domain::tests::schema_version_fixture_roundtrip ... ok
+test domain::tests::schema_version_serialize_roundtrip ... ok
+test domain::tests::symbol_name_construct_and_display ... ok
+test domain::tests::symbol_name_serialize_roundtrip ... ok
+test domain::tests::timestamp_now_is_valid ... ok
+test domain::tests::timestamp_serialize_roundtrip ... ok
+test domain::values::tests::binary_location_rejects_absolute_only ... ok
+test domain::values::tests::binary_location_round_trip ... ok
+test domain::values::tests::derivation_fixture_roundtrip ... ok
+test domain::values::tests::binary_location_serialize_roundtrip ... ok
+test domain::values::tests::derivation_method_tagged_format ... ok
+test domain::values::tests::derivation_method_all_10_variants_roundtrip ... ok
+test domain::values::tests::evidence_value_artifact_roundtrip ... ok
+test domain::values::tests::evidence_value_all_12_variants_constructible ... ok
+test domain::values::tests::derivation_roundtrip ... ok
+test domain::values::tests::evidence_value_boolean_roundtrip ... ok
+test domain::values::tests::evidence_value_bytes_roundtrip ... ok
+test domain::values::tests::evidence_value_binary_location_roundtrip ... ok
+test domain::values::tests::evidence_value_deserialize_rejects_nan_string ... ok
+test domain::values::tests::evidence_value_entity_roundtrip ... ok
+test domain::values::tests::evidence_value_float_rejects_nan_inf ... ok
+test domain::values::tests::evidence_value_extension_roundtrip ... ok
+test domain::values::tests::evidence_value_float_roundtrip ... ok
+test domain::values::tests::evidence_value_list_roundtrip ... ok
+test domain::values::tests::evidence_value_map_fixture_roundtrip ... ok
+test domain::values::tests::evidence_value_map_ordering_deterministic ... ok
+test domain::values::tests::evidence_value_null_roundtrip ... ok
+test domain::values::tests::evidence_value_map_roundtrip ... ok
+test domain::values::tests::evidence_value_signed_integer_roundtrip ... ok
+test domain::values::tests::evidence_value_string_roundtrip ... ok
+test domain::values::tests::evidence_value_tagged_format_boolean ... ok
+test domain::values::tests::evidence_value_tagged_format_null ... ok
+test domain::values::tests::evidence_value_tagged_format_string ... ok
+test domain::values::tests::evidence_value_unsigned_integer_roundtrip ... ok
+test domain::values::tests::extension_data_fixture_roundtrip ... ok
+test domain::values::tests::extension_data_rejects_bad_namespace_on_deserialize ... ok
+test domain::values::tests::extension_data_serialize_roundtrip ... ok
+test domain::values::tests::extension_data_valid_schema ... ok
+test domain::values::tests::metadata_map_default_is_empty ... ok
+test domain::values::tests::metadata_map_deterministic_order ... ok
+test domain::values::tests::metadata_map_insert_and_get ... ok
+test domain::values::tests::metadata_map_serialize_roundtrip ... ok
+test domain::values::tests::stable_entity_key_artifact_symbol_roundtrip ... ok
+test domain::values::tests::stable_entity_key_external_identity_roundtrip ... ok
+test domain::values::tests::stable_entity_key_binary_location_roundtrip ... ok
+test domain::values::tests::stable_entity_key_binary_range_roundtrip ... ok
+test domain::values::tests::stable_entity_key_fixture_roundtrip ... ok
+test ids::tests::ids_all_types_constructible ... ok
+test ids::tests::ids_are_not_interchangeable ... ok
+test ids::tests::ids_copy_works ... ok
+test ids::tests::ids_default_creates_new_id ... ok
+test ids::tests::ids_fixture_project_id_roundtrip ... ok
+test ids::tests::ids_from_uuid_roundtrip ... ok
+test ids::tests::ids_serialize_and_roundtrip ... ok
+test ids::tests::ids_serialize_are_distinct_across_types ... ok
+test ids::tests::ids_stage0_roundtrip ... ok
+test manifest::tests::generate_manifest_fixture ... ok
+test manifest::tests::project_manifest_load_missing_file ... ok
+test manifest::tests::project_manifest_fixture_round_trip ... ok
+test tests::content_hash_sha256_deterministic ... ok
+test manifest::tests::project_manifest_load_invalid_toml ... ok
+test worker_output::tests::output_roundtrips_via_json ... ok
+test manifest::tests::project_manifest_round_trip_preserves_timestamps ... ok
+test manifest::tests::project_manifest_load_save ... ok
+test ids::tests::ids_v7_lexicographic ... ok
+test ids::tests::ids_v7_sort_chronologically ... ok
+test ids::tests::uuid_v7_sorts ... ok
+test domain::records::tests::project_touch_updates_updated_at ... ok
+test worker_output::tests::malformed_output_fails_schema ... ok
+test worker_output::tests::schema_error_includes_pointer ... ok
+test worker_output::tests::valid_output_passes_schema ... ok
+
+test result: ok. 248 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+
+     Running unittests src/lib.rs (target/debug/deps/autore_store-64a59b8c41a8ff8d)
+
+running 158 tests
+test migration::tests::migrate_from_v1_fails_when_source_missing ... ok
+test migration::tests::migrate_from_v1_fails_when_destination_exists ... ok
+test storage::alias_store::tests::alias_store_insert_and_find ... ok
+test storage::alias_store::tests::alias_store_trait_object ... ok
+test storage::alias_store::tests::alias_store_find_not_found ... ok
+test storage::alias_store::tests::alias_store_fk_run_enforced ... ok
+test storage::alias_store::tests::alias_store_unique_constraint ... ok
+test storage::alias_store::tests::native_artifact_store_fk_artifact_enforced ... ok
+test storage::alias_store::tests::alias_store_fk_entity_enforced ... ok
+test storage::alias_store::tests::alias_store_list_for_entity ... ok
+test storage::alias_store::tests::alias_store_list_for_run ... ok
+test storage::alias_store::tests::native_artifact_store_fk_run_enforced ... ok
+test storage::alias_store::tests::native_artifact_store_get_not_found ... ok
+test storage::alias_store::tests::native_artifact_store_insert_and_get ... ok
+test storage::alias_store::tests::native_artifact_store_list_by_run ... ok
+test storage::artifact_store::tests::artifact_store_trait_object ... ok
+test storage::alias_store::tests::native_artifact_store_list_by_subject_entity ... ok
+test storage::alias_store::tests::native_artifact_store_null_description_empty_entities ... ok
+test migration::tests::migration_marks_history ... ok
+test storage::artifact_store::tests::external_artifact_hash_recorded ... ok
+test storage::artifact_store::tests::external_artifact_change_detected ... ok
+test migration::tests::migrate_from_v1_leaves_source_untouched ... ok
+test storage::artifact_store::tests::external_artifact_missing_detected ... ok
+test storage::artifact_store::tests::get_artifact_round_trip ... ok
+test storage::artifact_store::tests::managed_artifact_blake3_registration ... ok
+test migration::tests::migrate_idempotent ... ok
+test migration::tests::migration_v1_to_v2_drops_obsolete_v1 ... ok
+test migration::tests::migration_v1_to_v2_creates_v2_tables ... ok
+test storage::artifact_store::tests::managed_artifact_hash_matches_storage ... ok
+test storage::artifact_store::tests::managed_artifact_dedup ... ok
+test storage::contradiction_store::tests::contradiction_store_fk_subject_enforced ... ok
+test storage::database::tests::domain_has_no_external_imports ... ok
+test storage::contradiction_store::tests::contradiction_store_fk_project_enforced ... ok
+test storage::artifact_store::tests::managed_artifact_import ... ok
+test storage::contradiction_store::tests::contradiction_store_list_by_project ... ok
+test storage::contradiction_store::tests::contradiction_store_insert_and_get ... ok
+test storage::contradiction_store::tests::contradiction_store_list_by_status ... ok
+test storage::contradiction_store::tests::contradiction_store_deferred_then_reopen_then_resolve ... ok
+test storage::contradiction_store::tests::contradiction_store_resolve_not_found ... ok
+test storage::contradiction_store::tests::contradiction_store_list_by_subject ... ok
+test storage::contradiction_store::tests::contradiction_store_get_not_found ... ok
+test storage::contradiction_store::tests::contradiction_store_resolve_valid_transition ... ok
+test storage::contradiction_store::tests::contradiction_store_trait_object ... ok
+test storage::contradiction_store::tests::contradiction_store_resolve_rejects_from_resolved ... ok
+test storage::contradiction_store::tests::contradiction_store_with_evidence_and_hypotheses ... ok
+test storage::database::tests::foreign_keys_are_enforced ... ok
+test storage::database::tests::database_connection_works ... ok
+test storage::database::tests::migrations_apply_cleanly ... ok
+test storage::database::tests::lint_schema_no_db_ids ... ok
+test storage::database::tests::foreign_keys_pragma_on ... ok
+test storage::database::tests::transaction_commit_persists ... ok
+test storage::database::tests::transaction_rollback_on_drop ... ok
+test storage::database::tests::next_project_event_sequence_with_table ... ok
+test storage::database::tests::transaction_rollback_on_error ... ok
+test storage::database::tests::migrations_are_idempotent ... ok
+test storage::database::tests::database_opens_new_file ... ok
+test storage::derived::tests::rebuild_derived_state_clears_old ... ok
+test storage::entity_store::tests::entity_store_count_by_project_kind ... ok
+test storage::entity_store::tests::entity_store_duplicate_stable_key_conflict ... ok
+test storage::derived::tests::rebuild_derived_state_does_not_modify_canonical ... ok
+test storage::derived::tests::rebuild_derived_state_preserves_queries ... ok
+test storage::entity_store::tests::entity_store_fk_enforced ... ok
+test storage::entity_store::tests::entity_store_get_not_found ... ok
+test storage::entity_store::tests::entity_store_null_stable_key_allowed_multiple ... ok
+test storage::entity_store::tests::entity_store_pagination_stable ... ok
+test storage::entity_store::tests::entity_store_insert_and_get ... ok
+test storage::entity_store::tests::entity_store_list_by_stable_key ... ok
+test storage::entity_store::tests::entity_store_list_by_project_no_filter ... ok
+test storage::entity_store::tests::entity_store_list_by_project_with_kind_filter ... ok
+test storage::entity_store::tests::entity_store_same_stable_key_different_projects_ok ... ok
+test storage::entity_store::tests::entity_store_trait_object ... ok
+test storage::event_store::tests::atomic_state_plus_event_rollback ... ok
+test storage::event_store::tests::event_emitted_with_state_change_in_same_tx ... ok
+test storage::event_store::tests::event_sequence_monotonic_per_project ... ok
+test storage::event_store::tests::event_store_events_after ... ok
+test storage::event_store::tests::event_sequence_unique_per_project ... ok
+test storage::event_store::tests::event_store_separate_projects ... ok
+test storage::event_store::tests::event_store_trait_object ... ok
+test storage::evidence_store::tests::evidence_fk_enforced ... ok
+test storage::evidence_store::tests::evidence_get_not_found ... ok
+test storage::evidence_store::tests::evidence_append_only ... ok
+test storage::evidence_store::tests::evidence_fk_project_enforced ... ok
+test storage::evidence_store::tests::evidence_fk_provider_run_enforced ... ok
+test storage::evidence_store::tests::evidence_lifecycle_fk_enforced ... ok
+test storage::evidence_store::tests::evidence_list_by_provider_run ... ok
+test storage::evidence_store::tests::evidence_query_by_subject_predicate ... ok
+test storage::evidence_store::tests::evidence_lifecycle_history ... ok
+test storage::evidence_store::tests::evidence_trait_object ... ok
+test storage::evidence_store::tests::native_artifact_reference_integrity ... ok
+test storage::hypothesis_store::tests::hypothesis_competing_coexist ... ok
+test storage::hypothesis_store::tests::hypothesis_store_fk_project_enforced ... ok
+test storage::hypothesis_store::tests::hypothesis_store_fk_subject_enforced ... ok
+test storage::hypothesis_store::tests::hypothesis_store_get_not_found ... ok
+test storage::hypothesis_store::tests::hypothesis_store_insert_and_get ... ok
+test storage::hypothesis_store::tests::hypothesis_store_list_by_project ... ok
+test storage::hypothesis_store::tests::hypothesis_store_list_by_status ... ok
+test storage::hypothesis_store::tests::hypothesis_store_update_confidence_not_found ... ok
+test storage::hypothesis_store::tests::hypothesis_store_supersession ... ok
+test storage::hypothesis_store::tests::hypothesis_store_list_by_subject ... ok
+test storage::hypothesis_store::tests::hypothesis_store_update_status_not_found ... ok
+test storage::hypothesis_store::tests::hypothesis_store_update_confidence ... ok
+test storage::hypothesis_store::tests::hypothesis_store_trait_object ... ok
+test storage::hypothesis_store::tests::hypothesis_store_with_evidence_refs ... ok
+test storage::hypothesis_store::tests::hypothesis_store_update_status_rejects_invalid ... ok
+test storage::hypothesis_store::tests::hypothesis_store_update_status_valid_transition ... ok
+test storage::operation_store::tests::operation_parent_child_relationship ... ok
+test storage::kill_resume::tests::kill_resume_atomic_rollback ... ok
+test storage::kill_resume::tests::kill_resume_operation_durability ... ok
+test storage::kill_resume::tests::kill_resume_no_duplicate_events ... ok
+test storage::operation_store::tests::operation_progress_structured ... ok
+test storage::operation_store::tests::operation_store_cancellation_cooperative ... ok
+test storage::operation_store::tests::operation_store_fk_project_enforced ... ok
+test storage::operation_store::tests::operation_store_get_not_found ... ok
+test storage::operation_store::tests::operation_store_cancellation_request ... ok
+test storage::operation_store::tests::operation_store_insert_and_get ... ok
+test storage::operation_store::tests::operation_store_list_by_project ... ok
+test storage::operation_store::tests::operation_store_no_db_generated_ids ... ok
+test storage::operation_store::tests::operation_store_list_by_state ... ok
+test storage::operation_store::tests::operation_store_trait_object ... ok
+test storage::operation_store::tests::operation_store_transition_not_found ... ok
+test storage::operation_store::tests::operation_store_transition_rejects_invalid ... ok
+test storage::operation_store::tests::operation_store_transition_valid ... ok
+test storage::operation_store::tests::operation_store_with_subject ... ok
+test storage::operation_store::tests::operation_store_transition_with_failure ... ok
+test storage::operation_store::tests::progress_update_sequence_per_operation ... ok
+test storage::project_store::tests::project_store_get_not_found ... ok
+test storage::project_store::tests::project_store_insert_and_get ... ok
+test storage::project_store::tests::project_store_insert_duplicate_fails ... ok
+test storage::project_store::tests::project_store_list_projects ... ok
+test storage::project_store::tests::project_store_trait_object ... ok
+test storage::project_store::tests::project_store_list_pagination ... ok
+test storage::project_store::tests::project_store_roundtrip_with_metadata ... ok
+test storage::provider_store::tests::provider_run_state_transitions ... ok
+test storage::provider_store::tests::provider_store_complete_run_not_found ... ok
+test storage::provider_store::tests::provider_run_state_transitions_reject_invalid ... ok
+test storage::provider_store::tests::provider_store_complete_run ... ok
+test storage::provider_store::tests::provider_store_fk_enforced ... ok
+test storage::provider_store::tests::provider_store_fk_project_enforced ... ok
+test storage::provider_store::tests::provider_store_get_not_found ... ok
+test storage::provider_store::tests::provider_store_insert_and_get ... ok
+test storage::provider_store::tests::provider_store_list_providers ... ok
+test storage::provider_store::tests::provider_store_trait_object ... ok
+test storage::provider_store::tests::provider_store_list_runs_filter_by_status ... ok
+test storage::provider_store::tests::provider_store_list_runs_filter_by_provider ... ok
+test storage::verification_store::tests::verification_fk_project_enforced ... ok
+test storage::provider_store::tests::provider_store_start_and_get_run ... ok
+test storage::provider_store::tests::provider_store_list_runs_pagination ... ok
+test storage::verification_store::tests::verification_multi_check_per_subject ... ok
+test storage::verification_store::tests::verification_per_subject_type_artifact ... ok
+test storage::verification_store::tests::verification_per_subject_type_entity ... ok
+test storage::verification_store::tests::verification_per_subject_type_generation_target ... ok
+test storage::verification_store::tests::verification_per_subject_type_hypothesis ... ok
+test storage::verification_store::tests::verification_store_get_not_found ... ok
+test storage::verification_store::tests::verification_store_insert_and_get ... ok
+test storage::verification_store::tests::verification_store_list_by_check ... ok
+test storage::verification_store::tests::verification_trait_object ... ok
+test storage::verification_store::tests::verification_subject_kind_discriminator_isolated ... ok
+test storage::verification_store::tests::verification_with_details_and_evidence ... ok
+
+test result: ok. 158 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.27s
+
+     Running tests/migration_fixture.rs (target/debug/deps/migration_fixture-319b692d7a201c22)
+
+running 6 tests
+test failed_migration_leaves_source_usable_and_backup_intact ... ok
+test backup_created_before_mutation ... ok
+test migration_history_recorded ... ok
+test successful_v1_to_v2_migration ... ok
+test reopening_migrated_project_works ... ok
+test validation_passes_after_migration ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests/migration_smoke.rs (target/debug/deps/migration_smoke-1d707f7cccc2cc04)
+
+running 1 test
+test migration_runs_v1_then_v2 ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running unittests src/lib.rs (target/debug/deps/autore_tui-52bec285e6e7c7c1)
+
+running 56 tests
+test runtime::tests::runtime_run_typechecks ... ok
+test tui::state_machine_tests::tui_state_machine_command_dispatch_cancel_operation ... ok
+test tui::state_machine_tests::tui_state_machine_command_dispatch_accept_hypothesis ... ok
+test tui::state_machine_tests::tui_state_machine_command_dispatch_register_artifact ... ok
+test tui::state_machine_tests::tui_state_machine_error_state ... ok
+test tui::state_machine_tests::tui_state_machine_focus_cycles_with_tab ... ok
+test tui::state_machine_tests::tui_state_machine_dialog_lifecycle ... ok
+test tui::state_machine_tests::tui_state_machine_filtering_kind ... ok
+test tui::state_machine_tests::tui_state_machine_incoming_durable_event ... ok
+test tui::state_machine_tests::tui_state_machine_navigation_down_up_wraps ... ok
+test tui::state_machine_tests::tui_state_machine_pane_switching ... ok
+test tui::state_machine_tests::tui_state_machine_filtering_text ... ok
+test tui::state_machine_tests::tui_state_machine_sequence_gap_handling ... ok
+test tui::state_machine_tests::tui_state_machine_form_validation_empty_path ... ok
+test tui::tests::tui_artifact_import_dialog_dispatches_command ... ok
+test tui::tests::tui_cancel_operation_dispatches_command ... ok
+test tui::tests::tui_dashboard_navigation ... ok
+test tui::tests::tui_dashboard_quits_on_q ... ok
+test tui::state_machine_tests::tui_state_machine_query_error ... ok
+test tui::tests::tui_accept_hypothesis_dispatches_command ... ok
+test tui::state_machine_tests::tui_state_machine_query_completion_updates_project_summary ... ok
+test tui::tests::tui_dialog_esc_cancels_without_dispatch ... ok
+test tui::render_tests::tui_render_unknown_namespaced_record ... ok
+test tui::tests::tui_event_loop_handles_project_event ... ok
+test tui::tests::tui_event_loop_sequence_gap_recovers ... ok
+test tui::tests::tui_event_loop_handles_terminal ... ok
+test tui::tests::tui_generic_fallback_empty_fields ... ok
+test tui::tests::tui_navigation_jk_up_down_wraps ... ok
+test tui::tests::tui_generic_fallback_unknown_record ... ok
+test tui::state_machine_tests::tui_state_machine_search_triggers_query ... ok
+test tui::render_tests::tui_render_dashboard_empty_state ... ok
+test tui::state_machine_tests::tui_state_machine_empty_state ... ok
+test tui::render_tests::tui_render_secondary_pane_events_log ... ok
+test tui::tests::tui_dashboard_shows_validation_status ... ok
+test tui::tests::tui_dashboard_renders ... ok
+test tui::state_machine_tests::tui_state_machine_unknown_namespaced_record ... ok
+test tui::state_machine_tests::tui_state_machine_loading_state ... ok
+test tui::tests::tui_pane_switching_keys ... ok
+test tui::tests::tui_q_quits_cleanly ... ok
+test tui::tests::tui_state_no_direct_db ... ok
+test tui::tests::tui_pane_native_artifacts_title ... ok
+test tui::tests::tui_open_project_dispatches_query ... ok
+test tui::tests::tui_pane_external_artifact_integrity_title ... ok
+test tui::tests::tui_pane_migration_history_title ... ok
+test tui::tests::tui_pane_operations_detail_title ... ok
+test tui::tests::tui_dashboard_shows_projects ... ok
+test tui::tests::tui_dashboard_panels_present ... ok
+test tui::tests::tui_pane_events_log_title ... ok
+test tui::tests::tui_state_renders_empty ... ok
+test tui::tests::tui_pane_providers_title ... ok
+test tui::render_tests::tui_render_operations_progress ... ok
+test tui::tests::tui_startup_renders_empty ... ok
+test tui::tests::tui_primary_panels_present ... ok
+test tui::render_tests::tui_render_dashboard_project_summary ... ok
+test tui::state_machine_tests::tui_state_machine_operation_progress ... ok
+test tui::tests::tui_does_not_block_storage ... ok
+
+test result: ok. 56 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.56s
+
+     Running tests/pty_integration.rs (target/debug/deps/pty_integration-71d23b259e3d14a0)
+
+running 1 test
+test pty_tui_lifecycle ... ignored, requires a Linux PTY and the script utility; run with --ignored
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/pty_smoke.rs (target/debug/deps/pty_smoke-bdece98215249a40)
+
+running 1 test
+test pty_smoke_compiles ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s
+
+     Running tests/regression.rs (target/debug/deps/regression-b875cec05db8dc3d)
+
+running 3 tests
+test tui_shutdown_restores_terminal ... ok
+test tui_panic_restores_terminal ... ok
+test tui_shutdown_restores_terminal_with_active_operations ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests autore_app
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests autore_core
+
+running 5 tests
+test autore-core/src/validation.rs - validation::validate_confidence_range (line 130) ... ok
+test autore-core/src/validation.rs - validation::validate_all_references_exist (line 272) ... ok
+test autore-core/src/validation.rs - validation::validate_id_exists (line 27) ... ok
+test autore-core/src/validation.rs - validation::validate_namespaced_id (line 62) ... ok
+test autore-core/src/validation.rs - validation::validate_no_cycle (line 180) ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+all doctests ran in 0.98s; merged doctests compilation took 0.98s
+   Doc-tests autore_events
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests autore_schema
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests autore_store
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests autore_tui
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+EXIT_CODE=0

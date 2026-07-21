@@ -1,0 +1,86 @@
+=== Task 19: Contradiction + VerificationRecord stores ===
+Run date: 2026-07-17T20:08:10Z
+
+--- cargo build --workspace ---
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.30s
+
+--- cargo test -p autore-schema -- contradiction_status_transitions ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.17s
+     Running unittests src/lib.rs (target/debug/deps/autore_schema-389958183ce38f9b)
+
+running 2 tests
+test domain::records::tests::contradiction_status_transitions_valid ... ok
+test domain::records::tests::contradiction_status_transitions_reject_invalid ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 231 filtered out; finished in 0.00s
+
+
+--- cargo test -p autore-store --lib -- contradiction_store_ ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.18s
+     Running unittests src/lib.rs (target/debug/deps/autore_store-1f5c3f4090dd6c75)
+
+running 13 tests
+test storage::contradiction_store::tests::contradiction_store_fk_project_enforced ... ok
+test storage::contradiction_store::tests::contradiction_store_get_not_found ... ok
+test storage::contradiction_store::tests::contradiction_store_trait_object ... ok
+test storage::contradiction_store::tests::contradiction_store_list_by_project ... ok
+test storage::contradiction_store::tests::contradiction_store_resolve_not_found ... ok
+test storage::contradiction_store::tests::contradiction_store_fk_subject_enforced ... ok
+test storage::contradiction_store::tests::contradiction_store_list_by_status ... ok
+test storage::contradiction_store::tests::contradiction_store_resolve_valid_transition ... ok
+test storage::contradiction_store::tests::contradiction_store_resolve_rejects_from_resolved ... ok
+test storage::contradiction_store::tests::contradiction_store_insert_and_get ... ok
+test storage::contradiction_store::tests::contradiction_store_with_evidence_and_hypotheses ... ok
+test storage::contradiction_store::tests::contradiction_store_deferred_then_reopen_then_resolve ... ok
+test storage::contradiction_store::tests::contradiction_store_list_by_subject ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 118 filtered out; finished in 0.08s
+
+
+--- cargo test -p autore-store --lib -- verification_per_subject_type ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.18s
+     Running unittests src/lib.rs (target/debug/deps/autore_store-1f5c3f4090dd6c75)
+
+running 4 tests
+test storage::verification_store::tests::verification_per_subject_type_artifact ... ok
+test storage::verification_store::tests::verification_per_subject_type_generation_target ... ok
+test storage::verification_store::tests::verification_per_subject_type_hypothesis ... ok
+test storage::verification_store::tests::verification_per_subject_type_entity ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 127 filtered out; finished in 0.03s
+
+
+--- cargo test -p autore-store --lib -- verification_multi_check_per_subject ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.18s
+     Running unittests src/lib.rs (target/debug/deps/autore_store-1f5c3f4090dd6c75)
+
+running 1 test
+test storage::verification_store::tests::verification_multi_check_per_subject ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 130 filtered out; finished in 0.02s
+
+
+--- cargo test -p autore-schema --lib -- verification_does_not_change_confidence ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.16s
+     Running unittests src/lib.rs (target/debug/deps/autore_schema-389958183ce38f9b)
+
+running 1 test
+test domain::records::tests::verification_does_not_change_confidence ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 232 filtered out; finished in 0.00s
+
+
+--- cargo test --workspace --exclude autore-stage1 (test result summary) ---
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 131 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.72s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+test result: ok. 233 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 66 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+--- cargo clippy --workspace --exclude autore-stage1 --all-targets -- -D warnings ---
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.33s

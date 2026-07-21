@@ -1,0 +1,102 @@
+=== Task 26: CLI verb scaffolding + clap structure with --output json ===
+=== Date: 2026-07-17 ===
+
+--- cargo run -- --help ---
+     Running `target/debug/auto-re --help`
+auto-re — reverse-engineering project manager
+
+Usage: auto-re [OPTIONS] [COMMAND]
+
+Commands:
+  project        Project management: create, inspect, validate, migrate, rebuild
+  artifact       Artifact management: register, list, show
+  entity         Entity management: register, list, show
+  evidence       Evidence management: add, list
+  hypothesis     Hypothesis management: add, list, accept, reject
+  contradiction  Contradiction inspection: list, show
+  verification   Verification inspection: list, show
+  operation      Operation management: list, show, cancel
+  events         Event stream: list
+  help           Print this message or the help of the given subcommand(s)
+
+Options:
+      --project-dir <PROJECT_DIR>  Path to the parent directory containing the project.auto-re/ subdirectory [default: .]
+  -h, --help                       Print help
+  -V, --version                    Print version
+
+--- cargo run -- project create --name foo ---
+     Running `target/debug/auto-re project create --name foo --project-dir /tmp/task26-evidence-test`
+Project created: foo (019f727d-994c-74b0-9138-44a543858997)
+
+--- cargo run -- project info --output json ---
+     Running `target/debug/auto-re project info --project-dir /tmp/task26-evidence-test --output json`
+{
+  "$schema": "auto-re/schema/project-summary/v2.0",
+  "created_at": "2026-07-17T23:51:01.708204253Z",
+  "id": "019f727d-994c-74b0-9138-44a543858997",
+  "metadata": {},
+  "name": "foo",
+  "schema_version": "2.0",
+  "updated_at": "2026-07-17T23:51:01.708204253Z"
+}
+
+--- cargo run -- project create --name '' (validation) ---
+     Running `target/debug/auto-re project create --name '' --project-dir /tmp/task26-evidence-empty`
+Error: project name must not be empty
+
+--- grep -r 'rusqlite\|prepare(' autore-cli/src (should be empty) ---
+(no matches - PASS)
+
+--- cargo run -- project --help ---
+     Running `target/debug/auto-re project --help`
+Project management: create, inspect, validate, migrate, rebuild
+
+Usage: auto-re project [OPTIONS] <COMMAND>
+
+Commands:
+  create           Create a new project in the current (or specified) directory
+  info             Display project summary
+  validate         Queue a project validation operation
+  migrate          Queue a project migration operation
+  rebuild-indexes  Queue a rebuild-indexes operation
+  check-artifacts  Check artifact integrity (scaffold — not yet implemented)
+  help             Print this message or the help of the given subcommand(s)
+
+Options:
+      --project-dir <PROJECT_DIR>  Path to the parent directory containing the project.auto-re/ subdirectory [default: .]
+  -h, --help                       Print help
+
+--- cargo run -- artifact --help ---
+     Running `target/debug/auto-re artifact --help`
+Artifact management: register, list, show
+
+Usage: auto-re artifact [OPTIONS] <COMMAND>
+
+Commands:
+  add   Register a new artifact
+  list  List artifacts in the project
+  show  Show a specific artifact
+  help  Print this message or the help of the given subcommand(s)
+
+Options:
+      --project-dir <PROJECT_DIR>  Path to the parent directory containing the project.auto-re/ subdirectory [default: .]
+  -h, --help                       Print help
+
+--- cargo run -- hypothesis --help ---
+     Running `target/debug/auto-re hypothesis --help`
+Hypothesis management: add, list, accept, reject
+
+Usage: auto-re hypothesis [OPTIONS] <COMMAND>
+
+Commands:
+  add     Add a new hypothesis
+  list    List hypotheses in the project
+  accept  Accept a hypothesis
+  reject  Reject a hypothesis
+  help    Print this message or the help of the given subcommand(s)
+
+Options:
+      --project-dir <PROJECT_DIR>  Path to the parent directory containing the project.auto-re/ subdirectory [default: .]
+  -h, --help                       Print help
+
+=== ALL ACCEPTANCE CRITERIA PASS ===

@@ -1,0 +1,6 @@
+    Blocking waiting for file lock on package cache
+   Compiling autore-schema v0.1.0 (/mnt/shanes-ssd-1tb/code/shane/auto-re/autore-schema)
+   Compiling autore-store v0.1.0 (/mnt/shanes-ssd-1tb/code/shane/auto-re/autore-store)
+   Compiling autore-stage1 v0.1.0 (/mnt/shanes-ssd-1tb/code/shane/auto-re/autore-stage1)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 8.10s
+EXIT_CODE=0

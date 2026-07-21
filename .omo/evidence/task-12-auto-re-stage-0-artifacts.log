@@ -1,0 +1,37 @@
+Task 12: Managed artifact storage — Evidence Log
+=================================================
+Date: 2026-07-17
+
+## cargo test -p autore-store (6 required tests)
+
+running 6 tests
+test storage::artifact_store::tests::managed_artifact_import ... ok
+test storage::artifact_store::tests::managed_artifact_dedup ... ok
+test storage::artifact_store::tests::managed_artifact_hash_matches_storage ... ok
+test storage::artifact_store::tests::external_artifact_hash_recorded ... ok
+test storage::artifact_store::tests::external_artifact_change_detected ... ok
+test storage::artifact_store::tests::external_artifact_missing_detected ... ok
+test result: ok. 6 passed; 0 failed
+
+## cargo test -p autore-store (full suite)
+
+running 37 tests
+test result: ok. 37 passed; 0 failed
+
+## cargo build --workspace
+
+Finished `dev` profile [unoptimized + debuginfo] — clean build, no warnings
+
+## cargo test -p autore-stage1
+
+running 35 unit tests ... ok. 35 passed; 0 failed
+running 4 campaign_smoke tests ... ok. 4 passed; 0 failed
+running 3 kill_resume tests ... ok. 3 passed; 0 failed
+
+## Files created/modified
+
+- migrations/V3__stage0_artifacts.sql (new)
+- autore-store/Cargo.toml (added sha2, blake3, tempfile deps)
+- autore-store/src/storage/artifact_store.rs (new — ~730 LOC)
+- autore-store/src/storage/mod.rs (added artifact_store module + re-exports)
+- autore-store/src/lib.rs (added ArtifactStore, ArtifactIntegrity, SqliteArtifactStore re-exports)

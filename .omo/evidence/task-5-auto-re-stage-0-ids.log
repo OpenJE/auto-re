@@ -1,0 +1,68 @@
+=== Task 5: Stage 0 IDs + ContentHash + NamespacedId + SchemaVersion + Timestamp ===
+Date: 2026-07-17T16:14:20Z
+
+=== cargo test -p autore-schema ===
+test ids::tests::ids_serialize_and_roundtrip ... ok
+test ids::tests::ids_serialize_are_distinct_across_types ... ok
+test ids::tests::ids_stage0_roundtrip ... ok
+test tests::content_hash_sha256_deterministic ... ok
+test worker_output::tests::output_roundtrips_via_json ... ok
+test ids::tests::ids_v7_lexicographic ... ok
+test ids::tests::ids_v7_sort_chronologically ... ok
+test ids::tests::uuid_v7_sorts ... ok
+test worker_output::tests::malformed_output_fails_schema ... ok
+test worker_output::tests::schema_error_includes_pointer ... ok
+test worker_output::tests::valid_output_passes_schema ... ok
+
+test result: ok. 111 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+
+   Doc-tests autore_schema
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+=== cargo test -p autore-stage1 ===
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/campaign_smoke.rs (target/debug/deps/campaign_smoke-6c5a60d10625c3d0)
+
+running 4 tests
+test campaign_smoke_produces_claims ... ok
+test campaign_smoke_completes ... ok
+test campaign_smoke_updates_tui ... ok
+test campaign_smoke_analyzes_all_functions ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+
+     Running tests/kill_resume.rs (target/debug/deps/kill_resume-4f935aabfdf19608)
+
+running 3 tests
+test campaign_completes_after_resume ... ok
+test accepted_claims_persist_after_kill ... ok
+test kill_resume_no_duplicate_claims ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.04s
+
+   Doc-tests autore_stage1
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+=== cargo build (default-members) ===
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.25s
+
+=== Binary Target Collision Fix ===
+- Renamed autore-stage1 [[bin]] from "auto-re" to "auto-re-stage1"
+- Updated kill_resume.rs: CARGO_BIN_EXE_auto_re -> CARGO_BIN_EXE_auto_re_stage1
+- cargo build --workspace: 0 warnings
+- cargo test -p autore-stage1: 42 passed (35 unit + 4 smoke + 3 kill_resume)
+- cargo test (default-members): all passed
+- target/debug/auto-re (autore-cli): present
+- target/debug/auto-re-stage1 (autore-stage1): present

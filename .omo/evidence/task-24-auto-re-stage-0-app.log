@@ -1,0 +1,19 @@
+   Compiling autore-app v0.1.0 (/mnt/shanes-ssd-1tb/code/shane/auto-re/autore-app)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.25s
+     Running unittests src/lib.rs (target/debug/deps/autore_app-7e69463d8d1409a0)
+
+running 5 tests
+test application_service::tests::create_project_emits_event ... ok
+test application_service::tests::command_rejects_invalid_request ... ok
+test application_service::tests::register_artifact_emits_event ... ok
+test application_service::tests::cancel_operation_is_cooperative ... ok
+test application_service::tests::hypothesis_accept_emits_event_and_keeps_competitors ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.04s
+
+   Doc-tests autore_app
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
