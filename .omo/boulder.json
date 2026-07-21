@@ -60,6 +60,19 @@
       "updated_at": "2026-07-21T22:08:37.049Z",
       "ended_at": "2026-07-21T22:08:37.049Z",
       "elapsed_ms": 12344682
+    },
+    "todo:6": {
+      "task_key": "todo:6",
+      "task_label": "6",
+      "task_title": "Add `proto/` schema tree + tonic+prost build pipeline; `autore.provider.v1` versioned package",
+      "session_id": "opencode:ses_07943aa98ffe3RAzu6EXhrhJ9x",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-07-21T22:23:17.111Z",
+      "started_at": "2026-07-21T22:22:00.186Z",
+      "status": "completed",
+      "ended_at": "2026-07-21T22:23:17.111Z",
+      "elapsed_ms": 76925
     }
   },
   "schema_version": 2,
@@ -889,7 +902,7 @@
       "plan_name": "auto-re-stage-1",
       "status": "active",
       "started_at": "2026-07-21T17:44:04.822Z",
-      "updated_at": "2026-07-21T22:08:37.049Z",
+      "updated_at": "2026-07-21T22:23:17.111Z",
       "session_ids": [
         "opencode:ses_07b120cc7ffePfarZ4ruWIR9gQ",
         "opencode:ses_07a348dafffe99Dm1TLNlyqYbw"
@@ -949,12 +962,25 @@
           "updated_at": "2026-07-21T22:08:37.049Z",
           "ended_at": "2026-07-21T22:08:37.049Z",
           "elapsed_ms": 12344682
+        },
+        "todo:6": {
+          "task_key": "todo:6",
+          "task_label": "6",
+          "task_title": "Add `proto/` schema tree + tonic+prost build pipeline; `autore.provider.v1` versioned package",
+          "session_id": "opencode:ses_07943aa98ffe3RAzu6EXhrhJ9x",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-07-21T22:23:17.111Z",
+          "started_at": "2026-07-21T22:22:00.186Z",
+          "status": "completed",
+          "ended_at": "2026-07-21T22:23:17.111Z",
+          "elapsed_ms": 76925
         }
       }
     }
   },
   "active_work_id": "auto-re-stage-1-1ac8869f",
-  "updated_at": "2026-07-21T22:08:37.049Z",
+  "updated_at": "2026-07-21T22:23:17.111Z",
   "status": "active",
   "agent": "atlas"
 }

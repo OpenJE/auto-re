@@ -1,0 +1,54 @@
+Task 7 — autore-provider-runtime: Bootstrap, Sealed Auth, Lifecycle, Cancellation, Limits
+========================================================================================
+Date: 2026-07-21
+Status: PASS
+
+## Crate Created
+- `autore-provider-runtime/` with Cargo.toml, src/lib.rs, and 5 modules + 1 fixture binary + 1 integration test file.
+
+## Modules
+- `error.rs`: RuntimeError (thiserror), NegotiateError
+- `bootstrap.rs`: CoordinatorBootstrap (UUIDv7 instance ID + 32-byte BootstrapSecret via getrandom)
+- `listener.rs`: UDS-first listener with TCP 127.0.0.1:0 fallback, unified BootstrapStream enum
+- `runtime.rs`: ProviderRuntime::spawn, ProviderInstanceHandle, ProviderManifest, ProviderConfigBundle
+- `shutdown.rs`: GracefulShutdownSeq (GracefulShutdown RPC → 10s wait → kill + reap)
+- `src/bin/fixture_echo.rs`: Minimal gRPC Provider server for integration testing
+
+## Bootstrap Protocol (over raw UDS/TCP)
+1. Provider → Coordinator: 32-byte secret (auth)
+2. Coordinator → Provider: 1-byte status (0x00 OK / 0xFF fail)
+3. Provider → Coordinator: u32 BE min_supported + u32 BE max_supported
+4. Coordinator checks if version 1 is in [min, max]
+5. Coordinator → Provider: 1-byte status (0x00 OK / 0xFF unsupported)
+6. Provider → Coordinator: u16 BE length + UTF-8 gRPC server address
+7. Coordinator connects to provider's gRPC server via ProviderClient
+8. Full Negotiate RPC for capability exchange + package identity verification
+
+## Dependencies Added to Workspace
+- `getrandom = "0.2"` (for 32-byte BootstrapSecret)
+- `tokio-stream = "0.1"` (for server-side streaming types)
+
+## Workspace Configuration
+- Added to `workspace.members`: YES
+- Added to `workspace.default-members`: NO (preserves protoc-free default build)
+
+## Test Results
+- `cargo build -p autore-provider-runtime`: PASS (zero warnings)
+- `cargo test -p autore-provider-runtime -- --nocapture`: 4/4 passed
+  - bootstrap_secrets_never_in_argv: PASS
+  - negotiate_rejects_unsupported_protocol: PASS
+  - authentication_rejects_wrong_secret: PASS
+  - graceful_shutdown_within_10s: PASS (completed in ~0.05s)
+- `cargo clippy -p autore-provider-runtime --all-targets -- -D warnings`: PASS (clean)
+- `cargo fmt --all`: clean
+- Stage 0 regression: `cargo build` (default members): PASS
+- Stage 0 regression: `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --all-targets -- -D warnings`: PASS
+
+## Design Decisions
+- Bootstrap protocol is a simple binary protocol over raw UDS/TCP (NOT gRPC).
+- gRPC Provider service runs on provider's own TCP server (127.0.0.1:0).
+- Secrets NEVER in argv — only via environment variables.
+- BootstrapStream enum implements AsyncRead + AsyncWrite for unified UDS/TCP handling.
+- Concurrency limits parsed from NegotiateResponse.max_concurrency (JSON map).
+- CancellationToken held in ProviderInstanceHandle for coordinated shutdown.
+- No separate watchdog task — child lifecycle managed through GracefulShutdownSeq.

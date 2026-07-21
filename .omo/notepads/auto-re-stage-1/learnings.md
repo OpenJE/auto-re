@@ -165,3 +165,36 @@
 - `cargo clippy -p autore-provider-protocol --all-targets -- -D warnings`: clean
 - `cargo build` (default workspace): clean — `autore-provider-protocol` excluded as expected
 - `cargo fmt --all`: no changes needed
+
+## 2026-07-21 Wave 2 Todo 7 (Runtime Bootstrap)
+
+### What was done
+- Created `autore-provider-runtime` crate with 5 modules: error, bootstrap, listener, runtime, shutdown.
+- Implemented `CoordinatorBootstrap` generating UUIDv7 `ProviderInstanceId` + 32-byte `BootstrapSecret` via `getrandom`.
+- Implemented UDS-first listener with TCP 127.0.0.1:0 fallback using a unified `BootstrapStream` enum.
+- Implemented raw binary bootstrap protocol: auth (32-byte secret echo) → negotiate (u32 min/max range) → gRPC address exchange.
+- Implemented `ProviderRuntime::spawn` orchestrating the full bootstrap + gRPC connect + Negotiate RPC + package identity verification.
+- Implemented `GracefulShutdownSeq`: GracefulShutdown RPC → 10s wait → kill + reap.
+- Added `max_concurrency` parsing from `NegotiateResponse.max_concurrency` JSON map into per-capability `Semaphore`s.
+- Added `CancellationToken` to `ProviderInstanceHandle` for coordinated shutdown.
+- Created `fixture_echo` binary implementing the full Provider gRPC service for integration testing.
+- 4 tests all passing: `bootstrap_secrets_never_in_argv`, `negotiate_rejects_unsupported_protocol`, `authentication_rejects_wrong_secret`, `graceful_shutdown_within_10s`.
+
+### Decisions
+- **Bootstrap protocol is NOT gRPC**: The initial auth + negotiate + address exchange happens over a raw binary protocol on the UDS/TCP socket. The full gRPC Provider service runs separately on the provider's own TCP server. This avoids circular dependencies (provider needs to authenticate before it can serve gRPC).
+- **`BootstrapStream` enum**: Implements `AsyncRead + AsyncWrite` to unify `UnixStream` and `TcpStream` without trait object boxing. The fixture binary has its own parallel `FixtureStream` enum.
+- **No separate watchdog task**: The child process lifecycle is managed through `GracefulShutdownSeq` when `handle.shutdown()` is called, rather than a background task. This avoids ownership issues with `tokio::process::Child` (which is not `Clone`).
+- **`std::mem::forget(temp_dir)`**: The UDS temp directory is leaked intentionally to keep the socket file alive for the provider's lifetime. In production, the handle would own the `TempDir` guard.
+
+### Patterns established
+- All Stage 1 crates that need proto codegen follow the same `PROTOC=/tmp/opencode/protoc/bin/protoc` pattern.
+- Bootstrap protocol: auth → negotiate → gRPC address exchange (3-phase, raw binary).
+- gRPC Provider service always runs on provider's own `127.0.0.1:0` TCP server; address reported back through bootstrap channel.
+- Secrets passed ONLY via env vars (`AUTORE_BOOTSTRAP_SECRET`, `AUTORE_BOOTSTRAP_SOCKET`, `AUTORE_BOOTSTRAP_INSTANCE_ID`), never argv.
+
+### Verification
+- `cargo build -p autore-provider-runtime`: clean (zero warnings)
+- `cargo test -p autore-provider-runtime -- --nocapture`: 4/4 passed
+- `cargo clippy -p autore-provider-runtime --all-targets -- -D warnings`: clean
+- Stage 0 regression: `cargo build` (default members): clean
+- Stage 0 regression: `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime`: clean
