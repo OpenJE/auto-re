@@ -639,6 +639,24 @@ pub use records::{
     VERIFICATION_CHECK_ABI_LAYOUT, VERIFICATION_CHECK_ARTIFACT_HASH, VERIFICATION_CHECK_BUILD,
     VERIFICATION_CHECK_DIFFERENTIAL_BEHAVIOR, VERIFICATION_CHECK_PROJECT_INTEGRITY,
     VerificationRecord, VerificationState, VerificationSubject,
+    // Stage 1 records
+    BUILD_KIND_ATTEMPT, BUILD_KIND_DIAGNOSTIC, BlockedReason, BuildAttempt, BuildDiagnostic,
+    DEBUG_KIND_OBSERVATION, DependencyKind, DynamicObservation, GeneratedSourceMapping,
+    LLM_KIND_PARSED_RESULT, LLM_KIND_RAW_RESPONSE, NativeArtifactSnapshot, ParsedLlmResult,
+    PROVIDER_KIND_INSTALLATION, PROVIDER_KIND_INSTANCE, ProviderInstallation, ProviderInstance,
+    ProviderRunRecord, RECON_KIND_CAMPAIGN, RECON_KIND_MAPPING, RawLlmResponse,
+    ReconstructionCampaign, ReconstructionCampaignState, ReconstructionWorkItem, RepairAttempt,
+    RepairTarget, WORK_ITEM_KIND_BUILD_FAILURE, WORK_ITEM_KIND_CLASS,
+    WORK_ITEM_KIND_CONFLICT_RESOLUTION, WORK_ITEM_KIND_ENTRYPOINT, WORK_ITEM_KIND_ENUM,
+    WORK_ITEM_KIND_EXTERNAL_DEPENDENCY, WORK_ITEM_KIND_FUNCTION, WORK_ITEM_KIND_FUNCTION_CLUSTER,
+    WORK_ITEM_KIND_GENERATION, WORK_ITEM_KIND_GLOBAL, WORK_ITEM_KIND_INVESTIGATION,
+    WORK_ITEM_KIND_LINK_FAILURE, WORK_ITEM_KIND_PROGRAM_SKELETON,
+    WORK_ITEM_KIND_STATIC_INITIALIZER, WORK_ITEM_KIND_STRUCTURE, WORK_ITEM_KIND_SUBSYSTEM,
+    WORK_ITEM_KIND_VERIFICATION_FAILURE, WORK_ITEM_KIND_VTABLE, WorkDependency, WorkFingerprint,
+    WorkItemKind, WorkItemState, WorkLease, ConflictRecord,
+    VERIFY_KIND_COMPARISON, VERIFY_KIND_SCENARIO,
+    CapabilityDescriptor, DiagnosticSeverity,
+    VerificationComparison, VerificationScenario,
 };
 pub use task::{RequiredCapabilities, Task, TaskKind, TaskPriority, TaskState, TaskSubject};
 pub use values::{

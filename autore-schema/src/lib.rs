@@ -5,10 +5,15 @@ pub mod worker_output;
 
 pub use domain::*;
 pub use ids::{
-    BinaryArtifactId, BinaryId, BinaryRevisionId, CampaignId, ClaimId, ContradictionId, EvidenceId,
-    FunctionId, GenerationTargetId, HypothesisId, ImplementationTargetId, ModuleId,
-    NativeArtifactId, OperationId, PackageId, ProjectEventId, ProjectId, ProviderId, ProviderRunId,
-    SourceArtifactId, TaskId, TransactionId, ValidationRunId, VerificationRecordId, WorkerRunId,
+    BinaryArtifactId, BinaryId, BinaryRevisionId, BuildAttemptId, BuildDiagnosticId, CampaignId,
+    CapabilityDescriptorId, ClaimId, ConflictRecordId, ContradictionId, DynamicObservationId,
+    EvidenceId, FunctionId, GeneratedSourceMappingId, GenerationTargetId, HypothesisId,
+    ImplementationTargetId, ModuleId, NativeArtifactId, OperationId, PackageId,
+    ParsedLlmResultId, ProjectEventId, ProjectId, ProviderId, ProviderInstallationId,
+    ProviderInstanceId, ProviderRunId, RawLlmResponseId, ReconstructionCampaignId,
+    RepairAttemptId, SourceArtifactId, TaskId, TransactionId, ValidationRunId,
+    VerificationComparisonId, VerificationRecordId, VerificationScenarioId, WorkerRunId,
+    WorkItemId,
 };
 pub use manifest::ProjectManifest;
 pub use worker_output::{FunctionAnalysisOutput, ProposedClaim, ProposedEvidence, validate_output};

@@ -187,6 +187,71 @@ define_id!(
 );
 
 // ---------------------------------------------------------------------------
+// §7 Stage 1 Identifiers — reconstruction, providers, observations, builds, verification
+// ---------------------------------------------------------------------------
+
+define_id!(
+    ReconstructionCampaignId,
+    "Identifies a Stage 1 reconstruction campaign — a coordinated program re-implementation effort."
+);
+define_id!(
+    WorkItemId,
+    "Identifies a Stage 1 work item — a single schedulable unit within a reconstruction campaign."
+);
+define_id!(
+    ProviderInstallationId,
+    "Identifies a provider installation — a specific version of an analysis tool installed on a host."
+);
+define_id!(
+    ProviderInstanceId,
+    "Identifies a running provider instance — a live process or service endpoint serving requests."
+);
+define_id!(
+    CapabilityDescriptorId,
+    "Identifies a capability descriptor — a declaration of what a provider can do."
+);
+define_id!(
+    DynamicObservationId,
+    "Identifies a dynamic observation — a runtime behavior captured from executing a binary."
+);
+define_id!(
+    RawLlmResponseId,
+    "Identifies a raw LLM response — the unprocessed text returned by a language model provider."
+);
+define_id!(
+    ParsedLlmResultId,
+    "Identifies a parsed LLM result — a structured extraction from a raw LLM response."
+);
+define_id!(
+    ConflictRecordId,
+    "Identifies a conflict record — a detected disagreement between observations or generated artifacts."
+);
+define_id!(
+    GeneratedSourceMappingId,
+    "Identifies a generated source mapping — a link between a generated artifact and the entity it re-implements."
+);
+define_id!(
+    BuildAttemptId,
+    "Identifies a build attempt — a single invocation of a build toolchain on a generated artifact."
+);
+define_id!(
+    BuildDiagnosticId,
+    "Identifies a build diagnostic — a single error, warning, or note emitted by a build tool."
+);
+define_id!(
+    VerificationScenarioId,
+    "Identifies a verification scenario — a specific test case comparing binary and re-implementation behavior."
+);
+define_id!(
+    VerificationComparisonId,
+    "Identifies a verification comparison — the result of executing a scenario against both sides."
+);
+define_id!(
+    RepairAttemptId,
+    "Identifies a repair attempt — a single iteration of fixing a failing build or verification."
+);
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -264,6 +329,22 @@ mod tests {
         let _ = PackageId::new();
         let _ = GenerationTargetId::new();
         let _ = EvidenceRecordId::new();
+        // Stage 1 IDs
+        let _ = ReconstructionCampaignId::new();
+        let _ = WorkItemId::new();
+        let _ = ProviderInstallationId::new();
+        let _ = ProviderInstanceId::new();
+        let _ = CapabilityDescriptorId::new();
+        let _ = DynamicObservationId::new();
+        let _ = RawLlmResponseId::new();
+        let _ = ParsedLlmResultId::new();
+        let _ = ConflictRecordId::new();
+        let _ = GeneratedSourceMappingId::new();
+        let _ = BuildAttemptId::new();
+        let _ = BuildDiagnosticId::new();
+        let _ = VerificationScenarioId::new();
+        let _ = VerificationComparisonId::new();
+        let _ = RepairAttemptId::new();
     }
 
     #[test]
@@ -325,6 +406,28 @@ mod tests {
         roundtrip("EvidenceRecordId", &EvidenceRecordId::new());
         // M1 IDs also verified here
         roundtrip("ProjectId", &ProjectId::new());
+        // Stage 1 IDs
+        roundtrip("ReconstructionCampaignId", &ReconstructionCampaignId::new());
+        roundtrip("WorkItemId", &WorkItemId::new());
+        roundtrip("ProviderInstallationId", &ProviderInstallationId::new());
+        roundtrip("ProviderInstanceId", &ProviderInstanceId::new());
+        roundtrip("CapabilityDescriptorId", &CapabilityDescriptorId::new());
+        roundtrip("DynamicObservationId", &DynamicObservationId::new());
+        roundtrip("RawLlmResponseId", &RawLlmResponseId::new());
+        roundtrip("ParsedLlmResultId", &ParsedLlmResultId::new());
+        roundtrip("ConflictRecordId", &ConflictRecordId::new());
+        roundtrip(
+            "GeneratedSourceMappingId",
+            &GeneratedSourceMappingId::new(),
+        );
+        roundtrip("BuildAttemptId", &BuildAttemptId::new());
+        roundtrip("BuildDiagnosticId", &BuildDiagnosticId::new());
+        roundtrip("VerificationScenarioId", &VerificationScenarioId::new());
+        roundtrip(
+            "VerificationComparisonId",
+            &VerificationComparisonId::new(),
+        );
+        roundtrip("RepairAttemptId", &RepairAttemptId::new());
     }
 
     #[test]

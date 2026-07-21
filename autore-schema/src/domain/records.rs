@@ -1457,6 +1457,974 @@ pub static EVENT_KIND_PROJECT_VALIDATION_FAILED: std::sync::LazyLock<NamespacedI
 pub static EVENT_KIND_PROJECT_INDEXES_REBUILT: std::sync::LazyLock<NamespacedId> =
     std::sync::LazyLock::new(|| NamespacedId::parse("core.project.indexes-rebuilt").unwrap());
 
+// ===========================================================================
+// Stage 1 Records — §7 persistence list
+//
+// All types below are ADDITIVE. Stage 0 records (`Project`, `Artifact`,
+// `SemanticEntity`, `Provider`, `ProviderRun`, `NativeArtifact`,
+// `EvidenceRecord`, `Hypothesis`, `Contradiction`, `VerificationRecord`,
+// `Operation`, `ProjectEvent`, and the `Task` entity in `domain::task`) are
+// untouched. `ReconstructionWorkItem` composes the existing `Task` type by
+// value; `Task` itself is not modified.
+// ===========================================================================
+
+use crate::ids::{
+    BuildAttemptId, BuildDiagnosticId, CapabilityDescriptorId, ConflictRecordId,
+    DynamicObservationId, GeneratedSourceMappingId, ParsedLlmResultId, ProviderInstallationId,
+    ProviderInstanceId, RawLlmResponseId, ReconstructionCampaignId, RepairAttemptId,
+    VerificationComparisonId, VerificationScenarioId, WorkItemId,
+};
+
+use crate::domain::task::Task;
+
+// ---------------------------------------------------------------------------
+// WorkItemKind (18 variants, §7.2)
+// ---------------------------------------------------------------------------
+
+/// What kind of work a Stage 1 work item performs.
+///
+/// Each variant corresponds to a specific role in the reconstruction pipeline
+/// — from program-level scaffolding through per-entity analysis and
+/// re-implementation to failure-handling and conflict resolution.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum WorkItemKind {
+    ProgramSkeleton,
+    ExternalDependency,
+    Global,
+    Enum,
+    Structure,
+    Class,
+    Vtable,
+    Function,
+    FunctionCluster,
+    StaticInitializer,
+    Subsystem,
+    Entrypoint,
+    Investigation,
+    Generation,
+    BuildFailure,
+    LinkFailure,
+    VerificationFailure,
+    ConflictResolution,
+}
+
+impl WorkItemKind {
+    /// Returns the namespaced kind identifier for this variant
+    /// (e.g. `recon.work.function`).
+    pub fn as_namespaced_kind(&self) -> NamespacedId {
+        let s = match self {
+            WorkItemKind::ProgramSkeleton => "recon.work.program-skeleton",
+            WorkItemKind::ExternalDependency => "recon.work.external-dependency",
+            WorkItemKind::Global => "recon.work.global",
+            WorkItemKind::Enum => "recon.work.enum",
+            WorkItemKind::Structure => "recon.work.structure",
+            WorkItemKind::Class => "recon.work.class",
+            WorkItemKind::Vtable => "recon.work.vtable",
+            WorkItemKind::Function => "recon.work.function",
+            WorkItemKind::FunctionCluster => "recon.work.function-cluster",
+            WorkItemKind::StaticInitializer => "recon.work.static-initializer",
+            WorkItemKind::Subsystem => "recon.work.subsystem",
+            WorkItemKind::Entrypoint => "recon.work.entrypoint",
+            WorkItemKind::Investigation => "recon.work.investigation",
+            WorkItemKind::Generation => "recon.work.generation",
+            WorkItemKind::BuildFailure => "recon.work.build-failure",
+            WorkItemKind::LinkFailure => "recon.work.link-failure",
+            WorkItemKind::VerificationFailure => "recon.work.verification-failure",
+            WorkItemKind::ConflictResolution => "recon.work.conflict-resolution",
+        };
+        NamespacedId::parse(s).expect("work item kind constant is valid")
+    }
+}
+
+impl std::fmt::Display for WorkItemKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_namespaced_kind().as_str())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// WorkItemState
+// ---------------------------------------------------------------------------
+
+/// Lifecycle state of a Stage 1 work item.
+///
+/// Valid transitions mirror the existing `Task` state machine:
+/// Pending -> Ready -> Leased -> Running -> Completed | Failed
+/// Pending | Ready -> Blocked -> Ready
+/// Leased -> Stale -> Ready (retry)
+/// Any non-terminal -> Cancelled
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum WorkItemState {
+    Pending,
+    Ready,
+    Leased,
+    Running,
+    Blocked,
+    Completed,
+    Failed,
+    Cancelled,
+    Stale,
+}
+
+impl WorkItemState {
+    /// Returns `true` if this is a terminal state.
+    pub fn is_terminal(&self) -> bool {
+        matches!(self, WorkItemState::Completed | WorkItemState::Cancelled)
+    }
+
+    /// Returns `true` if this state can make progress.
+    pub fn is_active(&self) -> bool {
+        matches!(
+            self,
+            WorkItemState::Pending
+                | WorkItemState::Ready
+                | WorkItemState::Leased
+                | WorkItemState::Running
+                | WorkItemState::Blocked
+        )
+    }
+
+    /// Returns `true` if a worker may acquire a lease.
+    pub fn is_available(&self) -> bool {
+        matches!(self, WorkItemState::Ready)
+    }
+
+    /// Returns `true` if the work item may be requeued from this state.
+    pub fn can_retry(&self) -> bool {
+        matches!(self, WorkItemState::Failed | WorkItemState::Stale)
+    }
+
+    /// Validates a state transition.
+    pub fn transition(&self, target: WorkItemState) -> autore_core::Result<()> {
+        match (self, target) {
+            (WorkItemState::Pending, WorkItemState::Ready) => Ok(()),
+            (WorkItemState::Pending, WorkItemState::Blocked) => Ok(()),
+            (WorkItemState::Ready, WorkItemState::Leased) => Ok(()),
+            (WorkItemState::Ready, WorkItemState::Blocked) => Ok(()),
+            (WorkItemState::Leased, WorkItemState::Running) => Ok(()),
+            (WorkItemState::Leased, WorkItemState::Stale) => Ok(()),
+            (WorkItemState::Running, WorkItemState::Completed) => Ok(()),
+            (WorkItemState::Running, WorkItemState::Failed) => Ok(()),
+            (WorkItemState::Blocked, WorkItemState::Ready) => Ok(()),
+            (WorkItemState::Stale, WorkItemState::Ready) => Ok(()),
+            (WorkItemState::Failed, WorkItemState::Ready) => Ok(()),
+            _ if !self.is_terminal() && matches!(target, WorkItemState::Cancelled) => Ok(()),
+            _ => Err(autore_core::Error::InvalidStateTransition(format!(
+                "{self:?} -> {target:?}"
+            ))),
+        }
+    }
+}
+
+impl std::fmt::Display for WorkItemState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            WorkItemState::Pending => write!(f, "Pending"),
+            WorkItemState::Ready => write!(f, "Ready"),
+            WorkItemState::Leased => write!(f, "Leased"),
+            WorkItemState::Running => write!(f, "Running"),
+            WorkItemState::Blocked => write!(f, "Blocked"),
+            WorkItemState::Completed => write!(f, "Completed"),
+            WorkItemState::Failed => write!(f, "Failed"),
+            WorkItemState::Cancelled => write!(f, "Cancelled"),
+            WorkItemState::Stale => write!(f, "Stale"),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CampaignState (Stage 1)
+// ---------------------------------------------------------------------------
+
+/// Lifecycle state of a Stage 1 reconstruction campaign.
+///
+/// Valid transitions:
+/// - Planning -> Active, Failed
+/// - Active -> Paused, Completed, Failed
+/// - Paused -> Active
+/// - Completed, Failed are terminal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum ReconstructionCampaignState {
+    Planning,
+    Active,
+    Paused,
+    Completed,
+    Failed,
+}
+
+impl ReconstructionCampaignState {
+    /// Validates a state transition.
+    pub fn transition(&self, target: ReconstructionCampaignState) -> autore_core::Result<()> {
+        match (self, target) {
+            (ReconstructionCampaignState::Planning, ReconstructionCampaignState::Active) => Ok(()),
+            (ReconstructionCampaignState::Planning, ReconstructionCampaignState::Failed) => Ok(()),
+            (ReconstructionCampaignState::Active, ReconstructionCampaignState::Paused) => Ok(()),
+            (ReconstructionCampaignState::Active, ReconstructionCampaignState::Completed) => Ok(()),
+            (ReconstructionCampaignState::Active, ReconstructionCampaignState::Failed) => Ok(()),
+            (ReconstructionCampaignState::Paused, ReconstructionCampaignState::Active) => Ok(()),
+            _ => Err(autore_core::Error::InvalidStateTransition(format!(
+                "{self:?} -> {target:?}"
+            ))),
+        }
+    }
+
+    /// Returns `true` if this is a terminal state.
+    pub fn is_terminal(&self) -> bool {
+        matches!(
+            self,
+            ReconstructionCampaignState::Completed | ReconstructionCampaignState::Failed
+        )
+    }
+}
+
+impl std::fmt::Display for ReconstructionCampaignState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ReconstructionCampaignState::Planning => write!(f, "Planning"),
+            ReconstructionCampaignState::Active => write!(f, "Active"),
+            ReconstructionCampaignState::Paused => write!(f, "Paused"),
+            ReconstructionCampaignState::Completed => write!(f, "Completed"),
+            ReconstructionCampaignState::Failed => write!(f, "Failed"),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ReconstructionCampaign
+// ---------------------------------------------------------------------------
+
+/// A Stage 1 reconstruction campaign — a coordinated program re-implementation
+/// effort composed of many `ReconstructionWorkItem`s.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ReconstructionCampaign {
+    pub id: ReconstructionCampaignId,
+    pub project: ProjectId,
+    pub name: String,
+    pub description: Option<String>,
+    pub state: ReconstructionCampaignState,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
+    pub metadata: MetadataMap,
+}
+
+impl ReconstructionCampaign {
+    /// Creates a new campaign in `Planning` state.
+    pub fn new(project: ProjectId, name: impl Into<String>) -> Self {
+        let now = Timestamp::now();
+        ReconstructionCampaign {
+            id: ReconstructionCampaignId::new(),
+            project,
+            name: name.into(),
+            description: None,
+            state: ReconstructionCampaignState::Planning,
+            created_at: now,
+            updated_at: now,
+            metadata: MetadataMap::new(),
+        }
+    }
+
+    /// Transitions this campaign to the target state, validating the
+    /// state machine. Bumps `updated_at` on success.
+    pub fn transition(&mut self, target: ReconstructionCampaignState) -> autore_core::Result<()> {
+        self.state.transition(target)?;
+        self.state = target;
+        self.updated_at = Timestamp::now();
+        Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ReconstructionWorkItem
+// ---------------------------------------------------------------------------
+
+/// A Stage 1 work item — a single schedulable unit within a reconstruction
+/// campaign.
+///
+/// Composes the existing `Task` (from `domain::task`) by value, adding
+/// Stage-1-specific fields (fingerprint, lease, blocked reason, etc.) without
+/// modifying `Task` itself. The `kind` field here is the Stage 1
+/// `WorkItemKind` (18 variants, §7.2); the composed `Task.kind` remains the
+/// Stage 0 `TaskKind` for backward compatibility.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ReconstructionWorkItem {
+    pub id: WorkItemId,
+    pub campaign: ReconstructionCampaignId,
+    pub kind: WorkItemKind,
+    pub task: Task,
+    pub fingerprint: Option<WorkFingerprint>,
+    pub lease: Option<WorkLease>,
+    pub blocked_reason: Option<BlockedReason>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
+}
+
+impl ReconstructionWorkItem {
+    /// Creates a new work item in `Pending` state wrapping the given `Task`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        campaign: ReconstructionCampaignId,
+        kind: WorkItemKind,
+        task: Task,
+    ) -> Self {
+        let now = Timestamp::now();
+        ReconstructionWorkItem {
+            id: WorkItemId::new(),
+            campaign,
+            kind,
+            task,
+            fingerprint: None,
+            lease: None,
+            blocked_reason: None,
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
+    /// Returns the current work-item state (derived from the composed `Task`).
+    pub fn state(&self) -> WorkItemState {
+        match self.task.state {
+            crate::domain::TaskState::Pending => WorkItemState::Pending,
+            crate::domain::TaskState::Ready => WorkItemState::Ready,
+            crate::domain::TaskState::Leased => WorkItemState::Leased,
+            crate::domain::TaskState::Running => WorkItemState::Running,
+            crate::domain::TaskState::Blocked => WorkItemState::Blocked,
+            crate::domain::TaskState::Completed => WorkItemState::Completed,
+            crate::domain::TaskState::Failed => WorkItemState::Failed,
+            crate::domain::TaskState::Cancelled => WorkItemState::Cancelled,
+            crate::domain::TaskState::Stale => WorkItemState::Stale,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// WorkDependency
+// ---------------------------------------------------------------------------
+
+/// Declares that one work item must precede another within a campaign.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct WorkDependency {
+    pub predecessor: WorkItemId,
+    pub successor: WorkItemId,
+    pub kind: DependencyKind,
+}
+
+/// The semantics of a work-item dependency.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum DependencyKind {
+    /// Successor must not start until predecessor completes.
+    Order,
+    /// Successor consumes outputs produced by predecessor.
+    Data,
+    /// Predecessor and successor may not execute concurrently.
+    Mutex,
+}
+
+// ---------------------------------------------------------------------------
+// WorkFingerprint
+// ---------------------------------------------------------------------------
+
+/// A digest of the inputs that determine whether cached work is still valid.
+///
+/// If the fingerprint changes, any previously leased or completed work for
+/// this item is stale and must be re-executed.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct WorkFingerprint {
+    pub input_revision: u64,
+    pub inputs_hash: ContentHash,
+    pub computed_at: Timestamp,
+}
+
+// ---------------------------------------------------------------------------
+// WorkLease
+// ---------------------------------------------------------------------------
+
+/// An exclusive lease granting a worker the right to execute a work item
+/// for a bounded period.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct WorkLease {
+    pub work_item: WorkItemId,
+    pub worker_instance: String,
+    pub acquired_at: Timestamp,
+    pub expires_at: Timestamp,
+}
+
+// ---------------------------------------------------------------------------
+// ProviderInstallation
+// ---------------------------------------------------------------------------
+
+/// A specific version of an analysis tool installed on a host.
+///
+/// Tracks installation path, configuration artifact, environment identity,
+/// and readiness. Distinct from `ProviderInstance` (a live running process).
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ProviderInstallation {
+    pub id: ProviderInstallationId,
+    pub project: ProjectId,
+    pub provider: ProviderId,
+    pub version: String,
+    pub install_path: Option<PathBuf>,
+    pub configuration_artifact: Option<ArtifactId>,
+    pub environment: EnvironmentIdentity,
+    pub installed_at: Timestamp,
+    pub ready: bool,
+}
+
+impl ProviderInstallation {
+    /// Creates a new installation record marked as not ready.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        project: ProjectId,
+        provider: ProviderId,
+        version: impl Into<String>,
+        install_path: Option<PathBuf>,
+        configuration_artifact: Option<ArtifactId>,
+        environment: EnvironmentIdentity,
+    ) -> Self {
+        ProviderInstallation {
+            id: ProviderInstallationId::new(),
+            project,
+            provider,
+            version: version.into(),
+            install_path,
+            configuration_artifact,
+            environment,
+            installed_at: Timestamp::now(),
+            ready: false,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ProviderInstance
+// ---------------------------------------------------------------------------
+
+/// A running provider process or service endpoint.
+///
+/// Distinct from `ProviderInstallation` (the on-disk install). An instance
+/// references its installation and advertises a set of capability descriptors.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ProviderInstance {
+    pub id: ProviderInstanceId,
+    pub installation: ProviderInstallationId,
+    pub endpoint: Option<String>,
+    pub pid: Option<u32>,
+    pub capabilities: Vec<CapabilityDescriptorId>,
+    pub started_at: Timestamp,
+    pub stopped_at: Option<Timestamp>,
+}
+
+// ---------------------------------------------------------------------------
+// ProviderRunRecord
+// ---------------------------------------------------------------------------
+
+/// Stage 1 extension to a provider run — adds cost and token accounting on
+/// top of the Stage 0 `ProviderRun`.
+///
+/// References the Stage 0 `ProviderRun` by `run_id`; does NOT duplicate its
+/// fields.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ProviderRunRecord {
+    pub run: ProviderRunId,
+    pub work_item: Option<WorkItemId>,
+    pub campaign: Option<ReconstructionCampaignId>,
+    pub wall_time_ms: u64,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cost_usd_cents: u64,
+}
+
+// ---------------------------------------------------------------------------
+// CapabilityDescriptor
+// ---------------------------------------------------------------------------
+
+/// A declaration of what a provider can do — operation, subject kind, and
+/// required input artifact formats.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CapabilityDescriptor {
+    pub id: CapabilityDescriptorId,
+    pub provider: ProviderId,
+    pub operation: NamespacedId,
+    pub subject_kind: NamespacedId,
+    pub input_formats: Vec<NamespacedId>,
+    pub output_formats: Vec<NamespacedId>,
+    pub description: Option<String>,
+}
+
+impl CapabilityDescriptor {
+    /// Creates a new capability descriptor.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        provider: ProviderId,
+        operation: NamespacedId,
+        subject_kind: NamespacedId,
+        input_formats: Vec<NamespacedId>,
+        output_formats: Vec<NamespacedId>,
+    ) -> Self {
+        CapabilityDescriptor {
+            id: CapabilityDescriptorId::new(),
+            provider,
+            operation,
+            subject_kind,
+            input_formats,
+            output_formats,
+            description: None,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// NativeArtifactSnapshot
+// ---------------------------------------------------------------------------
+
+/// A Stage 1 view over a `NativeArtifact` — a parsed, addressable snapshot
+/// of a native artifact (e.g., a symbol table extracted from an IDA database).
+///
+/// Distinct from `NativeArtifact` (opaque Stage 0 blob): a snapshot carries
+/// Stage-1-parsed structure indexed by address and/or symbol.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct NativeArtifactSnapshot {
+    pub native_artifact: NativeArtifactId,
+    pub snapshot_kind: NamespacedId,
+    pub produced_by: ProviderRunId,
+    pub produced_at: Timestamp,
+    pub entry_count: u64,
+    pub digest: ContentHash,
+}
+
+// ---------------------------------------------------------------------------
+// DynamicObservation
+// ---------------------------------------------------------------------------
+
+/// A runtime behavior captured from executing a binary — a system call,
+/// memory access, branch taken, or register snapshot.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct DynamicObservation {
+    pub id: DynamicObservationId,
+    pub project: ProjectId,
+    pub subject: EntityId,
+    pub observation_kind: NamespacedId,
+    pub provider_run: ProviderRunId,
+    pub address: Option<crate::domain::Address>,
+    pub payload: EvidenceValue,
+    pub observed_at: Timestamp,
+}
+
+impl DynamicObservation {
+    /// Creates a new dynamic observation.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        project: ProjectId,
+        subject: EntityId,
+        observation_kind: NamespacedId,
+        provider_run: ProviderRunId,
+        address: Option<crate::domain::Address>,
+        payload: EvidenceValue,
+    ) -> Self {
+        DynamicObservation {
+            id: DynamicObservationId::new(),
+            project,
+            subject,
+            observation_kind,
+            provider_run,
+            address,
+            payload,
+            observed_at: Timestamp::now(),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// RawLlmResponse
+// ---------------------------------------------------------------------------
+
+/// The unprocessed text returned by a language model provider, captured for
+/// reproducibility and re-parsing.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RawLlmResponse {
+    pub id: RawLlmResponseId,
+    pub provider_run: ProviderRunId,
+    pub model_descriptor: String,
+    pub prompt_hash: ContentHash,
+    pub response_text: String,
+    pub received_at: Timestamp,
+    pub metadata: MetadataMap,
+}
+
+// ---------------------------------------------------------------------------
+// ParsedLlmResult
+// ---------------------------------------------------------------------------
+
+/// A structured extraction from a `RawLlmResponse` — the typed domain output
+/// of parsing raw LLM text.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ParsedLlmResult {
+    pub id: ParsedLlmResultId,
+    pub raw_response: RawLlmResponseId,
+    pub schema_version: SchemaVersion,
+    pub result: EvidenceValue,
+    pub confidence: Confidence,
+    pub parsed_at: Timestamp,
+}
+
+impl ParsedLlmResult {
+    /// Creates a new parsed LLM result.
+    pub fn new(
+        raw_response: RawLlmResponseId,
+        schema_version: SchemaVersion,
+        result: EvidenceValue,
+        confidence: Confidence,
+    ) -> Self {
+        ParsedLlmResult {
+            id: ParsedLlmResultId::new(),
+            raw_response,
+            schema_version,
+            result,
+            confidence,
+            parsed_at: Timestamp::now(),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ConflictRecord
+// ---------------------------------------------------------------------------
+
+/// A detected disagreement between two observations or generated artifacts.
+///
+/// Distinct from `Contradiction` (which spans hypotheses): a `ConflictRecord`
+/// captures low-level build/verification conflicts detected by Stage 1 tooling.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ConflictRecord {
+    pub id: ConflictRecordId,
+    pub project: ProjectId,
+    pub campaign: ReconstructionCampaignId,
+    pub conflict_kind: NamespacedId,
+    pub subjects: Vec<EntityId>,
+    pub evidence: Vec<EvidenceRecordId>,
+    pub detected_at: Timestamp,
+    pub resolved_by: Option<RepairAttemptId>,
+}
+
+impl ConflictRecord {
+    /// Creates a new conflict record.
+    pub fn new(
+        project: ProjectId,
+        campaign: ReconstructionCampaignId,
+        conflict_kind: NamespacedId,
+        subjects: Vec<EntityId>,
+        evidence: Vec<EvidenceRecordId>,
+    ) -> Self {
+        ConflictRecord {
+            id: ConflictRecordId::new(),
+            project,
+            campaign,
+            conflict_kind,
+            subjects,
+            evidence,
+            detected_at: Timestamp::now(),
+            resolved_by: None,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// GeneratedSourceMapping
+// ---------------------------------------------------------------------------
+
+/// Links a generated source artifact to the entity it re-implements.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct GeneratedSourceMapping {
+    pub id: GeneratedSourceMappingId,
+    pub campaign: ReconstructionCampaignId,
+    pub generated_artifact: ArtifactId,
+    pub target_entity: EntityId,
+    pub produced_by: WorkItemId,
+    pub mapping_kind: NamespacedId,
+    pub created_at: Timestamp,
+}
+
+// ---------------------------------------------------------------------------
+// BuildAttempt
+// ---------------------------------------------------------------------------
+
+/// A single invocation of a build toolchain on a generated artifact.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BuildAttempt {
+    pub id: BuildAttemptId,
+    pub campaign: ReconstructionCampaignId,
+    pub work_item: WorkItemId,
+    pub generated_artifact: ArtifactId,
+    pub toolchain: NamespacedId,
+    pub command_line: Vec<String>,
+    pub started_at: Timestamp,
+    pub completed_at: Option<Timestamp>,
+    pub exit_code: Option<i32>,
+    pub success: bool,
+    pub diagnostics: Vec<BuildDiagnosticId>,
+}
+
+impl BuildAttempt {
+    /// Creates a new (incomplete) build attempt.
+    pub fn new(
+        campaign: ReconstructionCampaignId,
+        work_item: WorkItemId,
+        generated_artifact: ArtifactId,
+        toolchain: NamespacedId,
+        command_line: Vec<String>,
+    ) -> Self {
+        BuildAttempt {
+            id: BuildAttemptId::new(),
+            campaign,
+            work_item,
+            generated_artifact,
+            toolchain,
+            command_line,
+            started_at: Timestamp::now(),
+            completed_at: None,
+            exit_code: None,
+            success: false,
+            diagnostics: Vec::new(),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// BuildDiagnostic
+// ---------------------------------------------------------------------------
+
+/// A single error, warning, or note emitted by a build tool.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BuildDiagnostic {
+    pub id: BuildDiagnosticId,
+    pub build_attempt: BuildAttemptId,
+    pub severity: DiagnosticSeverity,
+    pub source_file: Option<String>,
+    pub line: Option<u32>,
+    pub column: Option<u32>,
+    pub code: Option<String>,
+    pub message: String,
+}
+
+/// Severity of a build diagnostic.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum DiagnosticSeverity {
+    Error,
+    Warning,
+    Note,
+    Info,
+}
+
+// ---------------------------------------------------------------------------
+// VerificationScenario
+// ---------------------------------------------------------------------------
+
+/// A specific test case comparing the behavior of a binary and its
+/// re-implementation.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct VerificationScenario {
+    pub id: VerificationScenarioId,
+    pub campaign: ReconstructionCampaignId,
+    pub subject_entity: EntityId,
+    pub scenario_kind: NamespacedId,
+    pub input_vector: EvidenceValue,
+    pub expected_output: EvidenceValue,
+}
+
+impl VerificationScenario {
+    /// Creates a new verification scenario.
+    pub fn new(
+        campaign: ReconstructionCampaignId,
+        subject_entity: EntityId,
+        scenario_kind: NamespacedId,
+        input_vector: EvidenceValue,
+        expected_output: EvidenceValue,
+    ) -> Self {
+        VerificationScenario {
+            id: VerificationScenarioId::new(),
+            campaign,
+            subject_entity,
+            scenario_kind,
+            input_vector,
+            expected_output,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// VerificationComparison
+// ---------------------------------------------------------------------------
+
+/// The result of executing a scenario against both the binary and the
+/// re-implementation.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct VerificationComparison {
+    pub id: VerificationComparisonId,
+    pub scenario: VerificationScenarioId,
+    pub provider_run: ProviderRunId,
+    pub binary_output: EvidenceValue,
+    pub reimpl_output: EvidenceValue,
+    pub matches: bool,
+    pub compared_at: Timestamp,
+}
+
+// ---------------------------------------------------------------------------
+// RepairAttempt
+// ---------------------------------------------------------------------------
+
+/// A single iteration of fixing a failing build or verification.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RepairAttempt {
+    pub id: RepairAttemptId,
+    pub campaign: ReconstructionCampaignId,
+    pub work_item: WorkItemId,
+    pub target: RepairTarget,
+    pub strategy: NamespacedId,
+    pub started_at: Timestamp,
+    pub completed_at: Option<Timestamp>,
+    pub success: bool,
+    pub outcome_artifact: Option<ArtifactId>,
+}
+
+/// What a repair attempt targets.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum RepairTarget {
+    BuildAttempt(BuildAttemptId),
+    VerificationComparison(VerificationComparisonId),
+    ConflictRecord(ConflictRecordId),
+}
+
+impl RepairTarget {
+    /// Returns the discriminant string for database storage.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            RepairTarget::BuildAttempt(_) => "BuildAttempt",
+            RepairTarget::VerificationComparison(_) => "VerificationComparison",
+            RepairTarget::ConflictRecord(_) => "ConflictRecord",
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// BlockedReason
+// ---------------------------------------------------------------------------
+
+/// Why a work item cannot proceed.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BlockedReason {
+    pub reason_kind: NamespacedId,
+    pub description: String,
+    pub blocking_entities: Vec<EntityId>,
+    pub blocking_work_items: Vec<WorkItemId>,
+    pub recorded_at: Timestamp,
+}
+
+impl BlockedReason {
+    /// Creates a new blocked reason.
+    pub fn new(
+        reason_kind: NamespacedId,
+        description: impl Into<String>,
+    ) -> Self {
+        BlockedReason {
+            reason_kind,
+            description: description.into(),
+            blocking_entities: Vec::new(),
+            blocking_work_items: Vec::new(),
+            recorded_at: Timestamp::now(),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Stage 1 kind-string constants
+// ---------------------------------------------------------------------------
+
+pub static WORK_ITEM_KIND_PROGRAM_SKELETON: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("recon.work.program-skeleton").unwrap());
+
+pub static WORK_ITEM_KIND_EXTERNAL_DEPENDENCY: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("recon.work.external-dependency").unwrap());
+
+pub static WORK_ITEM_KIND_GLOBAL: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("recon.work.global").unwrap());
+
+pub static WORK_ITEM_KIND_ENUM: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("recon.work.enum").unwrap());
+
+pub static WORK_ITEM_KIND_STRUCTURE: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("recon.work.structure").unwrap());
+
+pub static WORK_ITEM_KIND_CLASS: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("recon.work.class").unwrap());
+
+pub static WORK_ITEM_KIND_VTABLE: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("recon.work.vtable").unwrap());
+
+pub static WORK_ITEM_KIND_FUNCTION: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("recon.work.function").unwrap());
+
+pub static WORK_ITEM_KIND_FUNCTION_CLUSTER: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("recon.work.function-cluster").unwrap());
+
+pub static WORK_ITEM_KIND_STATIC_INITIALIZER: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("recon.work.static-initializer").unwrap());
+
+pub static WORK_ITEM_KIND_SUBSYSTEM: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("recon.work.subsystem").unwrap());
+
+pub static WORK_ITEM_KIND_ENTRYPOINT: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("recon.work.entrypoint").unwrap());
+
+pub static WORK_ITEM_KIND_INVESTIGATION: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("recon.work.investigation").unwrap());
+
+pub static WORK_ITEM_KIND_GENERATION: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("recon.work.generation").unwrap());
+
+pub static WORK_ITEM_KIND_BUILD_FAILURE: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("recon.work.build-failure").unwrap());
+
+pub static WORK_ITEM_KIND_LINK_FAILURE: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("recon.work.link-failure").unwrap());
+
+pub static WORK_ITEM_KIND_VERIFICATION_FAILURE: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("recon.work.verification-failure").unwrap());
+
+pub static WORK_ITEM_KIND_CONFLICT_RESOLUTION: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("recon.work.conflict-resolution").unwrap());
+
+pub static RECON_KIND_CAMPAIGN: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("recon.campaign").unwrap());
+
+pub static PROVIDER_KIND_INSTALLATION: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("provider.installation").unwrap());
+
+pub static PROVIDER_KIND_INSTANCE: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("provider.instance").unwrap());
+
+pub static DEBUG_KIND_OBSERVATION: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("debug.observation").unwrap());
+
+pub static LLM_KIND_RAW_RESPONSE: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("llm.raw-response").unwrap());
+
+pub static LLM_KIND_PARSED_RESULT: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("llm.parsed-result").unwrap());
+
+pub static BUILD_KIND_ATTEMPT: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("build.attempt").unwrap());
+
+pub static BUILD_KIND_DIAGNOSTIC: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("build.diagnostic").unwrap());
+
+pub static VERIFY_KIND_SCENARIO: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("verify.scenario").unwrap());
+
+pub static VERIFY_KIND_COMPARISON: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("verify.comparison").unwrap());
+
+pub static RECON_KIND_MAPPING: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("recon.mapping").unwrap());
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -3156,5 +4124,481 @@ mod tests {
         );
         assert_eq!(ev.source, EventSource::Operation);
         assert_eq!(ev.subject, Some(EventSubject::Operation(op_id)));
+    }
+
+    // -----------------------------------------------------------------------
+    // Stage 1 record fixture tests
+    // -----------------------------------------------------------------------
+
+    use crate::domain::{Address, AddressSpace};
+    use crate::ids::{
+        BuildAttemptId, BuildDiagnosticId, CapabilityDescriptorId, ConflictRecordId,
+        GeneratedSourceMappingId, ProviderInstallationId, ProviderInstanceId, RawLlmResponseId,
+        ReconstructionCampaignId, RepairAttemptId, VerificationComparisonId,
+        VerificationScenarioId, WorkItemId,
+    };
+
+    fn s1_project() -> ProjectId {
+        ProjectId::new()
+    }
+
+    fn s1_env() -> EnvironmentIdentity {
+        EnvironmentIdentity {
+            operating_system: NamespacedId::parse("env.os.linux").unwrap(),
+            architecture: NamespacedId::parse("env.arch.x86-64").unwrap(),
+            isolation_backend: None,
+            image_digest: None,
+            extension: None,
+        }
+    }
+
+    fn s1_campaign() -> ReconstructionCampaign {
+        ReconstructionCampaign::new(s1_project(), "stage1-campaign")
+    }
+
+    fn s1_task() -> crate::domain::Task {
+        crate::domain::Task::new(
+            crate::ids::TaskId::new(),
+            crate::ids::CampaignId::new(),
+            crate::domain::TaskKind::AnalyzeFunction,
+            crate::domain::TaskSubject::Binary,
+            crate::domain::TaskPriority::new(50),
+            crate::domain::RequiredCapabilities::new(false, false, false, false),
+            None,
+            None,
+            3,
+        )
+    }
+
+    fn s1_roundtrip<
+        T: serde::Serialize + for<'de> serde::Deserialize<'de> + PartialEq + std::fmt::Debug,
+    >(
+        name: &str,
+        val: &T,
+    ) {
+        let json = serde_json::to_string(val).unwrap();
+        let back: T = serde_json::from_str(&json).unwrap();
+        assert_eq!(val, &back, "{name} failed Stage 1 round-trip");
+    }
+
+    #[test]
+    fn reconstruction_campaign_fixture() {
+        let mut c = s1_campaign();
+        assert_eq!(c.state, ReconstructionCampaignState::Planning);
+        c.transition(ReconstructionCampaignState::Active).unwrap();
+        assert_eq!(c.state, ReconstructionCampaignState::Active);
+        s1_roundtrip("ReconstructionCampaign", &c);
+    }
+
+    #[test]
+    fn reconstruction_campaign_rejects_invalid_transitions() {
+        let mut c = s1_campaign();
+        assert!(c.transition(ReconstructionCampaignState::Paused).is_err());
+        c.transition(ReconstructionCampaignState::Active).unwrap();
+        c.transition(ReconstructionCampaignState::Completed).unwrap();
+        assert!(c.state.is_terminal());
+        assert!(c.transition(ReconstructionCampaignState::Failed).is_err());
+    }
+
+    #[test]
+    fn work_item_kind_all_variants_roundtrip() {
+        let kinds = [
+            WorkItemKind::ProgramSkeleton,
+            WorkItemKind::ExternalDependency,
+            WorkItemKind::Global,
+            WorkItemKind::Enum,
+            WorkItemKind::Structure,
+            WorkItemKind::Class,
+            WorkItemKind::Vtable,
+            WorkItemKind::Function,
+            WorkItemKind::FunctionCluster,
+            WorkItemKind::StaticInitializer,
+            WorkItemKind::Subsystem,
+            WorkItemKind::Entrypoint,
+            WorkItemKind::Investigation,
+            WorkItemKind::Generation,
+            WorkItemKind::BuildFailure,
+            WorkItemKind::LinkFailure,
+            WorkItemKind::VerificationFailure,
+            WorkItemKind::ConflictResolution,
+        ];
+        for k in &kinds {
+            let ns = k.as_namespaced_kind();
+            assert!(
+                ns.as_str().starts_with("recon.work."),
+                "expected recon.work.* prefix, got {ns}"
+            );
+            s1_roundtrip("WorkItemKind", k);
+        }
+        assert_eq!(kinds.len(), 18, "WorkItemKind must have 18 variants");
+    }
+
+    #[test]
+    fn work_item_kind_matches_static_constants() {
+        assert_eq!(
+            WorkItemKind::Function.as_namespaced_kind(),
+            *WORK_ITEM_KIND_FUNCTION
+        );
+        assert_eq!(
+            WorkItemKind::ProgramSkeleton.as_namespaced_kind(),
+            *WORK_ITEM_KIND_PROGRAM_SKELETON
+        );
+        assert_eq!(
+            WorkItemKind::ConflictResolution.as_namespaced_kind(),
+            *WORK_ITEM_KIND_CONFLICT_RESOLUTION
+        );
+    }
+
+    #[test]
+    fn work_item_state_transitions_mirror_task() {
+        let s = WorkItemState::Pending;
+        assert!(s.is_active());
+        assert!(!s.is_terminal());
+        s.transition(WorkItemState::Ready).unwrap();
+        WorkItemState::Ready
+            .transition(WorkItemState::Leased)
+            .unwrap();
+        WorkItemState::Leased
+            .transition(WorkItemState::Running)
+            .unwrap();
+        WorkItemState::Running
+            .transition(WorkItemState::Completed)
+            .unwrap();
+        WorkItemState::Running
+            .transition(WorkItemState::Failed)
+            .unwrap();
+        WorkItemState::Stale
+            .transition(WorkItemState::Ready)
+            .unwrap();
+        WorkItemState::Blocked
+            .transition(WorkItemState::Ready)
+            .unwrap();
+        WorkItemState::Ready
+            .transition(WorkItemState::Cancelled)
+            .unwrap();
+        assert!(WorkItemState::Completed.is_terminal());
+        assert!(WorkItemState::Cancelled.is_terminal());
+        assert!(WorkItemState::Failed.can_retry());
+        assert!(WorkItemState::Stale.can_retry());
+        assert!(WorkItemState::Ready.is_available());
+    }
+
+    #[test]
+    fn work_item_state_rejects_invalid_transitions() {
+        assert!(WorkItemState::Completed
+            .transition(WorkItemState::Running)
+            .is_err());
+        assert!(WorkItemState::Pending
+            .transition(WorkItemState::Running)
+            .is_err());
+        assert!(WorkItemState::Running
+            .transition(WorkItemState::Leased)
+            .is_err());
+    }
+
+    #[test]
+    fn reconstruction_work_item_fixture() {
+        let wid = ReconstructionWorkItem::new(
+            ReconstructionCampaignId::new(),
+            WorkItemKind::Function,
+            s1_task(),
+        );
+        assert_eq!(wid.state(), WorkItemState::Pending);
+        s1_roundtrip("ReconstructionWorkItem", &wid);
+    }
+
+    #[test]
+    fn work_dependency_fixture() {
+        let dep = WorkDependency {
+            predecessor: WorkItemId::new(),
+            successor: WorkItemId::new(),
+            kind: DependencyKind::Order,
+        };
+        s1_roundtrip("WorkDependency", &dep);
+        let dep_data = WorkDependency {
+            predecessor: WorkItemId::new(),
+            successor: WorkItemId::new(),
+            kind: DependencyKind::Data,
+        };
+        s1_roundtrip("WorkDependency::Data", &dep_data);
+    }
+
+    #[test]
+    fn work_fingerprint_fixture() {
+        let fp = WorkFingerprint {
+            input_revision: 7,
+            inputs_hash: ContentHash::from_bytes(b"fp-inputs"),
+            computed_at: Timestamp::now(),
+        };
+        s1_roundtrip("WorkFingerprint", &fp);
+    }
+
+    #[test]
+    fn work_lease_fixture() {
+        let lease = WorkLease {
+            work_item: WorkItemId::new(),
+            worker_instance: "worker-42".into(),
+            acquired_at: Timestamp::now(),
+            expires_at: Timestamp::now(),
+        };
+        s1_roundtrip("WorkLease", &lease);
+    }
+
+    #[test]
+    fn provider_installation_fixture() {
+        let inst = ProviderInstallation::new(
+            s1_project(),
+            ProviderId::new(),
+            "1.2.3",
+            None,
+            None,
+            s1_env(),
+        );
+        assert!(!inst.ready);
+        s1_roundtrip("ProviderInstallation", &inst);
+    }
+
+    #[test]
+    fn provider_instance_fixture() {
+        let pi = ProviderInstance {
+            id: ProviderInstanceId::new(),
+            installation: ProviderInstallationId::new(),
+            endpoint: Some("http://localhost:8080".into()),
+            pid: Some(12345),
+            capabilities: vec![CapabilityDescriptorId::new()],
+            started_at: Timestamp::now(),
+            stopped_at: None,
+        };
+        s1_roundtrip("ProviderInstance", &pi);
+    }
+
+    #[test]
+    fn provider_run_record_fixture() {
+        let rec = ProviderRunRecord {
+            run: ProviderRunId::new(),
+            work_item: Some(WorkItemId::new()),
+            campaign: Some(ReconstructionCampaignId::new()),
+            wall_time_ms: 1234,
+            input_tokens: 500,
+            output_tokens: 200,
+            cost_usd_cents: 42,
+        };
+        s1_roundtrip("ProviderRunRecord", &rec);
+    }
+
+    #[test]
+    fn capability_descriptor_fixture() {
+        let cap = CapabilityDescriptor::new(
+            ProviderId::new(),
+            NamespacedId::parse("op.decompile").unwrap(),
+            NamespacedId::parse("core.function").unwrap(),
+            vec![NamespacedId::parse("ida.hexrays.pseudocode").unwrap()],
+            vec![NamespacedId::parse("core.source-tree").unwrap()],
+        );
+        s1_roundtrip("CapabilityDescriptor", &cap);
+    }
+
+    #[test]
+    fn native_artifact_snapshot_fixture() {
+        let snap = NativeArtifactSnapshot {
+            native_artifact: NativeArtifactId::new(),
+            snapshot_kind: NamespacedId::parse("snapshot.symbol-table").unwrap(),
+            produced_by: ProviderRunId::new(),
+            produced_at: Timestamp::now(),
+            entry_count: 42,
+            digest: ContentHash::from_bytes(b"snapshot-digest"),
+        };
+        s1_roundtrip("NativeArtifactSnapshot", &snap);
+    }
+
+    #[test]
+    fn dynamic_observation_fixture() {
+        let obs = DynamicObservation::new(
+            s1_project(),
+            EntityId::new(),
+            NamespacedId::parse("debug.syscall").unwrap(),
+            ProviderRunId::new(),
+            Some(Address::new(AddressSpace::Virtual, 0x4000)),
+            EvidenceValue::String("read(0, buf, 42)".into()),
+        );
+        s1_roundtrip("DynamicObservation", &obs);
+    }
+
+    #[test]
+    fn raw_llm_response_fixture() {
+        let r = RawLlmResponse {
+            id: RawLlmResponseId::new(),
+            provider_run: ProviderRunId::new(),
+            model_descriptor: "gpt-5.6".into(),
+            prompt_hash: ContentHash::from_bytes(b"prompt"),
+            response_text: "fn main() { ... }".into(),
+            received_at: Timestamp::now(),
+            metadata: MetadataMap::new(),
+        };
+        s1_roundtrip("RawLlmResponse", &r);
+    }
+
+    #[test]
+    fn parsed_llm_result_fixture() {
+        let p = ParsedLlmResult::new(
+            RawLlmResponseId::new(),
+            SchemaVersion::new(2, 0),
+            EvidenceValue::String("extracted".into()),
+            Confidence::new(0.75).unwrap(),
+        );
+        assert!((p.confidence.score() - 0.75).abs() < f32::EPSILON);
+        s1_roundtrip("ParsedLlmResult", &p);
+    }
+
+    #[test]
+    fn conflict_record_fixture() {
+        let mut c = ConflictRecord::new(
+            s1_project(),
+            ReconstructionCampaignId::new(),
+            NamespacedId::parse("conflict.signature-mismatch").unwrap(),
+            vec![EntityId::new()],
+            vec![EvidenceRecordId::new()],
+        );
+        assert!(c.resolved_by.is_none());
+        c.resolved_by = Some(RepairAttemptId::new());
+        s1_roundtrip("ConflictRecord", &c);
+    }
+
+    #[test]
+    fn generated_source_mapping_fixture() {
+        let m = GeneratedSourceMapping {
+            id: GeneratedSourceMappingId::new(),
+            campaign: ReconstructionCampaignId::new(),
+            generated_artifact: ArtifactId::new(),
+            target_entity: EntityId::new(),
+            produced_by: WorkItemId::new(),
+            mapping_kind: NamespacedId::parse("mapping.function").unwrap(),
+            created_at: Timestamp::now(),
+        };
+        s1_roundtrip("GeneratedSourceMapping", &m);
+    }
+
+    #[test]
+    fn build_attempt_fixture() {
+        let b = BuildAttempt::new(
+            ReconstructionCampaignId::new(),
+            WorkItemId::new(),
+            ArtifactId::new(),
+            NamespacedId::parse("toolchain.gcc").unwrap(),
+            vec!["gcc".into(), "-o".into(), "out".into(), "main.c".into()],
+        );
+        assert!(!b.success);
+        assert!(b.completed_at.is_none());
+        s1_roundtrip("BuildAttempt", &b);
+    }
+
+    #[test]
+    fn build_diagnostic_fixture() {
+        let d = BuildDiagnostic {
+            id: BuildDiagnosticId::new(),
+            build_attempt: BuildAttemptId::new(),
+            severity: DiagnosticSeverity::Error,
+            source_file: Some("main.c".into()),
+            line: Some(42),
+            column: Some(10),
+            code: Some("E001".into()),
+            message: "undefined reference".into(),
+        };
+        s1_roundtrip("BuildDiagnostic", &d);
+        let warn = BuildDiagnostic {
+            id: BuildDiagnosticId::new(),
+            build_attempt: BuildAttemptId::new(),
+            severity: DiagnosticSeverity::Warning,
+            source_file: None,
+            line: None,
+            column: None,
+            code: None,
+            message: "unused variable".into(),
+        };
+        s1_roundtrip("BuildDiagnostic::Warning", &warn);
+    }
+
+    #[test]
+    fn verification_scenario_fixture() {
+        let s = VerificationScenario::new(
+            ReconstructionCampaignId::new(),
+            EntityId::new(),
+            NamespacedId::parse("verify.io-equivalence").unwrap(),
+            EvidenceValue::Null,
+            EvidenceValue::Null,
+        );
+        s1_roundtrip("VerificationScenario", &s);
+    }
+
+    #[test]
+    fn verification_comparison_fixture() {
+        let c = VerificationComparison {
+            id: VerificationComparisonId::new(),
+            scenario: VerificationScenarioId::new(),
+            provider_run: ProviderRunId::new(),
+            binary_output: EvidenceValue::SignedInteger(42),
+            reimpl_output: EvidenceValue::SignedInteger(42),
+            matches: true,
+            compared_at: Timestamp::now(),
+        };
+        s1_roundtrip("VerificationComparison", &c);
+    }
+
+    #[test]
+    fn repair_attempt_fixture() {
+        let r = RepairAttempt {
+            id: RepairAttemptId::new(),
+            campaign: ReconstructionCampaignId::new(),
+            work_item: WorkItemId::new(),
+            target: RepairTarget::BuildAttempt(BuildAttemptId::new()),
+            strategy: NamespacedId::parse("repair.regenerate").unwrap(),
+            started_at: Timestamp::now(),
+            completed_at: Some(Timestamp::now()),
+            success: true,
+            outcome_artifact: Some(ArtifactId::new()),
+        };
+        s1_roundtrip("RepairAttempt", &r);
+    }
+
+    #[test]
+    fn repair_target_variants() {
+        assert_eq!(
+            RepairTarget::BuildAttempt(BuildAttemptId::new()).kind(),
+            "BuildAttempt"
+        );
+        assert_eq!(
+            RepairTarget::VerificationComparison(VerificationComparisonId::new()).kind(),
+            "VerificationComparison"
+        );
+        assert_eq!(
+            RepairTarget::ConflictRecord(ConflictRecordId::new()).kind(),
+            "ConflictRecord"
+        );
+    }
+
+    #[test]
+    fn blocked_reason_fixture() {
+        let mut b = BlockedReason::new(
+            NamespacedId::parse("blocked.missing-dependency").unwrap(),
+            "depends on unresolved function",
+        );
+        b.blocking_entities.push(EntityId::new());
+        b.blocking_work_items.push(WorkItemId::new());
+        s1_roundtrip("BlockedReason", &b);
+    }
+
+    #[test]
+    fn stage1_kind_constants_registered() {
+        assert_eq!(RECON_KIND_CAMPAIGN.as_str(), "recon.campaign");
+        assert_eq!(PROVIDER_KIND_INSTALLATION.as_str(), "provider.installation");
+        assert_eq!(PROVIDER_KIND_INSTANCE.as_str(), "provider.instance");
+        assert_eq!(DEBUG_KIND_OBSERVATION.as_str(), "debug.observation");
+        assert_eq!(LLM_KIND_RAW_RESPONSE.as_str(), "llm.raw-response");
+        assert_eq!(LLM_KIND_PARSED_RESULT.as_str(), "llm.parsed-result");
+        assert_eq!(BUILD_KIND_ATTEMPT.as_str(), "build.attempt");
+        assert_eq!(BUILD_KIND_DIAGNOSTIC.as_str(), "build.diagnostic");
+        assert_eq!(VERIFY_KIND_SCENARIO.as_str(), "verify.scenario");
+        assert_eq!(VERIFY_KIND_COMPARISON.as_str(), "verify.comparison");
+        assert_eq!(RECON_KIND_MAPPING.as_str(), "recon.mapping");
     }
 }
