@@ -125,6 +125,19 @@
       "status": "completed",
       "ended_at": "2026-07-21T23:32:28.524Z",
       "elapsed_ms": 57875
+    },
+    "todo:11": {
+      "task_key": "todo:11",
+      "task_label": "11",
+      "task_title": "Additive refinery migrations V14..V23 for reconstruction records (campaigns, work items, deps, fingerprints, leases, provider installations/instances/runs, capability descriptors, native snapshots, dynamic observations)",
+      "session_id": "opencode:ses_078f81f8dffeMLS1qmMPXo4Cs7",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-07-21T23:43:49.803Z",
+      "started_at": "2026-07-21T23:42:28.689Z",
+      "status": "completed",
+      "ended_at": "2026-07-21T23:43:49.803Z",
+      "elapsed_ms": 81114
     }
   },
   "schema_version": 2,
@@ -954,7 +967,7 @@
       "plan_name": "auto-re-stage-1",
       "status": "active",
       "started_at": "2026-07-21T17:44:04.822Z",
-      "updated_at": "2026-07-21T23:32:28.524Z",
+      "updated_at": "2026-07-21T23:43:49.803Z",
       "session_ids": [
         "opencode:ses_07b120cc7ffePfarZ4ruWIR9gQ",
         "opencode:ses_07a348dafffe99Dm1TLNlyqYbw"
@@ -1079,12 +1092,25 @@
           "status": "completed",
           "ended_at": "2026-07-21T23:32:28.524Z",
           "elapsed_ms": 57875
+        },
+        "todo:11": {
+          "task_key": "todo:11",
+          "task_label": "11",
+          "task_title": "Additive refinery migrations V14..V23 for reconstruction records (campaigns, work items, deps, fingerprints, leases, provider installations/instances/runs, capability descriptors, native snapshots, dynamic observations)",
+          "session_id": "opencode:ses_078f81f8dffeMLS1qmMPXo4Cs7",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-07-21T23:43:49.803Z",
+          "started_at": "2026-07-21T23:42:28.689Z",
+          "status": "completed",
+          "ended_at": "2026-07-21T23:43:49.803Z",
+          "elapsed_ms": 81114
         }
       }
     }
   },
   "active_work_id": "auto-re-stage-1-1ac8869f",
-  "updated_at": "2026-07-21T23:32:28.524Z",
+  "updated_at": "2026-07-21T23:43:49.803Z",
   "status": "active",
   "agent": "atlas"
 }
