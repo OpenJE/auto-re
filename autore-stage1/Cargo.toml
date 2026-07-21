@@ -15,6 +15,7 @@ name = "auto-re-stage1"
 path = "src/main.rs"
 
 [dependencies]
+autore-app = { path = "../autore-app" }
 autore-core = { path = "../autore-core" }
 autore-schema = { path = "../autore-schema" }
 autore-store = { path = "../autore-store" }

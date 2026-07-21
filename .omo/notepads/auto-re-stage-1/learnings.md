@@ -98,3 +98,35 @@
 - `grep -c '^define_id!' autore-schema/src/ids.rs`: 43 (15 new + 28 pre-existing)
 - `autore-schema/src/domain/task/` fully untouched (verified via `git diff --stat HEAD -- autore-schema/src/domain/task/`)
 
+## 2026-07-21 Wave 1 Todo 4 (Worker via ApplicationCommand)
+
+### What was done
+- Refactored `WorkerRunner` to route all durable writes through `Arc<dyn AutoReClient>` instead of direct `ClaimRepository`/`EvidenceRepository` calls.
+- `WorkerRunner` struct now holds `client: Arc<dyn AutoReClient>` (replacing `claims`/`evidence` fields).
+- `WorkerInput` gained a `project_id: ProjectId` field for command construction.
+- `issue_commands()` helper issues `AddEvidence` (per evidence item), `AddHypothesis` (with supporting evidence IDs and confidence from analysis), and `CompleteWorkItem`.
+- `WorkerOutput` struct preserved unchanged (claims, evidence, analysis) for in-memory return.
+- Added `RecordingClient` test stub that records all `ApplicationCommand`s and asserts exactly 1 `AddEvidence` + 1 `AddHypothesis` + 1 `CompleteWorkItem` in order.
+- Added `autore-app` as a path dependency in `autore-stage1/Cargo.toml`.
+- `ClaimRepository` and `EvidenceRepository` traits NOT deleted (still in `storage/repositories/` for other consumers; removal in Wave 11).
+
+### Decisions
+- **`tasks` field kept**: `WorkerRunner` still holds `Arc<dyn TaskRepository>` for internal stage1 task lifecycle (`complete`/`fail`). The app-level `CompleteWorkItem` is a separate concern (stage0 work-item state). Task repo removal deferred to Wave 4/11 when the scheduler moves to commands.
+- **EntityId type mismatch**: Stage1 domain `EntityId` (enum: Function, Module, etc.) vs Stage0 `ids::EntityId` (UUID wrapper) — used `EntityId::new()` placeholder for command requests. Proper mapping layer deferred to a future todo when the domain bridge is designed.
+- **Predicate mapping**: `ClaimPredicate` → string via match function (e.g., `FunctionName` → `"function-name"`). Used as the hypothesis predicate string.
+- **ClaimValue → EvidenceValue**: Simple conversion function mapping each variant to the closest `EvidenceValue` variant. Complex/map/json values serialized to string.
+- **`headless.rs` minimal fix**: Added `NoopAutoReClient` stub (classified REPLACE in Wave 11). Also fixed `campaign_smoke.rs` with `SmokeAutoReClient`.
+- **Float precision**: `Confidence::score()` returns `f32`, cast to `f64` for `AddHypothesisRequest.confidence_score`. Test uses approximate comparison (`abs() < 0.001`).
+
+### Patterns established
+- Command routing via `AutoReClient::execute(ApplicationCommand::*)` from worker subsystem.
+- `RecordingClient` pattern for testing command issuance: records commands in `Mutex<Vec<ApplicationCommand>>`, returns plausible `CommandResult` stubs.
+- Evidence-first ordering: `AddEvidence` commands issued before `AddHypothesis` so the hypothesis can reference evidence record IDs.
+
+### Verification
+- `cargo build -p autore-stage1 --no-default-features`: clean (zero warnings)
+- `cargo test -p autore-stage1 --no-default-features --lib worker::runner`: 5/5 passed
+- `cargo build` (workspace): clean
+- `grep -n 'ClaimRepository' runner.rs`: nothing
+- `grep -n 'EvidenceRepository' runner.rs`: nothing
+

@@ -14,3 +14,11 @@
 - **Todo 2 string IDs**: Todo 2's `autore-app` command structs still use `String` for `work_item_id`/`campaign_id` etc. Todo 4+ should migrate those to the new typed IDs (`WorkItemId`, `ReconstructionCampaignId`, etc.) now available in `autore-schema`.
 
 ## Append only; never overwrite.
+
+## 2026-07-21 Wave 1 Todo 4 (Worker via ApplicationCommand)
+- **EntityId type gap**: Stage1 domain `EntityId` (enum with Function/Module/Task variants) cannot be directly converted to `autore_schema::ids::EntityId` (UUID wrapper). The worker currently uses `EntityId::new()` as a placeholder in `AddEvidence`/`AddHypothesis` commands. A proper domain-bridge converter is needed before Wave 4/11.
+- **Predicate string lossiness**: `ClaimPredicate` → string conversion loses the enum's type safety. When the `AddHypothesis` handler is implemented (future todo), it will need to parse the string back or accept `NamespacedId` predicates.
+- **ClaimValue → EvidenceValue lossy**: Complex values (`Map`, `Json`) are serialized to string, losing structure. A richer mapping (e.g., `EvidenceValue::Map`) should be implemented when evidence consumers need it.
+- **`campaign_smoke.rs` pre-existing TUI gate**: This integration test imports `autore_stage1::tui` without a `#[cfg(feature = "tui")]` gate, so it fails with `--no-default-features`. Not caused by this todo; pre-existing issue.
+- **`headless.rs` NoopAutoReClient**: Temporary stub returning `EvidenceAdded` for every command. When the headless runner is replaced (Wave 11), a real client should be wired through.
+- **Sync `execute` in async context**: `AutoReClient::execute()` is synchronous. In production, wrapping with `tokio::task::spawn_blocking` is recommended. Not done here because the `RecordingClient` test doesn't need it and the real client isn't wired yet.

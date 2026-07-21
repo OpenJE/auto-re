@@ -247,6 +247,48 @@ impl EvidenceRepository for CollectingEvidenceRepo {
     }
 }
 
+struct SmokeAutoReClient;
+
+impl autore_app::application_service::requests::AutoReClient for SmokeAutoReClient {
+    fn execute(
+        &self,
+        _command: autore_app::ApplicationCommand,
+    ) -> autore_core::Result<autore_app::CommandResult> {
+        Ok(autore_app::CommandResult::EvidenceAdded(
+            autore_app::AddEvidenceResponse {
+                id: autore_schema::ids::EvidenceRecordId::new(),
+            },
+        ))
+    }
+    fn query(
+        &self,
+        _query: autore_app::ApplicationQuery,
+    ) -> autore_core::Result<autore_app::QueryResult> {
+        Ok(autore_app::QueryResult::WorkItems(
+            autore_app::application_service::requests::WorkItemsResponse {
+                work_items: vec![],
+            },
+        ))
+    }
+    fn events_after(
+        &self,
+        _project: ProjectId,
+        _sequence: u64,
+        _limit: usize,
+    ) -> autore_core::Result<Vec<autore_schema::domain::records::ProjectEvent>> {
+        Ok(vec![])
+    }
+    fn subscribe_events(
+        &self,
+        _project: ProjectId,
+        _after: u64,
+    ) -> autore_core::Result<
+        autore_app::autore_events::project_event_service::ProjectEventSubscription,
+    > {
+        unimplemented!()
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Model provider returning valid FunctionAnalysisOutput JSON
 // ---------------------------------------------------------------------------
@@ -381,8 +423,7 @@ async fn run_smoke_test() -> SmokeResults {
     let worker = WorkerRunner::new(
         Arc::new(SmokeTestProvider),
         Arc::clone(&task_repo) as Arc<dyn TaskRepository>,
-        Arc::clone(&claim_repo) as Arc<dyn ClaimRepository>,
-        Arc::clone(&evidence_repo) as Arc<dyn EvidenceRepository>,
+        Arc::new(SmokeAutoReClient) as Arc<dyn autore_app::application_service::requests::AutoReClient>,
     );
 
     let packet_builder = MockPacketBuilder::new(MockAnalysisBackend::new());
@@ -426,6 +467,7 @@ async fn run_smoke_test() -> SmokeResults {
                     let input = WorkerInput {
                         task_id: task.id,
                         campaign_id,
+                        project_id: ProjectId::new(),
                         packet,
                         model_descriptor: desc.clone(),
                         time_budget: Duration::from_secs(10),

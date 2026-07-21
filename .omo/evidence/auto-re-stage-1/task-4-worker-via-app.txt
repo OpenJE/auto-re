@@ -1,0 +1,62 @@
+Wave 1 Todo 4 — Worker routes writes through ApplicationCommand
+===============================================================
+Date: 2026-07-21
+
+Build verification
+------------------
+$ cargo build -p autore-stage1 --no-default-features
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.20s
+(zero warnings)
+
+Test verification
+-----------------
+$ cargo test -p autore-stage1 --no-default-features --lib worker_routes_writes_through_application -- --nocapture
+running 1 test
+test worker::runner::tests::worker_routes_writes_through_application ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 44 filtered out
+
+Full runner test suite (5/5 pass)
+---------------------------------
+$ cargo test -p autore-stage1 --no-default-features --lib worker::runner -- --nocapture
+running 5 tests
+test worker::runner::tests::worker_times_out ... ok
+test worker::runner::tests::worker_cancels_on_token ... ok
+test worker::runner::tests::worker_rejects_malformed_schema ... ok
+test worker::runner::tests::worker_routes_writes_through_application ... ok
+test worker::runner::tests::worker_runs_valid_output_to_claims ... ok
+test result: ok. 5 passed; 0 failed
+
+Grep verification
+-----------------
+$ grep -n 'ClaimRepository' autore-stage1/src/worker/runner.rs
+(no results)
+
+$ grep -n 'EvidenceRepository' autore-stage1/src/worker/runner.rs
+(no results)
+
+Workspace build
+---------------
+$ cargo build
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 7.48s
+
+Changes summary
+---------------
+Files modified:
+  - autore-stage1/Cargo.toml (added autore-app dependency)
+  - autore-stage1/src/worker/runner.rs (full refactor)
+  - autore-stage1/src/cli/headless.rs (minimal constructor update + NoopAutoReClient)
+  - autore-stage1/tests/campaign_smoke.rs (minimal constructor update + SmokeAutoReClient)
+
+Structural changes in runner.rs:
+  - WorkerRunner struct: removed claims/evidence repo fields, added Arc<dyn AutoReClient>
+  - WorkerRunner::new: takes 3 args (provider, tasks, client) instead of 4
+  - WorkerInput: added project_id: ProjectId field
+  - run_inner: replaced direct repo writes with issue_commands() helper
+  - issue_commands: AddEvidence per evidence item, AddHypothesis with supporting IDs, CompleteWorkItem
+  - RecordingClient test stub recording all commands with plausible stub results
+  - worker_routes_writes_through_application: asserts exactly 1 AddEvidence + 1 AddHypothesis + 1 CompleteWorkItem in order
+  - All 4 existing tests updated and passing
+
+ClaimRepository and EvidenceRepository traits: NOT deleted (still in storage/repositories/)
+scheduler.rs: untouched
+WorkerOutput struct: preserved (claims, evidence, analysis fields unchanged)
