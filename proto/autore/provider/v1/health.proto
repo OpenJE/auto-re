@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package autore.provider.v1;
+
+// Health check request.
+message HealthRequest {
+  // Optional: specific capability to check health for.
+  // Empty string means check overall provider health.
+  string capability_id = 1;
+}
+
+// Health check response.
+message HealthResponse {
+  // Current health status.
+  Status status = 1;
+
+  // Human-readable status message.
+  string message = 2;
+
+  // Number of in-flight operations.
+  uint32 active_operations = 3;
+
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    HEALTHY = 1;
+    DEGRADED = 2;
+    UNHEALTHY = 3;
+    DRAINING = 4;
+  }
+}

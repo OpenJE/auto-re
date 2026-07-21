@@ -146,7 +146,7 @@ Define request/response structs per variant with `#[derive(Debug, Clone, Partial
   QA scenarios: happy — the new test sees `[AddHypothesis{..}, AddEvidence{..}, CompleteWorkItem{..}]`. failure — leave an old `Arc<dyn EvidenceRepository>` field in place → test asserts the count of `AddEvidence` commands falls below the expected N and fails. Evidence: `.omo/evidence/auto-re-stage-1/task-4-worker-via-app.txt`
   Commit: Y | refactor(stage1/worker): route writes through ApplicationCommand; remove direct repos
 
-- [ ] 5. Stage-0 regression gate — ensure all 614 tests + fmt + clippy stay green
+- [x] 5. Stage-0 regression gate — ensure all 614 tests + fmt + clippy stay green
   What to do / Must NOT do: Run the full pre-existing Stage 0 verification suite exactly once at the wave boundary. Commands: `cargo test --workspace --exclude autore-stage1`, `cargo clippy --workspace --exclude autore-stage1 --all-targets -- -D warnings`, `cargo fmt --all --check`, `cargo build -p autore-stage1 --no-default-features`. Record outputs to evidence files. If any failures, file issues (do NOT fix them here — Wave 1 todos 2, 3, 4 introduced them; fix forward in W2 todo).
   Must NOT do: do NOT modify any source to fix a regression in this todo. Do NOT skip the `--exclude autore-stage1` flag on test/clippy — required by Stage 0 plan §32 #1. Do NOT run heavy PTY integration test in this gate (it's separate per README:87).
   Parallelization: Wave 1 | Blocked by: 2, 3, 4 | Blocks: 6 (Wave 2 starts fresh)

@@ -138,3 +138,30 @@
   - `cargo fmt --all --check`: clean (fmt applied once to fix formatting from Todos 2-4)
   - `cargo build -p autore-stage1 --no-default-features`: clean
 - Formatting commit required because Todos 2-4 did not run `cargo fmt` before committing; no logic changes in the formatting commit.
+
+## 2026-07-21 Wave 2 Todo 6 (Proto Schema + Codegen Crate)
+
+### What was done
+- Created `proto/autore/provider/v1/` directory with 7 `.proto` files defining the `autore.provider.v1` gRPC package.
+- Created `autore-provider-protocol` crate with `build.rs` invoking `tonic-prost-build` and `src/lib.rs` exposing generated modules under `v1`.
+- Added `tonic 0.14`, `prost 0.14`, `prost-types 0.14`, `tonic-prost 0.14`, `tonic-prost-build 0.14` to workspace dependencies.
+- Registered crate in `workspace.members` but NOT `default-members` (Stage 0 backward-compat preserved).
+- Added `version_suffix_present` test that verifies all proto files declare `package autore.provider.v1;`.
+
+### Version Pair Decision
+- Plan specified `tonic 0.12 + prost 0.13`. Context7 query on July 2026 confirmed the current compatible pair is **tonic 0.14 + prost 0.14**.
+- Key change in tonic 0.14: prost was extracted into separate `tonic-prost` and `tonic-prost-build` crates. The build dependency is now `tonic-prost-build` (not `tonic-build` for prost compilation). The runtime dependency `tonic-prost` is required because generated code references `tonic_prost::ProstCodec`.
+
+### Patterns established
+- All new Stage 1 crates that need proto codegen follow the same pattern: `tonic-prost-build` in `[build-dependencies]`, `tonic` + `tonic-prost` + `prost` + `prost-types` in `[dependencies]`.
+- Proto files use `package autore.provider.v1;` consistently; versioned sub-packages (e.g. `v2`) would follow the same tree structure.
+- `execution.proto` re-exports from `event.proto` to give consumers a separate compilation unit for request-side types.
+- `RequestDeadline` uses `google.protobuf.Timestamp` + `google.protobuf.Duration` for absolute and relative bounds.
+- `CapabilityDescriptor.request_schema` and `response_schema` are `bytes` (JSON Schema as UTF-8), matching the workspace's `jsonschema = 0.33` dependency.
+
+### Verification
+- `cargo build -p autore-provider-protocol`: clean (zero warnings)
+- `cargo test -p autore-provider-protocol`: 1/1 passed (`version_suffix_present`)
+- `cargo clippy -p autore-provider-protocol --all-targets -- -D warnings`: clean
+- `cargo build` (default workspace): clean — `autore-provider-protocol` excluded as expected
+- `cargo fmt --all`: no changes needed

@@ -1,0 +1,153 @@
+syntax = "proto3";
+
+package autore.provider.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+import "autore/provider/v1/package.proto";
+
+// A deadline for a single RPC, combining absolute and relative bounds.
+message RequestDeadline {
+  // Absolute wall-clock deadline.
+  google.protobuf.Timestamp absolute = 1;
+
+  // Relative time budget remaining from request dispatch.
+  google.protobuf.Duration relative_budget = 2;
+}
+
+// A request to execute a capability.
+message ExecutionRequest {
+  // Unique request identifier (UUID).
+  string request_id = 1;
+
+  // Operation identifier linking this request to a work item.
+  string operation_id = 2;
+
+  // The capability to invoke.
+  string capability_id = 3;
+
+  // Version of the capability to invoke.
+  string capability_version = 4;
+
+  // Serialized request payload (JSON matching the capability's request_schema).
+  bytes payload = 5;
+
+  // Deadline for this execution.
+  RequestDeadline deadline = 6;
+}
+
+// Variant payloads for the ExecutionEvent oneof.
+
+message Accepted {
+  string provider_instance_id = 1;
+  string request_id = 2;
+  string operation_id = 3;
+  string capability_id = 4;
+  string capability_version = 5;
+  uint64 sequence = 6;
+}
+
+message Progress {
+  string provider_instance_id = 1;
+  string request_id = 2;
+  string operation_id = 3;
+  string capability_id = 4;
+  string capability_version = 5;
+  uint64 sequence = 6;
+
+  // Human-readable progress message.
+  string message = 7;
+
+  // Optional progress fraction [0.0, 1.0]; negative means unknown.
+  double progress = 8;
+}
+
+message Diagnostic {
+  string provider_instance_id = 1;
+  string request_id = 2;
+  string operation_id = 3;
+  string capability_id = 4;
+  string capability_version = 5;
+  uint64 sequence = 6;
+
+  // Severity level.
+  Severity severity = 7;
+
+  // Machine-readable diagnostic code.
+  string code = 8;
+
+  // Human-readable diagnostic message.
+  string message = 9;
+
+  enum Severity {
+    SEVERITY_UNSPECIFIED = 0;
+    INFO = 1;
+    WARNING = 2;
+    ERROR = 3;
+  }
+}
+
+message ObservationProduced {
+  string provider_instance_id = 1;
+  string request_id = 2;
+  string operation_id = 3;
+  string capability_id = 4;
+  string capability_version = 5;
+  uint64 sequence = 6;
+
+  // Observation kind (namespaced, e.g. "recon.obs.function-snapshot").
+  string observation_kind = 7;
+
+  // Serialized observation payload (JSON).
+  bytes payload = 8;
+
+  // Artifacts produced alongside this observation.
+  repeated ArtifactDescriptor artifacts = 9;
+}
+
+message ArtifactProduced {
+  string provider_instance_id = 1;
+  string request_id = 2;
+  string operation_id = 3;
+  string capability_id = 4;
+  string capability_version = 5;
+  uint64 sequence = 6;
+
+  // The artifact that was produced.
+  ArtifactDescriptor artifact = 7;
+}
+
+message Completed {
+  string provider_instance_id = 1;
+  string request_id = 2;
+  string operation_id = 3;
+  string capability_id = 4;
+  string capability_version = 5;
+  uint64 sequence = 6;
+
+  // Terminal status.
+  Status status = 7;
+
+  // Optional summary message.
+  string summary = 8;
+
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    SUCCEEDED = 1;
+    FAILED = 2;
+    CANCELLED = 3;
+    TIMED_OUT = 4;
+  }
+}
+
+// The streaming event emitted from Execute RPC.
+message ExecutionEvent {
+  oneof event {
+    Accepted accepted = 1;
+    Progress progress = 2;
+    Diagnostic diagnostic = 3;
+    ObservationProduced observation_produced = 4;
+    ArtifactProduced artifact_produced = 5;
+    Completed completed = 6;
+  }
+}

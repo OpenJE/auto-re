@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package autore.provider.v1;
+
+import "autore/provider/v1/capability.proto";
+
+// Protocol negotiation request from the coordinator.
+message NegotiateRequest {
+  // Minimum protocol version the coordinator supports.
+  uint32 min_supported = 1;
+
+  // Maximum protocol version the coordinator supports.
+  uint32 max_supported = 2;
+
+  // Coordinator's instance identifier for correlation.
+  string coordinator_id = 3;
+}
+
+// Protocol negotiation response from the provider.
+message NegotiateResponse {
+  // The protocol version the provider has accepted.
+  uint32 accepted_version = 1;
+
+  // Provider's self-reported package identity.
+  string package_id = 2;
+
+  // Provider's package version.
+  string package_version = 3;
+
+  // Capabilities the provider exposes.
+  repeated CapabilityDescriptor capabilities = 4;
+
+  // Maximum concurrency per capability (JSON map: capability_id -> max).
+  bytes max_concurrency = 5;
+}

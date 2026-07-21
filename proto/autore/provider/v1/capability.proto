@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package autore.provider.v1;
+
+// Describes a single capability exposed by a provider.
+message CapabilityDescriptor {
+  // Namespaced capability identifier (e.g. "fixture.echo", "ida.binary.open").
+  string capability_id = 1;
+
+  // Semantic version string for this capability.
+  string version = 2;
+
+  // Human-readable display name.
+  string name = 3;
+
+  // JSON Schema (RFC Draft 2020-12) for the request payload, as UTF-8 bytes.
+  bytes request_schema = 4;
+
+  // JSON Schema (RFC Draft 2020-12) for the response payload, as UTF-8 bytes.
+  bytes response_schema = 5;
+}

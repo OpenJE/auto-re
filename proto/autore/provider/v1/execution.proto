@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package autore.provider.v1;
+
+// Re-export execution types for convenience; the ExecutionRequest
+// is defined in event.proto alongside ExecutionEvent for tight coupling.
+// This file exists as a separate compilation unit for consumers that
+// only need the request-side types.
+
+import "autore/provider/v1/event.proto";

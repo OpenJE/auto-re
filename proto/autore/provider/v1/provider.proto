@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package autore.provider.v1;
+
+import "autore/provider/v1/bootstrap.proto";
+import "autore/provider/v1/capability.proto";
+import "autore/provider/v1/event.proto";
+import "autore/provider/v1/health.proto";
+
+// Graceful shutdown request.
+message ShutdownRequest {
+  // Reason for shutdown (informational).
+  string reason = 1;
+
+  // Maximum time in seconds the provider has to finish in-flight work.
+  uint32 grace_period_seconds = 2;
+}
+
+// Graceful shutdown response.
+message ShutdownResponse {
+  // Whether the provider acknowledged the shutdown request.
+  bool acknowledged = 1;
+
+  // Number of operations that were still in-flight at acknowledgment time.
+  uint32 pending_operations = 2;
+}
+
+// The main provider service.
+//
+// Every external provider (IDA, LLM, build, fixture, etc.) implements
+// this service. The coordinator drives the provider lifecycle through
+// these RPCs.
+service Provider {
+  // Unary: negotiate protocol version and exchange identity.
+  rpc Negotiate(NegotiateRequest) returns (NegotiateResponse);
+
+  // Server-streaming: discover all capabilities the provider exposes.
+  rpc DiscoverCapabilities(DiscoverRequest) returns (stream CapabilityDescriptor);
+
+  // Server-streaming: execute a capability and stream events back.
+  rpc Execute(ExecutionRequest) returns (stream ExecutionEvent);
+
+  // Unary: health check.
+  rpc Health(HealthRequest) returns (HealthResponse);
+
+  // Unary: request graceful shutdown.
+  rpc GracefulShutdown(ShutdownRequest) returns (ShutdownResponse);
+}
+
+// Request to discover capabilities.
+message DiscoverRequest {
+  // Optional filter: only return capabilities matching this prefix.
+  string prefix_filter = 1;
+}

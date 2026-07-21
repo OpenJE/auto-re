@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package autore.provider.v1;
+
+// Describes an artifact (file, blob) produced or consumed by a provider.
+message ArtifactDescriptor {
+  // Namespaced package identifier (e.g. "fixture.echo").
+  string package_id = 1;
+
+  // Semantic version of the artifact.
+  string version = 2;
+
+  // BLAKE3 content hash of the artifact bytes.
+  bytes content_hash = 3;
+
+  // Path relative to the staging root where the artifact resides.
+  string relative_path = 4;
+
+  // Size in bytes.
+  uint64 size = 5;
+}

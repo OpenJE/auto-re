@@ -1,0 +1,84 @@
+Task 6: Add proto/ schema tree + tonic+prost build pipeline; autore.provider.v1 versioned package
+============================================================================================
+
+Date: 2026-07-21
+Status: PASS
+
+Version Pair (verified via Context7)
+-------------------------------------
+- tonic: 0.14.6
+- prost: 0.14.4
+- tonic-prost-build: 0.14.6 (build dependency)
+- tonic-prost: 0.14.6 (runtime dependency — new in tonic 0.14, prost extracted to separate crate)
+- protoc: 29.3 (installed to /tmp/opencode/protoc/bin/protoc for build)
+
+Note: Plan specified tonic 0.12 + prost 0.13, but Context7 confirmed the current
+compatible pair is tonic 0.14 + prost 0.14 (released July 2025). The tonic 0.14
+release extracted prost into separate `tonic-prost` and `tonic-prost-build` crates.
+
+Proto Files Created (7)
+------------------------
+proto/autore/provider/v1/
+  provider.proto    — Service definition: Provider with 5 RPCs
+  bootstrap.proto   — NegotiateRequest, NegotiateResponse
+  capability.proto  — CapabilityDescriptor
+  event.proto       — ExecutionEvent oneof (Accepted, Progress, Diagnostic, ObservationProduced, ArtifactProduced, Completed), ExecutionRequest, RequestDeadline
+  execution.proto   — Re-export of event.proto types
+  health.proto      — HealthRequest, HealthResponse
+  package.proto     — ArtifactDescriptor
+
+All files declare: package autore.provider.v1;
+
+Service RPCs
+------------
+service Provider {
+  rpc Negotiate(NegotiateRequest) returns (NegotiateResponse);
+  rpc DiscoverCapabilities(DiscoverRequest) returns (stream CapabilityDescriptor);
+  rpc Execute(ExecutionRequest) returns (stream ExecutionEvent);
+  rpc Health(HealthRequest) returns (HealthResponse);
+  rpc GracefulShutdown(ShutdownRequest) returns (ShutdownResponse);
+}
+
+ExecutionEvent oneof variants
+------------------------------
+- Accepted (provider_instance_id, request_id, operation_id, capability_id, capability_version, sequence)
+- Progress (+ message, progress fraction)
+- Diagnostic (+ severity enum, code, message)
+- ObservationProduced (+ observation_kind, payload, artifacts)
+- ArtifactProduced (+ artifact descriptor)
+- Completed (+ status enum, summary)
+
+Generated Types (verified in OUT_DIR)
+--------------------------------------
+pub struct CapabilityDescriptor, NegotiateRequest, NegotiateResponse,
+  ArtifactDescriptor, RequestDeadline, ExecutionRequest,
+  Accepted, Progress, Diagnostic, ObservationProduced, ArtifactProduced, Completed,
+  ExecutionEvent, HealthRequest, HealthResponse, ShutdownRequest, ShutdownResponse,
+  DiscoverRequest
+pub mod provider_client { pub struct ProviderClient<T> }
+pub mod provider_server { pub struct ProviderServer<T> }
+
+Workspace Integration
+---------------------
+- autore-provider-protocol added to workspace.members
+- NOT added to workspace.default-members
+- cargo build (no flags) does NOT build this crate (Stage 0 backward-compat preserved)
+
+Build Gate Results
+------------------
+$ PROTOC=... cargo build -p autore-provider-protocol
+  Finished `dev` profile — zero warnings
+
+$ PROTOC=... cargo test -p autore-provider-protocol
+  running 1 test
+  test tests::version_suffix_present ... ok
+  test result: ok. 1 passed; 0 failed
+
+$ PROTOC=... cargo clippy -p autore-provider-protocol --all-targets -- -D warnings
+  Finished `dev` profile — zero warnings
+
+$ cargo build (default workspace, no flags)
+  Finished `dev` profile — 6 default-members compiled, autore-provider-protocol excluded
+
+$ cargo fmt --all
+  No formatting changes needed (clean).

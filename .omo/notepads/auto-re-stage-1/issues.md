@@ -27,3 +27,8 @@
 ## 2026-07-21 Wave 1 Todo 5 (Regression Gate)
 - No new issues. `cargo fmt --all` was required to clean up formatting from previous Wave 1 todos.
 - Evidence: `.omo/evidence/auto-re-stage-1/task-5-wave1-gates.txt`
+
+## 2026-07-21 Wave 2 Todo 6 (Proto Schema + Codegen Crate)
+- **protoc not in PATH**: `protoc` is not installed in the devenv or system. Installed manually to `/tmp/opencode/protoc/bin/protoc` (v29.3). Build requires `PROTOC=/tmp/opencode/protoc/bin/protoc` prefix. Future todos (7, 10, 13) that depend on this crate's generated types will need the same env var. Consider adding `protobuf` to `devenv.nix` packages for persistence.
+- **tonic-prost runtime dependency**: tonic 0.14's generated code references `tonic_prost::ProstCodec` — the `tonic-prost` crate is a required runtime dependency alongside `tonic` and `prost`. This is new in tonic 0.14 (prost extracted to separate crate).
+- **`execution.proto` is a thin re-export file**: It only imports `event.proto` to provide a separate compilation unit for request-side types. This is intentional — consumers that only need `ExecutionRequest` can import `execution.proto` without pulling in all event variants.
