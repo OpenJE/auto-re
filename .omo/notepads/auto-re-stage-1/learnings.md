@@ -227,3 +227,23 @@
 - `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-provider-runtime --all-targets -- -D warnings`: clean
 - `cargo build` (default members): clean
 - `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime`: clean
+
+## 2026-07-21 Wave 2 Todo 9 (ArtifactTransport)
+
+### Types and abstractions
+- `ArtifactTransport` trait uses native `async fn` in trait (edition 2024) instead of `#[async_trait]`. Works because the trait doesn't need to be dyn-safe (used via concrete types, not `dyn ArtifactTransport`).
+- `ArtifactHandle` is opaque: `staging_path` is `pub` for test inspection, but internal fields (`artifact_uuid`, `instance_id`, `committed`) remain private with getter methods.
+- `ArtifactLocation` enum (`Local(PathBuf)` / `Remote(String)`) prevents providers from receiving canonical artifact paths — they only see staging-scoped paths.
+- `StagingReconciler` is scoped to a single `instance_id` and walks `<root>/<instance_id>/` to find orphan request dirs.
+
+### Patterns established
+- Staging layout: `<root>/<instance_id>/<request_id>/<artifact_uuid>/data` — three levels of scoping prevent cross-instance and cross-request collisions.
+- `commit_inbound` independently recomputes BLAKE3 via `ContentHash::blake3()` and discards on mismatch — never trusts provider-supplied hashes.
+- `ArtifactId::from_uuid(Uuid::now_v7())` produces UUIDv7 IDs as specified, even though `ArtifactId::new()` uses v4.
+- `bytes` added as a direct dependency (not in workspace) for `Bytes` parameter in `stage_inbound`.
+
+### Verification
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-provider-runtime --test artifact_tests`: 6/6 passed
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-provider-runtime --all-targets -- -D warnings`: clean
+- `cargo build` (default members): clean
+- `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime`: clean

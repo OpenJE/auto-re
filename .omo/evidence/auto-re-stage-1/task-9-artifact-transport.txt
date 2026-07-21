@@ -1,0 +1,40 @@
+Task 9: ArtifactTransport abstraction with local staging and scoped handles
+==========================================================================
+
+Date: 2026-07-21
+Wave: 2, Todo 9
+
+Files changed:
+  - autore-provider-runtime/Cargo.toml (added bytes = "1")
+  - autore-provider-runtime/src/artifact.rs (new, 185 pure LOC)
+  - autore-provider-runtime/src/lib.rs (added pub mod artifact + re-exports)
+  - autore-provider-runtime/tests/artifact_tests.rs (new, 141 pure LOC, 6 tests)
+
+Types implemented:
+  - ArtifactError: thiserror enum with Io, HashMismatch, AlreadyCommitted, NotFound, InvalidHandle, OrphanSweep
+  - ArtifactLocation: enum Local(PathBuf) / Remote(String)
+  - ArtifactHandle: opaque with staging_path, artifact_uuid, instance_id, request_id, committed (AtomicBool)
+  - ArtifactTransport: native async fn in trait (edition 2024) with stage_inbound, stage_outbound, commit_inbound, discard
+  - LocalStagingTransport: filesystem-backed, layout <root>/<instance_id>/<request_id>/<uuid>/data
+  - StagingReconciler: sweep() removes orphan request dirs not in active_operations set
+
+Key design decisions:
+  - Used native async fn in trait (no #[async_trait]) since edition 2024 supports it
+  - ArtifactId uses Uuid::now_v7() for UUIDv7 as specified
+  - commit_inbound independently recomputes BLAKE3 via ContentHash::blake3(), discards on mismatch
+  - Staged data remains in place after commit (canonical copy is app layer's job)
+  - bytes crate added as direct dep (not in workspace)
+
+Test results (6/6 pass):
+  staging_layout_is_instance_scoped ... ok
+  handle_never_exposes_canonical_path ... ok
+  commit_recomputes_hash_independently ... ok
+  commit_rejects_mismatched_hash ... ok
+  discard_removes_staging_dir ... ok
+  reconciler_sweeps_orphans_on_startup ... ok
+
+Gate results:
+  PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-provider-runtime --test artifact_tests: 6 passed
+  PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-provider-runtime --all-targets -- -D warnings: clean
+  cargo build (default members): clean
+  cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --all-targets -- -D warnings: clean

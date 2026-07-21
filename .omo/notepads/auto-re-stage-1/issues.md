@@ -44,3 +44,8 @@
 - **`regex` and `semver` not workspace deps**: Added as direct dependencies to `autore-provider-runtime/Cargo.toml` rather than workspace deps. If future crates need these, consider promoting to workspace deps.
 - **Content hash is deterministic but order-dependent on relative paths**: The hash uses forward-slash normalization (`replace('\\', "/")`), so Windows and Linux produce the same hash. However, the algorithm is specific to this module — if other subsystems need content hashing, the algorithm should be extracted.
 - **`configuration_schema` as JSON string in TOML**: The manifest stores `configuration_schema` as a JSON string (not a TOML table). This keeps the TOML simple but requires the manifest author to embed JSON. A future enhancement could accept TOML tables and serialize to JSON internally.
+
+## 2026-07-21 Wave 2 Todo 9 (ArtifactTransport)
+- **`bytes` not a workspace dep**: Added `bytes = "1"` as a direct dependency in `autore-provider-runtime/Cargo.toml`. If future crates need `Bytes`, consider promoting to workspace deps.
+- **`ArtifactId::new()` uses UUIDv4, not v7**: The schema crate's `ArtifactId::new()` generates UUIDv4. The artifact module uses `ArtifactId::from_uuid(Uuid::now_v7())` to produce UUIDv7 as specified by the plan. If the schema is updated to use v7 for `ArtifactId::new()`, the artifact module should switch to the simpler constructor.
+- **No canonical copy on commit**: `commit_inbound` leaves staged data in place; the application layer must copy to `<project>/artifacts/<algo>/<prefix>/<digest>/data` in a later todo (Wave 2 Todo 10+ wiring).
