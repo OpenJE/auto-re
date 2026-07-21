@@ -1,0 +1,49 @@
+schema_version = 1
+package_id = "fixture.echo"
+version = "0.1.0"
+content_hash = "c60a9d623dedd66ab1e114cff85db1f69191e0bd759d18a55ad995b96886ffdb"
+entrypoint = "bin/fixture-provider"
+protocol_range = [1, 1]
+configuration_schema = '{"type": "object"}'
+
+[[capabilities]]
+capability_id = "fixture.echo"
+version = "1.0.0"
+name = "Echo Fixture"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "fixture.delay"
+version = "1.0.0"
+name = "Delay Fixture"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "fixture.fail"
+version = "1.0.0"
+name = "Fail Fixture"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "fixture.artifact"
+version = "1.0.0"
+name = "Artifact Fixture"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "fixture.large-stream"
+version = "1.0.0"
+name = "Large Stream Fixture"
+request_schema = ""
+response_schema = ""
+
+[max_concurrency]
+"fixture.echo" = 4
+"fixture.delay" = 4
+"fixture.fail" = 4
+"fixture.artifact" = 4
+"fixture.large-stream" = 4

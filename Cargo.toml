@@ -10,6 +10,7 @@ members = [
     "autore-stage1",
     "autore-provider-protocol",
     "autore-provider-runtime",
+    "providers/fixture",
 ]
 default-members = [
     "autore-schema",

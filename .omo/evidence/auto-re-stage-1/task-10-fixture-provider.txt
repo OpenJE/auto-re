@@ -1,0 +1,48 @@
+Wave 2 Todo 10 — External Fixture Provider with 5 Capabilities
+================================================================
+
+Date: 2026-07-21
+Task: Implement external fixture provider binary with 5 capabilities
+
+Files Created:
+- providers/fixture/Cargo.toml (binary crate, off default-members)
+- providers/fixture/src/main.rs (bootstrap + server setup, 142 LOC)
+- providers/fixture/src/provider.rs (Provider trait impl, 247 LOC)
+- providers/fixture/manifest.toml (package manifest with BLAKE3 content hash)
+- autore-provider-runtime/tests/fixture.rs (integration test)
+
+Files Modified:
+- Cargo.toml (added providers/fixture to workspace.members)
+
+Capabilities Implemented:
+1. fixture.echo — echoes input bytes as ObservationProduced then Completed
+2. fixture.delay — sleeps for deadline.relative (or 100ms default), emits Progress, then Completed
+3. fixture.fail — emits Diagnostic(Error) then Completed(Failed)
+4. fixture.artifact — writes 64KiB deterministic blob, emits ArtifactProduced, then Completed
+5. fixture.large-stream — emits 1024 Progress events then Completed
+
+Content Hash: c60a9d623dedd66ab1e114cff85db1f69191e0bd759d18a55ad995b96886ffdb
+
+Verification Commands and Output:
+----------------------------------
+
+1. PROTOC=/tmp/opencode/protoc/bin/protoc cargo build -p fixture-provider --no-default-features
+   Result: Finished `dev` profile [unoptimized + debuginfo]
+
+2. PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-provider-runtime --test fixture -- --nocapture
+   Result: test fixture_provider_five_capabilities ... ok (2.22s)
+
+3. PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p fixture-provider --all-targets -- -D warnings
+   Result: Finished `dev` profile (clean)
+
+4. PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-provider-runtime --all-targets -- -D warnings
+   Result: Finished `dev` profile (clean)
+
+5. cargo build (default members)
+   Result: Finished `dev` profile
+
+6. cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --all-targets -- -D warnings
+   Result: Finished `dev` profile (clean)
+
+7. cargo fmt --all --check
+   Result: No changes needed (fmt applied before evidence)

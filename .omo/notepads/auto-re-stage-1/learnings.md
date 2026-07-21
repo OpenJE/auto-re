@@ -247,3 +247,33 @@
 - `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-provider-runtime --all-targets -- -D warnings`: clean
 - `cargo build` (default members): clean
 - `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime`: clean
+
+## 2026-07-21 Wave 2 Todo 10 (External Fixture Provider)
+
+### What was done
+- Created `providers/fixture/` workspace member (off `default-members`) with `Cargo.toml`, `src/main.rs`, `src/provider.rs`, and `manifest.toml`.
+- Implemented 5 capabilities: `fixture.echo`, `fixture.delay`, `fixture.fail`, `fixture.artifact`, `fixture.large-stream`.
+- Binary follows the full bootstrap protocol: env vars → connect → auth → negotiate → gRPC address exchange → serve.
+- Integration test in `autore-provider-runtime/tests/fixture.rs` drives all 5 capabilities through `ProviderRuntime::spawn` and verifies event ordering, monotonic sequences, and identifier consistency.
+- Content hash computed via BLAKE3 (same algorithm as `compute_content_hash` in package.rs) and embedded in `manifest.toml`.
+
+### Decisions
+- **Split into main.rs + provider.rs**: main.rs (142 LOC) handles bootstrap and server setup; provider.rs (247 LOC) implements the Provider trait. Both under 250 LOC ceiling.
+- **Artifact capability uses temp dir fallback**: `fixture.artifact` writes the 64KiB blob to a temp directory rather than using `LocalStagingTransport` directly, since the staging transport requires coordinator-provided configuration. The test verifies the `ArtifactProduced` event with a valid descriptor (size=65536, non-empty BLAKE3 hash).
+- **Binary path resolution in test**: The integration test locates the fixture-provider binary via `CARGO_TARGET_DIR` or by computing the path relative to `CARGO_MANIFEST_DIR`. This requires `cargo build -p fixture-provider` to run before the test. `CARGO_BIN_EXE_*` is not available cross-crate.
+- **Content hash changes after `cargo fmt`**: The BLAKE3 content hash is computed over source file contents. Running `cargo fmt --all` after writing source files changes the hash. The hash must be computed AFTER formatting.
+
+### Patterns established
+- External provider binaries live in `providers/<name>/` as separate workspace members, off `default-members`.
+- Provider binaries follow the bootstrap protocol pattern from `fixture_echo.rs`: read env vars → connect → auth → negotiate → gRPC serve.
+- Integration tests for external providers live in `autore-provider-runtime/tests/` and locate binaries via workspace target directory.
+- `cargo fmt --all` must run before computing content hashes for manifests.
+
+### Verification
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo build -p fixture-provider --no-default-features`: clean
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-provider-runtime --test fixture -- --nocapture`: 1/1 passed (2.22s)
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p fixture-provider --all-targets -- -D warnings`: clean
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-provider-runtime --all-targets -- -D warnings`: clean
+- `cargo build` (default members): clean
+- `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --all-targets -- -D warnings`: clean
+- Evidence: `.omo/evidence/auto-re-stage-1/task-10-fixture-provider.txt`
