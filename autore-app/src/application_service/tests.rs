@@ -1058,6 +1058,7 @@ fn roundtrip<T: serde::Serialize + serde::de::DeserializeOwned + PartialEq + std
     value: &T,
 ) {
     let json = serde_json::to_string(value).unwrap_or_else(|e| panic!("{label} serialize: {e}"));
-    let back: T = serde_json::from_str(&json).unwrap_or_else(|e| panic!("{label} deserialize: {e}"));
+    let back: T =
+        serde_json::from_str(&json).unwrap_or_else(|e| panic!("{label} deserialize: {e}"));
     assert_eq!(*value, back, "{label} roundtrip mismatch");
 }

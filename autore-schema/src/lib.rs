@@ -8,12 +8,11 @@ pub use ids::{
     BinaryArtifactId, BinaryId, BinaryRevisionId, BuildAttemptId, BuildDiagnosticId, CampaignId,
     CapabilityDescriptorId, ClaimId, ConflictRecordId, ContradictionId, DynamicObservationId,
     EvidenceId, FunctionId, GeneratedSourceMappingId, GenerationTargetId, HypothesisId,
-    ImplementationTargetId, ModuleId, NativeArtifactId, OperationId, PackageId,
-    ParsedLlmResultId, ProjectEventId, ProjectId, ProviderId, ProviderInstallationId,
-    ProviderInstanceId, ProviderRunId, RawLlmResponseId, ReconstructionCampaignId,
-    RepairAttemptId, SourceArtifactId, TaskId, TransactionId, ValidationRunId,
-    VerificationComparisonId, VerificationRecordId, VerificationScenarioId, WorkerRunId,
-    WorkItemId,
+    ImplementationTargetId, ModuleId, NativeArtifactId, OperationId, PackageId, ParsedLlmResultId,
+    ProjectEventId, ProjectId, ProviderId, ProviderInstallationId, ProviderInstanceId,
+    ProviderRunId, RawLlmResponseId, ReconstructionCampaignId, RepairAttemptId, SourceArtifactId,
+    TaskId, TransactionId, ValidationRunId, VerificationComparisonId, VerificationRecordId,
+    VerificationScenarioId, WorkItemId, WorkerRunId,
 };
 pub use manifest::ProjectManifest;
 pub use worker_output::{FunctionAnalysisOutput, ProposedClaim, ProposedEvidence, validate_output};

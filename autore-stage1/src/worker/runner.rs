@@ -17,9 +17,7 @@ use autore_app::application_service::requests::{
     CompleteWorkItemRequest,
 };
 use autore_schema::domain::records::{EvidenceRecord, HypothesisStatus};
-use autore_schema::domain::{
-    Derivation, DerivationMethod, EvidenceValue, NamespacedId, Timestamp,
-};
+use autore_schema::domain::{Derivation, DerivationMethod, EvidenceValue, NamespacedId, Timestamp};
 
 use crate::analysis::FunctionAnalysisPacket;
 use crate::domain::{Claim, ClaimPredicate, ClaimValue, Evidence};
@@ -181,9 +179,8 @@ impl WorkerRunner {
         analysis: &FunctionAnalysisOutput,
         worker_run_id: WorkerRunId,
     ) -> crate::Result<()> {
-        let operation =
-            NamespacedId::parse(&format!("worker.run.{worker_run_id}"))
-                .map_err(|e| crate::Error::Worker(format!("invalid operation name: {e}")))?;
+        let operation = NamespacedId::parse(&format!("worker.run.{worker_run_id}"))
+            .map_err(|e| crate::Error::Worker(format!("invalid operation name: {e}")))?;
 
         // Issue AddEvidence for each evidence item and collect the resulting IDs.
         let mut evidence_record_ids = Vec::new();
@@ -207,12 +204,11 @@ impl WorkerRunner {
                 assumptions: vec![],
                 created_at: Timestamp::now(),
             };
-            self.client.execute(ApplicationCommand::AddEvidence(
-                AddEvidenceRequest {
+            self.client
+                .execute(ApplicationCommand::AddEvidence(AddEvidenceRequest {
                     project: input.project_id,
                     record,
-                },
-            ))?;
+                }))?;
             evidence_record_ids.push(ev_id);
         }
 
@@ -231,8 +227,8 @@ impl WorkerRunner {
             .map(|c| claim_predicate_to_string(&c.predicate))
             .unwrap_or_else(|| "unknown".to_string());
 
-        self.client.execute(ApplicationCommand::AddHypothesis(
-            AddHypothesisRequest {
+        self.client
+            .execute(ApplicationCommand::AddHypothesis(AddHypothesisRequest {
                 project: input.project_id,
                 subject: autore_schema::ids::EntityId::new(),
                 predicate: predicate_str,
@@ -243,8 +239,7 @@ impl WorkerRunner {
                 contradicting_evidence: vec![],
                 derived_from: vec![],
                 status: HypothesisStatus::Proposed,
-            },
-        ))?;
+            }))?;
 
         // Issue CompleteWorkItem to mark the work item done.
         self.client.execute(ApplicationCommand::CompleteWorkItem(
@@ -334,21 +329,17 @@ mod tests {
     use super::*;
     use crate::analysis::AnalysisCapability;
     use crate::domain::{
-        Address, AddressSpace, Confidence, EvidenceKind, EvidenceLocation,
-        SymbolName, Task, TaskState,
+        Address, AddressSpace, Confidence, EvidenceKind, EvidenceLocation, SymbolName, Task,
+        TaskState,
     };
-    use crate::ids::{
-        BinaryRevisionId, CampaignId, FunctionId, ModuleId, ProjectId, TaskId,
-    };
+    use crate::ids::{BinaryRevisionId, CampaignId, FunctionId, ModuleId, ProjectId, TaskId};
     use crate::model::{
         ModelCapabilities, ModelClass, ModelDescriptor, ModelProvider, ModelRequest, ModelResponse,
     };
     use crate::storage::repositories::TaskRepository;
     use crate::worker::output::{FunctionAnalysisOutput, ProposedClaim, ProposedEvidence};
     use async_trait::async_trait;
-    use autore_app::application_service::requests::{
-        ApplicationQuery, CommandResult, QueryResult,
-    };
+    use autore_app::application_service::requests::{ApplicationQuery, CommandResult, QueryResult};
     use std::sync::Mutex;
 
     // -- In-memory stubs --
@@ -439,9 +430,7 @@ mod tests {
         fn query(&self, query: ApplicationQuery) -> autore_core::Result<QueryResult> {
             self.queries.lock().unwrap().push(query);
             Ok(QueryResult::WorkItems(
-                autore_app::application_service::requests::WorkItemsResponse {
-                    work_items: vec![],
-                },
+                autore_app::application_service::requests::WorkItemsResponse { work_items: vec![] },
             ))
         }
 
@@ -450,9 +439,7 @@ mod tests {
             _project: ProjectId,
             _sequence: u64,
             _limit: usize,
-        ) -> autore_core::Result<
-            Vec<autore_schema::domain::records::ProjectEvent>,
-        > {
+        ) -> autore_core::Result<Vec<autore_schema::domain::records::ProjectEvent>> {
             Ok(vec![])
         }
 

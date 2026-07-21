@@ -42,9 +42,7 @@ impl AutoReClient for NoopAutoReClient {
     }
     fn query(&self, _query: ApplicationQuery) -> autore_core::Result<QueryResult> {
         Ok(QueryResult::WorkItems(
-            autore_app::application_service::requests::WorkItemsResponse {
-                work_items: vec![],
-            },
+            autore_app::application_service::requests::WorkItemsResponse { work_items: vec![] },
         ))
     }
     fn events_after(

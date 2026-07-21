@@ -267,9 +267,7 @@ impl autore_app::application_service::requests::AutoReClient for SmokeAutoReClie
         _query: autore_app::ApplicationQuery,
     ) -> autore_core::Result<autore_app::QueryResult> {
         Ok(autore_app::QueryResult::WorkItems(
-            autore_app::application_service::requests::WorkItemsResponse {
-                work_items: vec![],
-            },
+            autore_app::application_service::requests::WorkItemsResponse { work_items: vec![] },
         ))
     }
     fn events_after(
@@ -425,7 +423,8 @@ async fn run_smoke_test() -> SmokeResults {
     let worker = WorkerRunner::new(
         Arc::new(SmokeTestProvider),
         Arc::clone(&task_repo) as Arc<dyn TaskRepository>,
-        Arc::new(SmokeAutoReClient) as Arc<dyn autore_app::application_service::requests::AutoReClient>,
+        Arc::new(SmokeAutoReClient)
+            as Arc<dyn autore_app::application_service::requests::AutoReClient>,
     );
 
     let packet_builder = MockPacketBuilder::new(MockAnalysisBackend::new());

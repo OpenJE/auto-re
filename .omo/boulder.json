@@ -1,14 +1,67 @@
 {
-  "active_plan": "/mnt/shanes-ssd-1tb/code/shane/auto-re/.omo/plans/readme-quickstart-and-cli-errors.md",
-  "started_at": "2026-07-20T04:21:42.286Z",
+  "active_plan": "/mnt/shanes-ssd-1tb/code/shane/auto-re/.omo/plans/auto-re-stage-1.md",
+  "started_at": "2026-07-21T17:44:04.822Z",
   "session_ids": [
-    "opencode:ses_08faf87f5ffekwxelYS83C7goH"
+    "opencode:ses_07b120cc7ffePfarZ4ruWIR9gQ",
+    "opencode:ses_07a348dafffe99Dm1TLNlyqYbw"
   ],
-  "plan_name": "readme-quickstart-and-cli-errors",
+  "plan_name": "auto-re-stage-1",
   "session_origins": {
-    "opencode:ses_08faf87f5ffekwxelYS83C7goH": "direct"
+    "opencode:ses_07b120cc7ffePfarZ4ruWIR9gQ": "direct",
+    "opencode:ses_07a348dafffe99Dm1TLNlyqYbw": "appended"
   },
-  "task_sessions": {},
+  "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "Audit `autore-stage1` modules; produce retain/adapt/replace/remove table; move Stage 1 mutations behind `autore-app`",
+      "session_id": "opencode:ses_07a348dafffe99Dm1TLNlyqYbw",
+      "agent": "explore",
+      "updated_at": "2026-07-21T17:52:00.512Z",
+      "started_at": "2026-07-21T17:51:48.091Z",
+      "status": "completed",
+      "ended_at": "2026-07-21T17:52:00.512Z",
+      "elapsed_ms": 12421
+    },
+    "todo:2": {
+      "task_key": "todo:2",
+      "task_label": "2",
+      "task_title": "Add Stage 1a application commands + queries (persistence-side skeleton, no logic)",
+      "session_id": "opencode:ses_07a30e82dffeWFpy1xG9KTB6dx",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-07-21T18:08:51.164Z",
+      "started_at": "2026-07-21T18:07:32.425Z",
+      "status": "completed",
+      "ended_at": "2026-07-21T18:08:51.164Z",
+      "elapsed_ms": 78739
+    },
+    "todo:3": {
+      "task_key": "todo:3",
+      "task_label": "3",
+      "task_title": "Add Stage 1 schema types (records, kinds, IDs) — additive only",
+      "session_id": "opencode:ses_07a21a308ffeieyvrIDxtryRWv",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-07-21T18:26:36.029Z",
+      "started_at": "2026-07-21T18:25:41.232Z",
+      "status": "completed",
+      "ended_at": "2026-07-21T18:26:36.029Z",
+      "elapsed_ms": 54797
+    },
+    "todo:4": {
+      "task_key": "todo:4",
+      "task_label": "4",
+      "task_title": "Replace direct WorkerRunner writes with autore-app commands (rep H4.3 §4.3)",
+      "session_id": "opencode:ses_07a11bce1ffeocooLruG6XZL5Y",
+      "agent": "Sisyphus-Junior",
+      "started_at": "2026-07-21T18:42:52.367Z",
+      "status": "completed",
+      "updated_at": "2026-07-21T22:08:37.049Z",
+      "ended_at": "2026-07-21T22:08:37.049Z",
+      "elapsed_ms": 12344682
+    }
+  },
   "schema_version": 2,
   "works": {
     "auto-re-m1-legacy": {
@@ -829,10 +882,79 @@
           "updated_at": "2026-07-20T04:30:00.000Z"
         }
       }
+    },
+    "auto-re-stage-1-1ac8869f": {
+      "work_id": "auto-re-stage-1-1ac8869f",
+      "active_plan": "/mnt/shanes-ssd-1tb/code/shane/auto-re/.omo/plans/auto-re-stage-1.md",
+      "plan_name": "auto-re-stage-1",
+      "status": "active",
+      "started_at": "2026-07-21T17:44:04.822Z",
+      "updated_at": "2026-07-21T22:08:37.049Z",
+      "session_ids": [
+        "opencode:ses_07b120cc7ffePfarZ4ruWIR9gQ",
+        "opencode:ses_07a348dafffe99Dm1TLNlyqYbw"
+      ],
+      "session_origins": {
+        "opencode:ses_07b120cc7ffePfarZ4ruWIR9gQ": "direct",
+        "opencode:ses_07a348dafffe99Dm1TLNlyqYbw": "appended"
+      },
+      "agent": "atlas",
+      "task_sessions": {
+        "todo:1": {
+          "task_key": "todo:1",
+          "task_label": "1",
+          "task_title": "Audit `autore-stage1` modules; produce retain/adapt/replace/remove table; move Stage 1 mutations behind `autore-app`",
+          "session_id": "opencode:ses_07a348dafffe99Dm1TLNlyqYbw",
+          "agent": "explore",
+          "updated_at": "2026-07-21T17:52:00.512Z",
+          "started_at": "2026-07-21T17:51:48.091Z",
+          "status": "completed",
+          "ended_at": "2026-07-21T17:52:00.512Z",
+          "elapsed_ms": 12421
+        },
+        "todo:2": {
+          "task_key": "todo:2",
+          "task_label": "2",
+          "task_title": "Add Stage 1a application commands + queries (persistence-side skeleton, no logic)",
+          "session_id": "opencode:ses_07a30e82dffeWFpy1xG9KTB6dx",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-07-21T18:08:51.164Z",
+          "started_at": "2026-07-21T18:07:32.425Z",
+          "status": "completed",
+          "ended_at": "2026-07-21T18:08:51.164Z",
+          "elapsed_ms": 78739
+        },
+        "todo:3": {
+          "task_key": "todo:3",
+          "task_label": "3",
+          "task_title": "Add Stage 1 schema types (records, kinds, IDs) — additive only",
+          "session_id": "opencode:ses_07a21a308ffeieyvrIDxtryRWv",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-07-21T18:26:36.029Z",
+          "started_at": "2026-07-21T18:25:41.232Z",
+          "status": "completed",
+          "ended_at": "2026-07-21T18:26:36.029Z",
+          "elapsed_ms": 54797
+        },
+        "todo:4": {
+          "task_key": "todo:4",
+          "task_label": "4",
+          "task_title": "Replace direct WorkerRunner writes with autore-app commands (rep H4.3 §4.3)",
+          "session_id": "opencode:ses_07a11bce1ffeocooLruG6XZL5Y",
+          "agent": "Sisyphus-Junior",
+          "started_at": "2026-07-21T18:42:52.367Z",
+          "status": "completed",
+          "updated_at": "2026-07-21T22:08:37.049Z",
+          "ended_at": "2026-07-21T22:08:37.049Z",
+          "elapsed_ms": 12344682
+        }
+      }
     }
   },
-  "active_work_id": "readme-quickstart-and-cli-errors-3716ec05",
-  "updated_at": "2026-07-20T04:30:00.000Z",
-  "status": "completed",
+  "active_work_id": "auto-re-stage-1-1ac8869f",
+  "updated_at": "2026-07-21T22:08:37.049Z",
+  "status": "active",
   "agent": "atlas"
 }

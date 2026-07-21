@@ -163,99 +163,93 @@ impl ApplicationService {
             ApplicationCommand::MigrateProject(req) => self.migrate_project(req),
             ApplicationCommand::RebuildIndexes(req) => self.rebuild_indexes(req),
             // Stage 1 stubs
-            ApplicationCommand::CreateReconstructionCampaign(_) => {
-                Err(Error::Validation("not yet implemented: CreateReconstructionCampaign".into()))
-            }
-            ApplicationCommand::CreateWorkItems(_) => {
-                Err(Error::Validation("not yet implemented: CreateWorkItems".into()))
-            }
-            ApplicationCommand::RecordWorkDependency(_) => {
-                Err(Error::Validation("not yet implemented: RecordWorkDependency".into()))
-            }
-            ApplicationCommand::PromoteWorkItem(_) => {
-                Err(Error::Validation("not yet implemented: PromoteWorkItem".into()))
-            }
-            ApplicationCommand::LeaseWorkItem(_) => {
-                Err(Error::Validation("not yet implemented: LeaseWorkItem".into()))
-            }
-            ApplicationCommand::RenewWorkLease(_) => {
-                Err(Error::Validation("not yet implemented: RenewWorkLease".into()))
-            }
-            ApplicationCommand::CompleteWorkItem(_) => {
-                Err(Error::Validation("not yet implemented: CompleteWorkItem".into()))
-            }
-            ApplicationCommand::FailWorkItem(_) => {
-                Err(Error::Validation("not yet implemented: FailWorkItem".into()))
-            }
-            ApplicationCommand::BlockWorkItem(_) => {
-                Err(Error::Validation("not yet implemented: BlockWorkItem".into()))
-            }
-            ApplicationCommand::InvalidateWorkItem(_) => {
-                Err(Error::Validation("not yet implemented: InvalidateWorkItem".into()))
-            }
-            ApplicationCommand::RequeueWorkItem(_) => {
-                Err(Error::Validation("not yet implemented: RequeueWorkItem".into()))
-            }
-            ApplicationCommand::BlockWorkWithReason(_) => {
-                Err(Error::Validation("not yet implemented: BlockWorkWithReason".into()))
-            }
-            ApplicationCommand::RegisterProviderInstallation(_) => {
-                Err(Error::Validation("not yet implemented: RegisterProviderInstallation".into()))
-            }
-            ApplicationCommand::RegisterProviderInstance(_) => {
-                Err(Error::Validation("not yet implemented: RegisterProviderInstance".into()))
-            }
-            ApplicationCommand::StopProviderInstance(_) => {
-                Err(Error::Validation("not yet implemented: StopProviderInstance".into()))
-            }
-            ApplicationCommand::ImportProviderRunResult(_) => {
-                Err(Error::Validation("not yet implemented: ImportProviderRunResult".into()))
-            }
-            ApplicationCommand::ImportDynamicObservation(_) => {
-                Err(Error::Validation("not yet implemented: ImportDynamicObservation".into()))
-            }
-            ApplicationCommand::RecordBuildAttempt(_) => {
-                Err(Error::Validation("not yet implemented: RecordBuildAttempt".into()))
-            }
+            ApplicationCommand::CreateReconstructionCampaign(_) => Err(Error::Validation(
+                "not yet implemented: CreateReconstructionCampaign".into(),
+            )),
+            ApplicationCommand::CreateWorkItems(_) => Err(Error::Validation(
+                "not yet implemented: CreateWorkItems".into(),
+            )),
+            ApplicationCommand::RecordWorkDependency(_) => Err(Error::Validation(
+                "not yet implemented: RecordWorkDependency".into(),
+            )),
+            ApplicationCommand::PromoteWorkItem(_) => Err(Error::Validation(
+                "not yet implemented: PromoteWorkItem".into(),
+            )),
+            ApplicationCommand::LeaseWorkItem(_) => Err(Error::Validation(
+                "not yet implemented: LeaseWorkItem".into(),
+            )),
+            ApplicationCommand::RenewWorkLease(_) => Err(Error::Validation(
+                "not yet implemented: RenewWorkLease".into(),
+            )),
+            ApplicationCommand::CompleteWorkItem(_) => Err(Error::Validation(
+                "not yet implemented: CompleteWorkItem".into(),
+            )),
+            ApplicationCommand::FailWorkItem(_) => Err(Error::Validation(
+                "not yet implemented: FailWorkItem".into(),
+            )),
+            ApplicationCommand::BlockWorkItem(_) => Err(Error::Validation(
+                "not yet implemented: BlockWorkItem".into(),
+            )),
+            ApplicationCommand::InvalidateWorkItem(_) => Err(Error::Validation(
+                "not yet implemented: InvalidateWorkItem".into(),
+            )),
+            ApplicationCommand::RequeueWorkItem(_) => Err(Error::Validation(
+                "not yet implemented: RequeueWorkItem".into(),
+            )),
+            ApplicationCommand::BlockWorkWithReason(_) => Err(Error::Validation(
+                "not yet implemented: BlockWorkWithReason".into(),
+            )),
+            ApplicationCommand::RegisterProviderInstallation(_) => Err(Error::Validation(
+                "not yet implemented: RegisterProviderInstallation".into(),
+            )),
+            ApplicationCommand::RegisterProviderInstance(_) => Err(Error::Validation(
+                "not yet implemented: RegisterProviderInstance".into(),
+            )),
+            ApplicationCommand::StopProviderInstance(_) => Err(Error::Validation(
+                "not yet implemented: StopProviderInstance".into(),
+            )),
+            ApplicationCommand::ImportProviderRunResult(_) => Err(Error::Validation(
+                "not yet implemented: ImportProviderRunResult".into(),
+            )),
+            ApplicationCommand::ImportDynamicObservation(_) => Err(Error::Validation(
+                "not yet implemented: ImportDynamicObservation".into(),
+            )),
+            ApplicationCommand::RecordBuildAttempt(_) => Err(Error::Validation(
+                "not yet implemented: RecordBuildAttempt".into(),
+            )),
             ApplicationCommand::RunBuild(_) => {
                 Err(Error::Validation("not yet implemented: RunBuild".into()))
             }
-            ApplicationCommand::RecordVerificationComparison(_) => {
-                Err(Error::Validation("not yet implemented: RecordVerificationComparison".into()))
-            }
-            ApplicationCommand::RegisterGeneratedSourceMapping(_) => {
-                Err(Error::Validation(
-                    "not yet implemented: RegisterGeneratedSourceMapping".into(),
-                ))
-            }
-            ApplicationCommand::InvalidateGeneratedSource(_) => {
-                Err(Error::Validation("not yet implemented: InvalidateGeneratedSource".into()))
-            }
-            ApplicationCommand::ImportGeneratedSourceCandidates(_) => {
-                Err(Error::Validation(
-                    "not yet implemented: ImportGeneratedSourceCandidates".into(),
-                ))
-            }
-            ApplicationCommand::ScheduleVerificationRegression(_) => {
-                Err(Error::Validation(
-                    "not yet implemented: ScheduleVerificationRegression".into(),
-                ))
-            }
-            ApplicationCommand::RecordRepairAttempt(_) => {
-                Err(Error::Validation("not yet implemented: RecordRepairAttempt".into()))
-            }
-            ApplicationCommand::AcceptHypothesisPolicyDriven(_) => {
-                Err(Error::Validation("not yet implemented: AcceptHypothesisPolicyDriven".into()))
-            }
-            ApplicationCommand::PauseCoordinator(_) => {
-                Err(Error::Validation("not yet implemented: PauseCoordinator".into()))
-            }
-            ApplicationCommand::ResumeCoordinator(_) => {
-                Err(Error::Validation("not yet implemented: ResumeCoordinator".into()))
-            }
-            ApplicationCommand::StopCoordinator(_) => {
-                Err(Error::Validation("not yet implemented: StopCoordinator".into()))
-            }
+            ApplicationCommand::RecordVerificationComparison(_) => Err(Error::Validation(
+                "not yet implemented: RecordVerificationComparison".into(),
+            )),
+            ApplicationCommand::RegisterGeneratedSourceMapping(_) => Err(Error::Validation(
+                "not yet implemented: RegisterGeneratedSourceMapping".into(),
+            )),
+            ApplicationCommand::InvalidateGeneratedSource(_) => Err(Error::Validation(
+                "not yet implemented: InvalidateGeneratedSource".into(),
+            )),
+            ApplicationCommand::ImportGeneratedSourceCandidates(_) => Err(Error::Validation(
+                "not yet implemented: ImportGeneratedSourceCandidates".into(),
+            )),
+            ApplicationCommand::ScheduleVerificationRegression(_) => Err(Error::Validation(
+                "not yet implemented: ScheduleVerificationRegression".into(),
+            )),
+            ApplicationCommand::RecordRepairAttempt(_) => Err(Error::Validation(
+                "not yet implemented: RecordRepairAttempt".into(),
+            )),
+            ApplicationCommand::AcceptHypothesisPolicyDriven(_) => Err(Error::Validation(
+                "not yet implemented: AcceptHypothesisPolicyDriven".into(),
+            )),
+            ApplicationCommand::PauseCoordinator(_) => Err(Error::Validation(
+                "not yet implemented: PauseCoordinator".into(),
+            )),
+            ApplicationCommand::ResumeCoordinator(_) => Err(Error::Validation(
+                "not yet implemented: ResumeCoordinator".into(),
+            )),
+            ApplicationCommand::StopCoordinator(_) => Err(Error::Validation(
+                "not yet implemented: StopCoordinator".into(),
+            )),
         }
     }
 
@@ -287,51 +281,51 @@ impl ApplicationService {
             ApplicationQuery::GetCampaign(_) => {
                 Err(Error::Validation("not yet implemented: GetCampaign".into()))
             }
-            ApplicationQuery::ListWorkItems(_) => {
-                Err(Error::Validation("not yet implemented: ListWorkItems".into()))
-            }
+            ApplicationQuery::ListWorkItems(_) => Err(Error::Validation(
+                "not yet implemented: ListWorkItems".into(),
+            )),
             ApplicationQuery::GetWorkItem(_) => {
                 Err(Error::Validation("not yet implemented: GetWorkItem".into()))
             }
-            ApplicationQuery::ListWorkItemDependencies(_) => {
-                Err(Error::Validation("not yet implemented: ListWorkItemDependencies".into()))
-            }
-            ApplicationQuery::ListWorkItemBlockers(_) => {
-                Err(Error::Validation("not yet implemented: ListWorkItemBlockers".into()))
-            }
-            ApplicationQuery::ListExpiredLeases(_) => {
-                Err(Error::Validation("not yet implemented: ListExpiredLeases".into()))
-            }
-            ApplicationQuery::GetProviderInstallation(_) => {
-                Err(Error::Validation("not yet implemented: GetProviderInstallation".into()))
-            }
-            ApplicationQuery::ListProviderInstallations(_) => {
-                Err(Error::Validation("not yet implemented: ListProviderInstallations".into()))
-            }
-            ApplicationQuery::ListProviderInstances(_) => {
-                Err(Error::Validation("not yet implemented: ListProviderInstances".into()))
-            }
-            ApplicationQuery::GetProviderInstance(_) => {
-                Err(Error::Validation("not yet implemented: GetProviderInstance".into()))
-            }
-            ApplicationQuery::GetBuildStatus(_) => {
-                Err(Error::Validation("not yet implemented: GetBuildStatus".into()))
-            }
-            ApplicationQuery::ListBuildDiagnostics(_) => {
-                Err(Error::Validation("not yet implemented: ListBuildDiagnostics".into()))
-            }
-            ApplicationQuery::GetVerificationCoverage(_) => {
-                Err(Error::Validation("not yet implemented: GetVerificationCoverage".into()))
-            }
-            ApplicationQuery::ListGeneratedSourceMappings(_) => {
-                Err(Error::Validation("not yet implemented: ListGeneratedSourceMappings".into()))
-            }
-            ApplicationQuery::ListConflicts(_) => {
-                Err(Error::Validation("not yet implemented: ListConflicts".into()))
-            }
-            ApplicationQuery::ListBlockedReasons(_) => {
-                Err(Error::Validation("not yet implemented: ListBlockedReasons".into()))
-            }
+            ApplicationQuery::ListWorkItemDependencies(_) => Err(Error::Validation(
+                "not yet implemented: ListWorkItemDependencies".into(),
+            )),
+            ApplicationQuery::ListWorkItemBlockers(_) => Err(Error::Validation(
+                "not yet implemented: ListWorkItemBlockers".into(),
+            )),
+            ApplicationQuery::ListExpiredLeases(_) => Err(Error::Validation(
+                "not yet implemented: ListExpiredLeases".into(),
+            )),
+            ApplicationQuery::GetProviderInstallation(_) => Err(Error::Validation(
+                "not yet implemented: GetProviderInstallation".into(),
+            )),
+            ApplicationQuery::ListProviderInstallations(_) => Err(Error::Validation(
+                "not yet implemented: ListProviderInstallations".into(),
+            )),
+            ApplicationQuery::ListProviderInstances(_) => Err(Error::Validation(
+                "not yet implemented: ListProviderInstances".into(),
+            )),
+            ApplicationQuery::GetProviderInstance(_) => Err(Error::Validation(
+                "not yet implemented: GetProviderInstance".into(),
+            )),
+            ApplicationQuery::GetBuildStatus(_) => Err(Error::Validation(
+                "not yet implemented: GetBuildStatus".into(),
+            )),
+            ApplicationQuery::ListBuildDiagnostics(_) => Err(Error::Validation(
+                "not yet implemented: ListBuildDiagnostics".into(),
+            )),
+            ApplicationQuery::GetVerificationCoverage(_) => Err(Error::Validation(
+                "not yet implemented: GetVerificationCoverage".into(),
+            )),
+            ApplicationQuery::ListGeneratedSourceMappings(_) => Err(Error::Validation(
+                "not yet implemented: ListGeneratedSourceMappings".into(),
+            )),
+            ApplicationQuery::ListConflicts(_) => Err(Error::Validation(
+                "not yet implemented: ListConflicts".into(),
+            )),
+            ApplicationQuery::ListBlockedReasons(_) => Err(Error::Validation(
+                "not yet implemented: ListBlockedReasons".into(),
+            )),
         }
     }
 

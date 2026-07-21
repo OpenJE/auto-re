@@ -416,17 +416,11 @@ mod tests {
         roundtrip("RawLlmResponseId", &RawLlmResponseId::new());
         roundtrip("ParsedLlmResultId", &ParsedLlmResultId::new());
         roundtrip("ConflictRecordId", &ConflictRecordId::new());
-        roundtrip(
-            "GeneratedSourceMappingId",
-            &GeneratedSourceMappingId::new(),
-        );
+        roundtrip("GeneratedSourceMappingId", &GeneratedSourceMappingId::new());
         roundtrip("BuildAttemptId", &BuildAttemptId::new());
         roundtrip("BuildDiagnosticId", &BuildDiagnosticId::new());
         roundtrip("VerificationScenarioId", &VerificationScenarioId::new());
-        roundtrip(
-            "VerificationComparisonId",
-            &VerificationComparisonId::new(),
-        );
+        roundtrip("VerificationComparisonId", &VerificationComparisonId::new());
         roundtrip("RepairAttemptId", &RepairAttemptId::new());
     }
 

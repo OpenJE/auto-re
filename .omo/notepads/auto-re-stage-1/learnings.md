@@ -130,3 +130,11 @@
 - `grep -n 'ClaimRepository' runner.rs`: nothing
 - `grep -n 'EvidenceRepository' runner.rs`: nothing
 
+
+## 2026-07-21 Wave 1 Todo 5 (Regression Gate)
+- All four Stage-0 regression gates pass after `cargo fmt --all`:
+  - `cargo test --workspace --exclude autore-stage1`: 614+ tests passed (autore-app 29, autore-cli 20, autore-core 74, autore-events 12, autore-schema 276, autore-store 158, autore-tui 56, integration tests, doctests)
+  - `cargo clippy --workspace --exclude autore-stage1 --all-targets -- -D warnings`: clean
+  - `cargo fmt --all --check`: clean (fmt applied once to fix formatting from Todos 2-4)
+  - `cargo build -p autore-stage1 --no-default-features`: clean
+- Formatting commit required because Todos 2-4 did not run `cargo fmt` before committing; no logic changes in the formatting commit.

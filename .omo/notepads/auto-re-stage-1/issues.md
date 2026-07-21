@@ -23,3 +23,7 @@
 - **`headless.rs` NoopAutoReClient**: Temporary stub returning `EvidenceAdded` for every command. When the headless runner is replaced (Wave 11), a real client should be wired through.
 - **Sync `execute` in async context**: `AutoReClient::execute()` is synchronous. In production, wrapping with `tokio::task::spawn_blocking` is recommended. Not done here because the `RecordingClient` test doesn't need it and the real client isn't wired yet.
 - **FIXED — `campaign_smoke.rs` TUI feature gate**: Added `#![cfg(feature = "tui")]` to `tests/campaign_smoke.rs` so the integration test is skipped when `--no-default-features` is active. The test imports `autore_stage1::tui::state::TuiUpdate` which requires the `tui` feature. This was a pre-existing issue that blocked the Todo 4 acceptance command.
+
+## 2026-07-21 Wave 1 Todo 5 (Regression Gate)
+- No new issues. `cargo fmt --all` was required to clean up formatting from previous Wave 1 todos.
+- Evidence: `.omo/evidence/auto-re-stage-1/task-5-wave1-gates.txt`

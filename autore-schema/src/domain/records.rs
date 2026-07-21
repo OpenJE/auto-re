@@ -1761,11 +1761,7 @@ pub struct ReconstructionWorkItem {
 impl ReconstructionWorkItem {
     /// Creates a new work item in `Pending` state wrapping the given `Task`.
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        campaign: ReconstructionCampaignId,
-        kind: WorkItemKind,
-        task: Task,
-    ) -> Self {
+    pub fn new(campaign: ReconstructionCampaignId, kind: WorkItemKind, task: Task) -> Self {
         let now = Timestamp::now();
         ReconstructionWorkItem {
             id: WorkItemId::new(),
@@ -2320,10 +2316,7 @@ pub struct BlockedReason {
 
 impl BlockedReason {
     /// Creates a new blocked reason.
-    pub fn new(
-        reason_kind: NamespacedId,
-        description: impl Into<String>,
-    ) -> Self {
+    pub fn new(reason_kind: NamespacedId, description: impl Into<String>) -> Self {
         BlockedReason {
             reason_kind,
             description: description.into(),
@@ -4195,7 +4188,8 @@ mod tests {
         let mut c = s1_campaign();
         assert!(c.transition(ReconstructionCampaignState::Paused).is_err());
         c.transition(ReconstructionCampaignState::Active).unwrap();
-        c.transition(ReconstructionCampaignState::Completed).unwrap();
+        c.transition(ReconstructionCampaignState::Completed)
+            .unwrap();
         assert!(c.state.is_terminal());
         assert!(c.transition(ReconstructionCampaignState::Failed).is_err());
     }
@@ -4285,15 +4279,21 @@ mod tests {
 
     #[test]
     fn work_item_state_rejects_invalid_transitions() {
-        assert!(WorkItemState::Completed
-            .transition(WorkItemState::Running)
-            .is_err());
-        assert!(WorkItemState::Pending
-            .transition(WorkItemState::Running)
-            .is_err());
-        assert!(WorkItemState::Running
-            .transition(WorkItemState::Leased)
-            .is_err());
+        assert!(
+            WorkItemState::Completed
+                .transition(WorkItemState::Running)
+                .is_err()
+        );
+        assert!(
+            WorkItemState::Pending
+                .transition(WorkItemState::Running)
+                .is_err()
+        );
+        assert!(
+            WorkItemState::Running
+                .transition(WorkItemState::Leased)
+                .is_err()
+        );
     }
 
     #[test]
