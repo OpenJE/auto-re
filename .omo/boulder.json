@@ -112,6 +112,19 @@
       "status": "completed",
       "ended_at": "2026-07-21T23:14:28.956Z",
       "elapsed_ms": 25799
+    },
+    "todo:10": {
+      "task_key": "todo:10",
+      "task_label": "10",
+      "task_title": "Implement fixture provider binary with 5 capabilities (echo/delay/fail/artifact/large-stream)",
+      "session_id": "opencode:ses_0790973afffePXdzf0i6Ino94z",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-07-21T23:32:28.524Z",
+      "started_at": "2026-07-21T23:31:30.649Z",
+      "status": "completed",
+      "ended_at": "2026-07-21T23:32:28.524Z",
+      "elapsed_ms": 57875
     }
   },
   "schema_version": 2,
@@ -941,7 +954,7 @@
       "plan_name": "auto-re-stage-1",
       "status": "active",
       "started_at": "2026-07-21T17:44:04.822Z",
-      "updated_at": "2026-07-21T23:14:28.956Z",
+      "updated_at": "2026-07-21T23:32:28.524Z",
       "session_ids": [
         "opencode:ses_07b120cc7ffePfarZ4ruWIR9gQ",
         "opencode:ses_07a348dafffe99Dm1TLNlyqYbw"
@@ -1053,12 +1066,25 @@
           "status": "completed",
           "ended_at": "2026-07-21T23:14:28.956Z",
           "elapsed_ms": 25799
+        },
+        "todo:10": {
+          "task_key": "todo:10",
+          "task_label": "10",
+          "task_title": "Implement fixture provider binary with 5 capabilities (echo/delay/fail/artifact/large-stream)",
+          "session_id": "opencode:ses_0790973afffePXdzf0i6Ino94z",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-07-21T23:32:28.524Z",
+          "started_at": "2026-07-21T23:31:30.649Z",
+          "status": "completed",
+          "ended_at": "2026-07-21T23:32:28.524Z",
+          "elapsed_ms": 57875
         }
       }
     }
   },
   "active_work_id": "auto-re-stage-1-1ac8869f",
-  "updated_at": "2026-07-21T23:14:28.956Z",
+  "updated_at": "2026-07-21T23:32:28.524Z",
   "status": "active",
   "agent": "atlas"
 }
