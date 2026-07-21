@@ -64,3 +64,37 @@
 - `cargo test -p autore-app -- --nocapture`: 29/29 passed (including new roundtrip test)
 - `cargo clippy -p autore-app --all-targets -- -D warnings`: clean
 - Full workspace: 614 tests passed, 0 failed
+
+## 2026-07-21 Wave 1 Todo 3 (Schema Records)
+
+### What was done
+- Added 15 new typed IDs to `autore-schema/src/ids.rs` via the existing `define_id!` macro (total now 43, up from 28).
+- Added 21 new Stage 1 domain records to `autore-schema/src/domain/records.rs` in a clearly-marked Stage 1 section.
+- Added `WorkItemKind` enum with all 18 variants (§7.2) and `as_namespaced_kind()` returning `recon.work.*` strings.
+- Added `WorkItemState` enum mirroring the existing `Task` state machine with identical transition rules.
+- Added `ReconstructionCampaignState` enum (renamed from initial `CampaignState` to avoid clash with existing `domain::campaign::CampaignState`).
+- Added `DependencyKind`, `DiagnosticSeverity`, `RepairTarget` enums.
+- Added 31 namespaced-kind `LazyLock<NamespacedId>` constants (`WORK_ITEM_KIND_*`, `RECON_KIND_*`, `PROVIDER_KIND_*`, `DEBUG_KIND_*`, `LLM_KIND_*`, `BUILD_KIND_*`, `VERIFY_KIND_*`, `RECON_KIND_MAPPING`).
+- `ReconstructionWorkItem` composes the existing `Task` type by value without modifying `Task`; includes `state()` method that derives `WorkItemState` from `Task::state`.
+- Added 28 fixture/roundtrip tests in the existing `records::tests` module covering every new record plus state transitions and kind-constant registrations.
+- Re-exported all new types from `domain/mod.rs` and all new IDs from `lib.rs`.
+
+### Decisions
+- **Single-file placement**: All Stage 1 records added to the existing `records.rs` file (following Stage 0's single-monolith pattern) rather than a separate module, with a clear `// Stage 1 Records — §7 persistence list` boundary marker.
+- **Renamed `CampaignState`** → `ReconstructionCampaignState` because `CampaignState` already exists in `domain::campaign` for M1 Stage 0 campaigns and is re-exported at `domain::` scope. The Stage 1 campaign has different variants (Planning/Active/Paused/Completed/Failed vs Pending/Active/Paused/Complete/Blocked).
+- **`ReconstructionWorkItem.state()`** derives `WorkItemState` from the composed `Task::state` rather than maintaining a duplicate field — single source of truth.
+- **`RepairTarget` enum** uses a tagged enum with 3 variants (BuildAttempt, VerificationComparison, ConflictRecord) following the existing `VerificationSubject` pattern.
+- **`WorkItemKind::as_namespaced_kind()`** returns `NamespacedId::parse("recon.work.<snake>").unwrap()` — safe because the string is a literal.
+
+### Patterns established
+- Stage 1 constructors use `#[allow(clippy::too_many_arguments)]` only where Stage 0 already uses it (e.g., `Task::new`).
+- New types added to the `records::tests` `use crate::ids::{...}` block to avoid polluting the top-level `use` list.
+- Every new record gets a `*_fixture` roundtrip test that both exercises serde and verifies constructor defaults.
+
+### Verification
+- `cargo build -p autore-schema`: clean
+- `cargo test -p autore-schema -- --nocapture`: 276/276 passed (28 new Stage 1 tests + 248 existing)
+- `cargo clippy -p autore-schema --all-targets -- -D warnings`: clean
+- `grep -c '^define_id!' autore-schema/src/ids.rs`: 43 (15 new + 28 pre-existing)
+- `autore-schema/src/domain/task/` fully untouched (verified via `git diff --stat HEAD -- autore-schema/src/domain/task/`)
+

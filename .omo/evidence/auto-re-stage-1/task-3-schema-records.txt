@@ -1,0 +1,355 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+     Running unittests src/lib.rs (target/debug/deps/autore_schema-cdf1dae0ad460c02)
+
+running 276 tests
+test domain::campaign::tests::campaign_block_and_unblock ... ok
+test domain::campaign::tests::campaign_rejects_invalid_transitions ... ok
+test domain::campaign::tests::campaign_complete_from_active ... ok
+test domain::campaign::tests::campaign_pause_and_resume ... ok
+test domain::campaign::tests::campaign_start_transitions_to_active ... ok
+test domain::campaign::tests::campaign_starts_pending ... ok
+test domain::claim::tests::claim_add_dependency ... ok
+test domain::claim::tests::claim_dependency_deduplicated ... ok
+test domain::claim::tests::claim_evidence_is_deduplicated ... ok
+test domain::campaign::tests::campaign_serialize_roundtrip ... ok
+test domain::claim::tests::claim_evidence_link ... ok
+test domain::claim::tests::claim_dependencies_recorded ... ok
+test domain::claim::tests::claim_full_acceptance_lifecycle ... ok
+test domain::claim::tests::claim_full_rejection_lifecycle ... ok
+test domain::claim::tests::claim_rejects_invalid_transitions ... ok
+test domain::claim::tests::claim_starts_proposed ... ok
+test domain::claim::tests::claim_state_transitions ... ok
+test domain::claim::tests::claim_unlink_evidence ... ok
+test domain::claim::tests::claim_serialize_roundtrip ... ok
+test domain::claim::tests::claim_with_complex_value ... ok
+test domain::claim::tests::claims_start_in_proposed_state ... ok
+test domain::claim::tests::evidence_links_to_claims ... ok
+test domain::claim::tests::worker_output_to_proposed_claims ... ok
+test domain::evidence::tests::artifact_id_default_creates_unique ... ok
+test domain::evidence::tests::artifact_id_roundtrip ... ok
+test domain::evidence::tests::entity_id_display ... ok
+test domain::evidence::tests::evidence_constructs ... ok
+test domain::evidence::tests::evidence_location_with_address_only ... ok
+test domain::evidence::tests::evidence_location_with_path_only ... ok
+test domain::evidence::tests::evidence_with_artifact ... ok
+test domain::evidence::tests::evidence_without_location ... ok
+test domain::evidence::tests::evidence_serialize_roundtrip ... ok
+test domain::function::tests::function_bump_revision ... ok
+test domain::function::tests::function_lock_and_unlock ... ok
+test domain::function::tests::function_new_constructs ... ok
+test domain::function::tests::function_rename ... ok
+test domain::function::tests::function_with_control_flow_hash ... ok
+test domain::function::tests::function_serialize_roundtrip ... ok
+test domain::records::tests::artifact_kinds_registered ... ok
+test domain::records::tests::artifact_fixture_external_round_trip ... ok
+test domain::records::tests::artifact_fixture_managed_round_trip ... ok
+test domain::records::tests::assumption_round_trip_json ... ok
+test domain::records::tests::binary_artifact_metadata_all_none ... ok
+test domain::records::tests::artifact_round_trip_managed ... ok
+test domain::records::tests::artifact_round_trip_external ... ok
+test domain::records::tests::binary_artifact_metadata_round_trip ... ok
+test domain::records::tests::blocked_reason_fixture ... ok
+test domain::records::tests::build_attempt_fixture ... ok
+=== project.json ===
+{
+  "id": "01906789-abcd-7000-8000-000000000001",
+  "name": "fixture-project",
+  "schema_version": "2.0",
+  "created_at": "2026-01-15T10:30:00Z",
+  "updated_at": "2026-01-15T10:30:00Z",
+  "metadata": {}
+}test domain::records::tests::cancellation_request_round_trip ... 
+=== end ===
+ok
+test domain::records::tests::build_diagnostic_fixture ... ok
+=== artifact_managed.json ===
+test domain::records::tests::capability_descriptor_fixture ... {
+  "id": "01906789-abcd-7000-8000-000000000002",
+  "project": "01906789-abcd-7000-8000-000000000001",
+  "kind": "core.binary",
+  "content_hash": {
+    "algorithm": "sha256",
+    "digest": "f3644786667f110b85a19164208e6d3af050745bfc0d64f39e524574269bbf1d"
+  },
+  "size": 2048,
+  "storage": {
+    "kind": "ManagedBlob",
+    "value": {
+      "relative_path": "sha256/b9/4d27b993456789abcdef0123456789abcdef0123456789abcdef01234567"
+    }
+  },
+  "created_at": "2026-01-15T10:30:00Z",
+  "metadata": {}
+}ok
+=== end ===
+
+test domain::records::tests::confidence_independent_of_status ... ok
+=== artifact_external.json ===
+{
+  "id": "01906789-abcd-7000-8000-000000000003",
+  "project": "01906789-abcd-7000-8000-000000000001",
+  "kind": "core.source-tree",
+  "content_hash": {
+    "algorithm": "sha256",
+    "digest": "73ce0e5bb8a291cf491af421ae77e383a3b5c904fd8e07914928630deb80ca5e"
+  },
+  "size": 4096,
+  "storage": {
+    "kind": "ExternalFile",
+    "value": {
+      "canonical_path": "/home/user/projects/target-binary"
+    }
+  },
+  "created_at": "2026-01-15T10:30:00Z",
+  "metadata": {}
+}
+=== end ===
+test domain::records::tests::contradiction_new_defaults ... ok
+test domain::records::tests::conflict_record_fixture ... ok
+test domain::records::tests::contradiction_status_constants_registered ... ok
+test domain::records::tests::contradiction_status_display ... ok
+test domain::records::tests::contradiction_round_trip_json ... ok
+test domain::records::tests::contradiction_status_kind ... ok
+test domain::records::tests::contradiction_status_serialize_round_trip ... ok
+test domain::records::tests::contradiction_status_terminal ... ok
+test domain::records::tests::contradiction_status_transitions_reject_invalid ... ok
+test domain::records::tests::contradiction_status_transitions_valid ... ok
+test domain::records::tests::contradiction_transition_open_to_resolved ... ok
+test domain::records::tests::contradiction_transition_to_non_resolved_rejects_resolution ... ok
+test domain::records::tests::contradiction_transition_to_resolved_requires_resolution ... ok
+test domain::records::tests::endianness_variants_serialize ... ok
+test domain::records::tests::dynamic_observation_fixture ... ok
+test domain::records::tests::entity_kinds_registered ... ok
+test domain::records::tests::event_source_display ... ok
+test domain::records::tests::environment_identity_round_trip_json ... ok
+test domain::records::tests::event_subject_round_trip ... ok
+test domain::records::tests::evidence_lifecycle_state_display ... ok
+test domain::records::tests::evidence_lifecycle_event_round_trip_json ... ok
+test domain::records::tests::evidence_lifecycle_state_serialize_round_trip ... ok
+test domain::records::tests::evidence_predicate_constants_registered ... ok
+test domain::records::tests::evidence_record_round_trip_json ... ok
+test domain::records::tests::generated_source_mapping_fixture ... ok
+test domain::records::tests::hypothesis_new_defaults ... ok
+test domain::records::tests::hypothesis_state_transitions_reject_invalid ... ok
+test domain::records::tests::hypothesis_state_transitions_valid ... ok
+test domain::records::tests::hypothesis_round_trip_json ... ok
+test domain::records::tests::generate_fixtures ... ok
+test domain::records::tests::hypothesis_status_constants_registered ... ok
+test domain::records::tests::hypothesis_status_display ... ok
+test domain::records::tests::hypothesis_status_kind ... ok
+test domain::records::tests::hypothesis_status_serialize_round_trip ... ok
+test domain::records::tests::hypothesis_status_terminal ... ok
+test domain::records::tests::hypothesis_transition_rejects_invalid ... ok
+test domain::records::tests::hypothesis_transition_updates_status ... ok
+test domain::records::tests::hypothesis_supersession_cycle_rejected ... ok
+test domain::records::tests::native_artifact_no_subjects_no_description ... ok
+test domain::records::tests::native_artifact_round_trip_json ... ok
+test domain::records::tests::native_format_constants_registered ... ok
+test domain::records::tests::native_artifact_snapshot_fixture ... ok
+test domain::records::tests::operation_failure_round_trip ... ok
+test domain::records::tests::operation_kind_constants ... ok
+test domain::records::tests::operation_new_defaults ... ok
+test domain::records::tests::operation_transition_cancellation_flow ... ok
+test domain::records::tests::operation_transition_full_lifecycle ... ok
+test domain::records::tests::operation_round_trip_json ... ok
+test domain::records::tests::operation_transition_queued_to_running ... ok
+test domain::records::tests::parsed_llm_result_fixture ... ok
+test domain::records::tests::project_event_new_defaults ... ok
+test domain::records::tests::progress_update_round_trip ... ok
+test domain::records::tests::project_event_kind_constants_registered ... ok
+test domain::records::tests::project_event_with_subject_and_source ... ok
+test domain::records::tests::project_fixture_round_trip ... ok
+test domain::records::tests::project_event_round_trip_json ... ok
+test domain::records::tests::project_new_sets_name_and_timestamps ... ok
+test domain::records::tests::project_metadata_is_typed_not_raw_json ... ok
+test domain::records::tests::project_round_trip_json ... ok
+test domain::records::tests::provider_entity_alias_round_trip_json ... ok
+test domain::records::tests::provider_kinds_registered ... ok
+test domain::records::tests::provider_instance_fixture ... ok
+test domain::records::tests::provider_installation_fixture ... ok
+test domain::records::tests::provider_round_trip_json ... ok
+test domain::records::tests::provider_run_complete_rejects_invalid_transition ... ok
+test domain::records::tests::provider_run_complete_transitions ... ok
+test domain::records::tests::provider_run_record_fixture ... ok
+test domain::records::tests::provider_run_status_display ... ok
+test domain::records::tests::provider_run_status_invalid_transitions ... ok
+test domain::records::tests::provider_run_status_serialize_round_trip ... ok
+test domain::records::tests::provider_run_status_terminal ... ok
+test domain::records::tests::provider_run_status_valid_transitions ... ok
+test domain::records::tests::raw_llm_response_fixture ... ok
+test domain::records::tests::reconstruction_campaign_rejects_invalid_transitions ... ok
+test domain::records::tests::reconstruction_campaign_fixture ... ok
+test domain::records::tests::repair_target_variants ... ok
+test domain::records::tests::reconstruction_work_item_fixture ... ok
+test domain::records::tests::repair_attempt_fixture ... ok
+test domain::records::tests::semantic_entity_null_stable_key_round_trip ... ok
+test domain::records::tests::stage1_kind_constants_registered ... ok
+test domain::records::tests::verification_check_constants_registered ... ok
+test domain::records::tests::semantic_entity_round_trip_json ... ok
+test domain::records::tests::verification_does_not_change_confidence ... ok
+test domain::records::tests::verification_comparison_fixture ... ok
+test domain::records::tests::verification_record_new_defaults ... ok
+test domain::records::tests::verification_state_kind ... ok
+test domain::records::tests::verification_scenario_fixture ... ok
+test domain::records::tests::verification_record_round_trip_json ... ok
+test domain::records::tests::verification_state_serialize_round_trip ... ok
+test domain::records::tests::verification_state_terminal ... ok
+test domain::records::tests::verification_state_transitions_reject_invalid ... ok
+test domain::records::tests::verification_state_transitions_valid ... ok
+test domain::records::tests::verification_subject_kinds ... ok
+test domain::records::tests::verification_subject_round_trip_json ... ok
+test domain::records::tests::work_dependency_fixture ... ok
+test domain::records::tests::work_fingerprint_fixture ... ok
+test domain::records::tests::work_item_kind_matches_static_constants ... ok
+test domain::records::tests::work_item_kind_all_variants_roundtrip ... ok
+test domain::records::tests::work_item_state_rejects_invalid_transitions ... ok
+test domain::records::tests::work_item_state_transitions_mirror_task ... ok
+test domain::records::tests::work_lease_fixture ... ok
+test domain::task::tests::task_cancel_from_non_terminal ... ok
+test domain::task::tests::task_dependencies ... ok
+test domain::task::tests::task_full_lifecycle ... ok
+test domain::task::tests::task_no_dependencies ... ok
+test domain::task::tests::task_pending_dependencies ... ok
+test domain::task::tests::task_priority_display ... ok
+test domain::task::tests::task_rejects_invalid_transitions ... ok
+test domain::task::tests::task_requeue_exhausts_attempts ... ok
+test domain::task::tests::task_required_capabilities_extras ... ok
+test domain::task::tests::task_starts_pending ... ok
+test domain::task::tests::task_serialize_roundtrip ... ok
+test domain::task::tests::task_state_transitions ... ok
+test domain::tests::address_display_format ... ok
+test domain::tests::address_serialize_roundtrip ... ok
+test domain::tests::address_spaces_deserialize ... ok
+test domain::tests::address_spaces_deserialize_rejects_invalid ... ok
+test domain::tests::address_spaces_serialize ... ok
+test domain::tests::confidence_accepts_boundary_values ... ok
+test domain::tests::confidence_deserialize_rejects_out_of_range ... ok
+test domain::tests::confidence_error_message ... ok
+test domain::tests::confidence_rejects_out_of_range ... ok
+test domain::tests::confidence_serialize_roundtrip ... ok
+test domain::tests::confidence_valid_mid_range ... ok
+test domain::tests::confidence_with_rationale ... ok
+test domain::tests::confidence_with_rationale_serialize_roundtrip ... ok
+test domain::tests::content_hash_blake3_deterministic ... ok
+test domain::tests::content_hash_different_algorithms_differ ... ok
+test domain::tests::content_hash_display_format ... ok
+test domain::tests::content_hash_fixture_roundtrip ... ok
+test domain::tests::content_hash_from_bytes_is_blake3 ... ok
+test domain::tests::content_hash_serialize_roundtrip ... ok
+test domain::tests::content_hash_serialize_tagged_format ... ok
+test domain::tests::content_hash_sha256_deterministic ... ok
+test domain::tests::namespaced_id_deserialize_rejects_invalid ... ok
+test domain::tests::namespaced_id_fixture_roundtrip ... ok
+test domain::tests::namespaced_id_from_segments ... ok
+test domain::tests::namespaced_id_rejects_backslash ... ok
+test domain::tests::namespaced_id_rejects_empty ... ok
+test domain::tests::namespaced_id_rejects_empty_segment ... ok
+test domain::tests::namespaced_id_rejects_leading_dot ... ok
+test domain::tests::namespaced_id_rejects_slash ... ok
+test domain::tests::namespaced_id_rejects_trailing_dot ... ok
+test domain::tests::namespaced_id_rejects_uppercase ... ok
+test domain::tests::namespaced_id_rejects_whitespace ... ok
+test domain::tests::namespaced_id_serialize_roundtrip ... ok
+test domain::tests::namespaced_id_valid_simple ... ok
+test domain::tests::namespaced_id_valid_three_segments ... ok
+test domain::tests::provenance_agent_serialize_roundtrip ... ok
+test domain::tests::provenance_deserialize_rejects_invalid ... ok
+test domain::tests::provenances_deserialize ... ok
+test domain::tests::provenances_display_and_serialize ... ok
+test domain::tests::schema_version_display ... ok
+test domain::tests::schema_version_fixture_roundtrip ... ok
+test domain::tests::schema_version_serialize_roundtrip ... ok
+test domain::tests::symbol_name_construct_and_display ... ok
+test domain::tests::symbol_name_serialize_roundtrip ... ok
+test domain::tests::timestamp_now_is_valid ... ok
+test domain::tests::timestamp_serialize_roundtrip ... ok
+test domain::values::tests::binary_location_rejects_absolute_only ... ok
+test domain::values::tests::binary_location_round_trip ... ok
+test domain::values::tests::binary_location_serialize_roundtrip ... ok
+test domain::values::tests::derivation_fixture_roundtrip ... ok
+test domain::values::tests::derivation_method_all_10_variants_roundtrip ... ok
+test domain::values::tests::derivation_method_tagged_format ... ok
+test domain::values::tests::derivation_roundtrip ... ok
+test domain::values::tests::evidence_value_all_12_variants_constructible ... ok
+test domain::values::tests::evidence_value_artifact_roundtrip ... ok
+test domain::values::tests::evidence_value_boolean_roundtrip ... ok
+test domain::values::tests::evidence_value_binary_location_roundtrip ... ok
+test domain::values::tests::evidence_value_bytes_roundtrip ... ok
+test domain::values::tests::evidence_value_deserialize_rejects_nan_string ... ok
+test domain::values::tests::evidence_value_entity_roundtrip ... ok
+test domain::values::tests::evidence_value_extension_roundtrip ... ok
+test domain::values::tests::evidence_value_float_rejects_nan_inf ... ok
+test domain::values::tests::evidence_value_float_roundtrip ... ok
+test domain::values::tests::evidence_value_list_roundtrip ... ok
+test domain::values::tests::evidence_value_map_fixture_roundtrip ... ok
+test domain::values::tests::evidence_value_map_ordering_deterministic ... ok
+test domain::values::tests::evidence_value_null_roundtrip ... ok
+test domain::values::tests::evidence_value_map_roundtrip ... ok
+test domain::values::tests::evidence_value_signed_integer_roundtrip ... ok
+test domain::values::tests::evidence_value_string_roundtrip ... ok
+test domain::values::tests::evidence_value_tagged_format_boolean ... ok
+test domain::values::tests::evidence_value_tagged_format_null ... ok
+=== project_manifest.toml ===
+schema_version = "2.0"
+project_id = "01906789-abcd-7000-8000-000000000001"
+name = "fixture-project"
+created_at = "2026-01-15T10:30:00Z"
+updated_at = "2026-01-15T10:30:00Z"
+test domain::values::tests::evidence_value_tagged_format_string ... === end ===
+ok
+test domain::values::tests::evidence_value_unsigned_integer_roundtrip ... ok
+test domain::values::tests::extension_data_fixture_roundtrip ... ok
+test domain::values::tests::extension_data_rejects_bad_namespace_on_deserialize ... ok
+test domain::values::tests::extension_data_serialize_roundtrip ... ok
+test domain::values::tests::extension_data_valid_schema ... ok
+test domain::values::tests::metadata_map_default_is_empty ... ok
+test domain::values::tests::metadata_map_deterministic_order ... ok
+test domain::values::tests::metadata_map_insert_and_get ... ok
+test domain::values::tests::metadata_map_serialize_roundtrip ... ok
+test domain::values::tests::stable_entity_key_artifact_symbol_roundtrip ... ok
+test domain::values::tests::stable_entity_key_external_identity_roundtrip ... ok
+test domain::values::tests::stable_entity_key_binary_location_roundtrip ... ok
+test domain::values::tests::stable_entity_key_binary_range_roundtrip ... ok
+test ids::tests::ids_all_types_constructible ... ok
+test domain::values::tests::stable_entity_key_fixture_roundtrip ... ok
+test ids::tests::ids_are_not_interchangeable ... ok
+test ids::tests::ids_copy_works ... ok
+test ids::tests::ids_default_creates_new_id ... ok
+test ids::tests::ids_fixture_project_id_roundtrip ... ok
+test ids::tests::ids_from_uuid_roundtrip ... ok
+test ids::tests::ids_serialize_and_roundtrip ... ok
+test ids::tests::ids_serialize_are_distinct_across_types ... ok
+test ids::tests::ids_stage0_roundtrip ... ok
+test manifest::tests::generate_manifest_fixture ... ok
+test manifest::tests::project_manifest_load_missing_file ... ok
+test manifest::tests::project_manifest_fixture_round_trip ... ok
+test tests::content_hash_sha256_deterministic ... ok
+test manifest::tests::project_manifest_load_invalid_toml ... ok
+test worker_output::tests::output_roundtrips_via_json ... ok
+test manifest::tests::project_manifest_load_save ... ok
+test manifest::tests::project_manifest_round_trip_preserves_timestamps ... ok
+test ids::tests::ids_v7_lexicographic ... ok
+test ids::tests::ids_v7_sort_chronologically ... ok
+test ids::tests::uuid_v7_sorts ... ok
+test domain::records::tests::project_touch_updates_updated_at ... ok
+test worker_output::tests::malformed_output_fails_schema ... ok
+test worker_output::tests::schema_error_includes_pointer ... ok
+test worker_output::tests::valid_output_passes_schema ... ok
+
+test result: ok. 276 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+   Doc-tests autore_schema
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+--- CLIPPY ---
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.12s
+--- BUILD ---
+   Compiling autore-schema v0.1.0 (/mnt/shanes-ssd-1tb/code/shane/auto-re/autore-schema)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.01s
+--- ID COUNT ---
+43
+--- FINAL SUMMARY ---
+Evidence captured.
