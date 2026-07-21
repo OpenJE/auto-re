@@ -86,6 +86,19 @@
       "status": "completed",
       "ended_at": "2026-07-21T22:46:09.591Z",
       "elapsed_ms": 64290
+    },
+    "todo:8": {
+      "task_key": "todo:8",
+      "task_label": "8",
+      "task_title": "Implement local provider package discovery, manifest validation, content-hash verification",
+      "session_id": "opencode:ses_079233b0fffeFu4ry5Th7qGU6y",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-07-21T23:01:52.682Z",
+      "started_at": "2026-07-21T23:01:06.384Z",
+      "status": "completed",
+      "ended_at": "2026-07-21T23:01:52.682Z",
+      "elapsed_ms": 46298
     }
   },
   "schema_version": 2,
@@ -915,7 +928,7 @@
       "plan_name": "auto-re-stage-1",
       "status": "active",
       "started_at": "2026-07-21T17:44:04.822Z",
-      "updated_at": "2026-07-21T22:46:09.591Z",
+      "updated_at": "2026-07-21T23:01:52.682Z",
       "session_ids": [
         "opencode:ses_07b120cc7ffePfarZ4ruWIR9gQ",
         "opencode:ses_07a348dafffe99Dm1TLNlyqYbw"
@@ -1001,12 +1014,25 @@
           "status": "completed",
           "ended_at": "2026-07-21T22:46:09.591Z",
           "elapsed_ms": 64290
+        },
+        "todo:8": {
+          "task_key": "todo:8",
+          "task_label": "8",
+          "task_title": "Implement local provider package discovery, manifest validation, content-hash verification",
+          "session_id": "opencode:ses_079233b0fffeFu4ry5Th7qGU6y",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-07-21T23:01:52.682Z",
+          "started_at": "2026-07-21T23:01:06.384Z",
+          "status": "completed",
+          "ended_at": "2026-07-21T23:01:52.682Z",
+          "elapsed_ms": 46298
         }
       }
     }
   },
   "active_work_id": "auto-re-stage-1-1ac8869f",
-  "updated_at": "2026-07-21T22:46:09.591Z",
+  "updated_at": "2026-07-21T23:01:52.682Z",
   "status": "active",
   "agent": "atlas"
 }
