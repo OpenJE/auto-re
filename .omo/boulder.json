@@ -99,6 +99,19 @@
       "status": "completed",
       "ended_at": "2026-07-21T23:01:52.682Z",
       "elapsed_ms": 46298
+    },
+    "todo:9": {
+      "task_key": "todo:9",
+      "task_label": "9",
+      "task_title": "Implement `ArtifactTransport` abstraction with core-created local staging directories + scoped handles",
+      "session_id": "opencode:ses_07914ea2dffeU6Vpqpa7EQp1rr",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-07-21T23:14:28.956Z",
+      "started_at": "2026-07-21T23:14:03.157Z",
+      "status": "completed",
+      "ended_at": "2026-07-21T23:14:28.956Z",
+      "elapsed_ms": 25799
     }
   },
   "schema_version": 2,
@@ -928,7 +941,7 @@
       "plan_name": "auto-re-stage-1",
       "status": "active",
       "started_at": "2026-07-21T17:44:04.822Z",
-      "updated_at": "2026-07-21T23:01:52.682Z",
+      "updated_at": "2026-07-21T23:14:28.956Z",
       "session_ids": [
         "opencode:ses_07b120cc7ffePfarZ4ruWIR9gQ",
         "opencode:ses_07a348dafffe99Dm1TLNlyqYbw"
@@ -1027,12 +1040,25 @@
           "status": "completed",
           "ended_at": "2026-07-21T23:01:52.682Z",
           "elapsed_ms": 46298
+        },
+        "todo:9": {
+          "task_key": "todo:9",
+          "task_label": "9",
+          "task_title": "Implement `ArtifactTransport` abstraction with core-created local staging directories + scoped handles",
+          "session_id": "opencode:ses_07914ea2dffeU6Vpqpa7EQp1rr",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-07-21T23:14:28.956Z",
+          "started_at": "2026-07-21T23:14:03.157Z",
+          "status": "completed",
+          "ended_at": "2026-07-21T23:14:28.956Z",
+          "elapsed_ms": 25799
         }
       }
     }
   },
   "active_work_id": "auto-re-stage-1-1ac8869f",
-  "updated_at": "2026-07-21T23:01:52.682Z",
+  "updated_at": "2026-07-21T23:14:28.956Z",
   "status": "active",
   "agent": "atlas"
 }
