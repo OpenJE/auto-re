@@ -1,0 +1,76 @@
+Task 8: Local Package Discovery + Manifest Validation + Content Hashing
+========================================================================
+Date: 2026-07-21
+Wave: 2 (Todo 8)
+
+FILES CREATED/MODIFIED
+----------------------
+- autore-provider-runtime/src/package.rs (NEW - 282 pure LOC, SIZE_OK annotated)
+- autore-provider-runtime/tests/package_tests.rs (NEW - 6 integration tests)
+- autore-provider-runtime/src/lib.rs (MODIFIED - added pub mod package + re-exports)
+- autore-provider-runtime/Cargo.toml (MODIFIED - added toml, serde, blake3, jsonschema, regex, semver deps)
+
+IMPLEMENTATION SUMMARY
+----------------------
+1. PackageValidationError enum with 13 variants (Io, Toml, SchemaVersion, PackageId,
+   EntrypointMissing, EntrypointNotContained, SymlinkEscape, ContentHashMismatch,
+   ProtocolRange, CapabilityEmpty, CapabilityInvalid, ConfigurationSchemaInvalid, VersionParse)
+
+2. PackageManifest struct with validated fields: schema_version, package_id, version (semver),
+   content_hash (BLAKE3 bytes), entrypoint, protocol_range, capabilities (proto CapabilityDescriptor),
+   max_concurrency, configuration_schema (JSON Schema bytes)
+
+3. PackageInstallationIntent struct returned to coordinator with manifest + package_root + executable_path
+
+4. ProviderPackageDiscovery struct reading from project.auto-re/provider_roots.toml (optional)
+   with fallback to <project_dir>/providers/
+
+5. validate_package() function implementing full validation pipeline:
+   - TOML parse via intermediate RawManifest struct
+   - schema_version == 1
+   - package_id regex ^[a-z0-9-]+\.[a-z0-9-]+$ (LazyLock compiled)
+   - semver version parse
+   - entrypoint exists and canonical path within package root
+   - content hash: walk files (exclude manifest.toml, reject symlinks), BLAKE3 each,
+     sort by relative path, feed (path, hash) pairs into final BLAKE3 hash
+   - protocol range includes coordinator version 1
+   - capabilities non-empty, each with non-empty id, semver version (major >= 1),
+     valid JSON Schema request_schema/response_schema
+   - configuration_schema valid JSON Schema
+
+6. compute_content_hash() public helper for creating package fixtures
+
+TESTS (all passing)
+--------------------
+1. valid_manifest_loads: creates fixture.echo package, validates manifest, checks all fields
+2. missing_entrypoint_fails: entrypoint points to nonexistent file -> EntrypointMissing
+3. symlink_escape_rejected: symlink entrypoint to /etc/passwd -> SymlinkEscape
+4. protocol_range_outside_v1_rejected: protocol_range=[5,10] -> ProtocolRange
+5. content_hash_mismatch_fails: tamper data file after hash computed -> ContentHashMismatch
+6. namespaced_id_rejects_uppercase: "Fixture.Echo" -> PackageId
+
+VERIFICATION
+------------
+$ PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-provider-runtime
+  -> 13/13 passed (3 unit + 6 integration + 4 existing runtime tests)
+
+$ PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-provider-runtime --all-targets -- -D warnings
+  -> clean (zero warnings)
+
+$ cargo build (default members)
+  -> clean
+
+$ cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --all-targets -- -D warnings
+  -> clean
+
+$ cargo fmt --all --check
+  -> clean
+
+DEPENDENCIES ADDED
+------------------
+- toml = { workspace = true }
+- serde = { workspace = true }
+- blake3 = { workspace = true }
+- jsonschema = { workspace = true }
+- regex = "1" (new direct dep)
+- semver = { version = "1", features = ["serde"] } (new direct dep)

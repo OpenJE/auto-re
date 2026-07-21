@@ -198,3 +198,32 @@
 - `cargo clippy -p autore-provider-runtime --all-targets -- -D warnings`: clean
 - Stage 0 regression: `cargo build` (default members): clean
 - Stage 0 regression: `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime`: clean
+
+## 2026-07-21 Wave 2 Todo 8 (Package Discovery + Validation)
+
+### What was done
+- Created `package` module in `autore-provider-runtime` with 282 pure LOC (SIZE_OK annotated).
+- Implemented `ProviderPackageDiscovery` reading from `project.auto-re/provider_roots.toml` with fallback to `<project_dir>/providers/`.
+- Implemented `validate_package()` pipeline: TOML parse → schema_version check → package_id regex → semver parse → entrypoint existence → canonical containment → content hash → protocol range → capabilities → configuration_schema.
+- Implemented `compute_content_hash()` using BLAKE3: walk files (reject symlinks, skip manifest.toml), sort by relative path, feed (path, hash) pairs into final BLAKE3.
+- 13 validation error variants in `PackageValidationError` enum.
+- 6 integration tests + 3 unit tests all passing.
+
+### Decisions
+- **Intermediate RawManifest struct**: TOML deserialization uses a separate `RawManifest` struct with string fields for content_hash (hex) and configuration_schema (JSON), then converts to typed `PackageManifest` with bytes. This keeps serde simple and validation explicit.
+- **LazyLock for regex**: `PACKAGE_ID_RE` compiled once via `std::sync::LazyLock` to avoid repeated compilation in `validate_package()`.
+- **Content hash algorithm**: Per-file BLAKE3 hashes sorted by relative path, then fed sequentially into a final BLAKE3 hasher. This ensures deterministic hashing regardless of filesystem traversal order.
+- **Symlink rejection during walk**: Uses `std::fs::symlink_metadata()` (not `metadata()`) to detect symlinks without following them. Symlinks in the package tree cause `SymlinkEscape` error rather than being silently skipped.
+- **jsonschema validation**: Uses `jsonschema::validator_for()` to compile schemas; successful compilation proves validity. Matches the pattern from `autore-schema/src/worker_output.rs`.
+- **`regex` and `semver` as direct deps**: Not workspace deps; added directly to `autore-provider-runtime/Cargo.toml`. `semver` with `serde` feature for potential future manifest serde support.
+
+### Patterns established
+- Package manifest TOML format: `schema_version`, `package_id`, `version`, `content_hash` (hex), `entrypoint` (relative path), `protocol_range` (array), `configuration_schema` (JSON string), `[[capabilities]]` array, `[max_concurrency]` table.
+- Content hash computation is a public function, enabling test fixtures and future package-authoring tools to generate correct hashes.
+- `ProviderPackageDiscovery::from_project_dir()` vs `::new()` for explicit roots — the former reads config, the latter is for programmatic use.
+
+### Verification
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-provider-runtime`: 13/13 passed (3 unit + 6 integration + 4 existing runtime)
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-provider-runtime --all-targets -- -D warnings`: clean
+- `cargo build` (default members): clean
+- `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime`: clean
