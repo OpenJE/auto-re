@@ -1,0 +1,24 @@
+[package]
+name = "autore-reconstruction"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+autore-app = { path = "../autore-app" }
+autore-core = { path = "../autore-core" }
+autore-events = { path = "../autore-events" }
+autore-schema = { path = "../autore-schema" }
+autore-provider-protocol = { path = "../autore-provider-protocol" }
+autore-provider-runtime = { path = "../autore-provider-runtime" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+blake3 = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+autore-store = { path = "../autore-store" }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+tempfile = { workspace = true }
