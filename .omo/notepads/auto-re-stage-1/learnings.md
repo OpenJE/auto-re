@@ -1342,3 +1342,27 @@
 - `cargo clippy -p autore-tui --all-targets -- -D warnings`: clean.
 - `cargo fmt --all --check`: clean.
 - Evidence: `.omo/evidence/auto-re-stage-1/task-51-tui.txt`.
+
+## 2026-07-22 Wave 12 Todo 53 (Fault-Injection Harness)
+
+### What was done
+- Created `autore-reconstruction/tests/faults.rs` with a single `#[ignore]` orchestrated test covering five fault scenarios:
+  1. **Fixture provider SIGKILL mid-RPC**: spawns `fixture-provider`, streams `fixture.large-stream`, kills the process mid-stream, and asserts the instance is marked unavailable via `StopProviderInstance`.
+  2. **Coordinator restart old-provider sweep**: registers a provider instance, then simulates coordinator restart by stopping old local instances through `ApplicationCommand`.
+  3. **IDA-style provider SIGKILL after `ArtifactProduced` before `Completed`**: kills after the artifact event, reconciles the in-flight work item to `Failed`, and sweeps the orphan staging directory with `StagingReconciler`.
+  4. **LLM-style provider SIGKILL with partial artifact discard**: kills after `ArtifactProduced`, sweeps the partial artifact staging directory, and asserts no `RegisterArtifact` command was issued.
+  5. **SQLite atomic transaction fails closed**: aborts a `with_event` transaction after an in-flight insert and verifies rollback + `PRAGMA integrity_check = ok`.
+- Extended `RecordingAutoReClient` in `autore-reconstruction/src/tests_support.rs` to handle `RegisterProviderInstance` and `StopProviderInstance` commands.
+- Added a `TestClient` wrapper implementing `AutoReClient` so the harness records provider lifecycle commands alongside other application commands.
+
+### Decisions
+- **No new dependencies**: avoided adding `nix`, `rusqlite`, or `bytes` by using `std::process::Command` with `kill -9`, the existing `autore_store::Database`/`with_event` APIs, and `tokio::fs` for staging cleanup.
+- **Reused fixture provider**: all crash tests drive the real `fixture-provider` binary through the existing bootstrap + gRPC runtime, avoiding real IDA/LLM binaries.
+- **Reaped child processes**: after SIGKILL each test calls `tokio::time::timeout(child.wait(), ...)` to ensure the kernel reaps the process and no fixture provider orphan remains.
+- **Command-path verification**: every recovery action is observed through an `ApplicationCommand` variant (`StopProviderInstance`, `FailWorkItem`) rather than direct storage mutation.
+
+### Verification
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction --test faults -- --nocapture --ignored`: 1/1 passed.
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean.
+- `cargo fmt --all --check`: clean.
+- Evidence: `.omo/evidence/auto-re-stage-1/task-53-fault-provider-crash.txt`.

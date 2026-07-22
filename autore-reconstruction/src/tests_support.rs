@@ -7,10 +7,14 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use autore_app::application_service::requests::{
-    AddEvidenceResponse, AddHypothesisResponse, BlockWorkItemResponse, BlockWorkWithReasonResponse,
+    AcceptHypothesisPolicyDrivenResponse, AddEvidenceResponse, AddHypothesisResponse,
+    AddVerificationResponse, BlockWorkItemResponse, BlockWorkWithReasonResponse,
     CreateWorkItemsResponse, EntitiesResponse, FailWorkItemResponse,
-    ImportProviderRunResultResponse, InvalidateWorkItemResponse, RecordWorkDependencyResponse,
-    RegisterArtifactResponse, RegisterEntityResponse, RegisterGeneratedSourceMappingResponse,
+    ImportDynamicObservationResponse, ImportGeneratedSourceCandidatesResponse,
+    ImportProviderRunResultResponse, InvalidateGeneratedSourceResponse, InvalidateWorkItemResponse,
+    RecordWorkDependencyResponse, RegisterArtifactResponse, RegisterEntityResponse,
+    RegisterGeneratedSourceMappingResponse, RegisterProviderInstanceResponse,
+    ScheduleVerificationRegressionResponse, StopProviderInstanceResponse,
 };
 use autore_app::{ApplicationCommand, ApplicationQuery, AutoReClient, CommandResult, QueryResult};
 use autore_core::{Error, Result};
@@ -109,6 +113,11 @@ impl AutoReClient for RecordingAutoReClient {
                     work_item_id: req.work_item_id.clone(),
                 })
             }
+            ApplicationCommand::ImportDynamicObservation(_) => {
+                CommandResult::DynamicObservationImported(ImportDynamicObservationResponse {
+                    observation_id: uuid::Uuid::now_v7().to_string(),
+                })
+            }
             ApplicationCommand::AddEvidence(_) => {
                 CommandResult::EvidenceAdded(AddEvidenceResponse {
                     id: autore_schema::ids::EvidenceRecordId::new(),
@@ -117,6 +126,11 @@ impl AutoReClient for RecordingAutoReClient {
             ApplicationCommand::AddHypothesis(_) => {
                 CommandResult::HypothesisAdded(AddHypothesisResponse {
                     id: autore_schema::ids::HypothesisId::new(),
+                })
+            }
+            ApplicationCommand::AddVerification(_) => {
+                CommandResult::VerificationAdded(AddVerificationResponse {
+                    id: autore_schema::ids::VerificationRecordId::new(),
                 })
             }
             ApplicationCommand::FailWorkItem(req) => {
@@ -152,6 +166,43 @@ impl AutoReClient for RecordingAutoReClient {
                         mapping_id: uuid::Uuid::now_v7().to_string(),
                     },
                 )
+            }
+            ApplicationCommand::AcceptHypothesisPolicyDriven(req) => {
+                CommandResult::HypothesisAcceptedPolicyDriven(
+                    AcceptHypothesisPolicyDrivenResponse {
+                        hypothesis_id: req.hypothesis_id,
+                        policy_decision: req.policy_decision,
+                    },
+                )
+            }
+            ApplicationCommand::InvalidateGeneratedSource(req) => {
+                CommandResult::GeneratedSourceInvalidated(InvalidateGeneratedSourceResponse {
+                    mapping_id: req.mapping_id.clone(),
+                })
+            }
+            ApplicationCommand::ImportGeneratedSourceCandidates(req) => {
+                CommandResult::GeneratedSourceCandidatesImported(
+                    ImportGeneratedSourceCandidatesResponse {
+                        imported_count: req.candidates.len() as u32,
+                    },
+                )
+            }
+            ApplicationCommand::ScheduleVerificationRegression(req) => {
+                CommandResult::VerificationRegressionScheduled(
+                    ScheduleVerificationRegressionResponse {
+                        regression_id: format!("{}-{}", req.entity_id, uuid::Uuid::now_v7()),
+                    },
+                )
+            }
+            ApplicationCommand::RegisterProviderInstance(req) => {
+                CommandResult::ProviderInstanceRegistered(RegisterProviderInstanceResponse {
+                    instance_id: format!("instance-{}", req.installation_id),
+                })
+            }
+            ApplicationCommand::StopProviderInstance(req) => {
+                CommandResult::ProviderInstanceStopped(StopProviderInstanceResponse {
+                    instance_id: req.instance_id.clone(),
+                })
             }
             _ => {
                 return Err(Error::Unsupported(format!(

@@ -361,3 +361,9 @@
 - The test uses a fresh `TestClient` on restart; the "durable command log" is simulated by inspecting the first run's recorded commands rather than serializing them to disk. A future production implementation would persist the command log to the event store and replay it into a fresh coordinator state.
 - `RegisterProviderInstanceRequest` carries `installation_id` (not `instance_id`); the response carries the `instance_id`. The test maps installation IDs to deterministic instance IDs for restart assertions.
 - `RecordBuildAttemptRequest`, `RecordRepairAttemptRequest`, and `RecordVerificationComparisonRequest` only carry `project` + `work_item_id` in the current Stage 1 schema; the mock handlers use these minimal requests.
+
+## 2026-07-22 Wave 12 Todo 53 (Fault-Injection Harness)
+- **No blocking issues encountered**. All 5 fault scenarios pass and the build/lint gates are clean.
+- **`/bin/kill` is not portable**: the initial implementation used `Command::new("/bin/kill")`, which fails in this environment because `kill` lives on `PATH` rather than `/bin`. Switched to `Command::new("kill")` for portability.
+- **Fixture provider binary must exist before test**: the harness builds `fixture-provider` on first run via `cargo build -p fixture-provider --no-default-features` with `PROTOC=/tmp/opencode/protoc/bin/protoc`. Subsequent runs reuse the cached binary.
+- **`RecordingAutoReClient` now implements provider lifecycle commands**: `RegisterProviderInstance` and `StopProviderInstance` were missing from the recording client and were added in `autore-reconstruction/src/tests_support.rs`.

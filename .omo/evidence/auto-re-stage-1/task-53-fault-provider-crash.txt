@@ -1,0 +1,36 @@
+Wave 12 Todo 53 — fault-injection harness proving canonical state integrity
+
+File: autore-reconstruction/tests/faults.rs
+Commit: test(reconstruction/faults): provider-crash + coordinator-restart canonical integrity
+
+Verification commands:
+  PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction --test faults -- --nocapture --ignored
+  PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings
+  cargo fmt --all --check
+
+Test output:
+=== fault harness start ===
+phase (a): fixture-provider SIGKILL mid-RPC
+  [OK] (a) fixture-provider crash recovered; instance <uuid> unavailable
+phase (b): coordinator restart marks old local providers unavailable
+  [OK] (b) old instance <uuid> unavailable after restart
+phase (c): provider SIGKILL after ArtifactProduced before Completed
+  [OK] (c) in-flight operation reconciled; orphan staging swept
+phase (d): provider SIGKILL after ArtifactProduced; partial artifact discarded
+  [OK] (d) partial artifact discarded; no canonical commit
+phase (e): SQLite atomic transaction fails closed
+  [OK] (e) SQLite transaction failed closed; integrity ok
+[OK] all 5 fault scenarios recovered; canonical integrity intact
+
+test provider_crash_and_coordinator_restart_canonical_integrity ... ok
+
+Result:
+  cargo test: PASS (1/1 ignored integration test)
+  cargo clippy: clean (no warnings)
+  cargo fmt --check: clean
+
+Implementation notes:
+  - Added `RegisterProviderInstance` and `StopProviderInstance` handling to `RecordingAutoReClient` in `autore-reconstruction/src/tests_support.rs` so provider lifecycle commands are recorded.
+  - All crash simulations use `SIGKILL` via `kill -9 <pid>` and reap the child process.
+  - Recovery paths are verified through emitted `ApplicationCommand` variants and `StagingReconciler` sweep behavior.
+  - SQLite atomicity verified via `autore_store::with_event` rollback with a `PRAGMA integrity_check` after the failed transaction.
