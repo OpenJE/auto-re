@@ -17,6 +17,7 @@ blake3 = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 petgraph = { workspace = true }
+jsonschema = { workspace = true }
 
 [dev-dependencies]
 autore-app = { path = "../autore-app" }

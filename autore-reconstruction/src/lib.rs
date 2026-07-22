@@ -7,6 +7,7 @@
 //! routes every canonical mutation through [`ApplicationCommand`] so the
 //! Stage 0 event store remains the single source of truth.
 
+pub mod analysis;
 pub mod fingerprint;
 pub mod identity;
 pub mod work_graph;
@@ -14,6 +15,10 @@ pub mod work_graph;
 #[cfg(test)]
 mod tests_support;
 
+pub use analysis::{
+    BUNDLE_MAX_BYTES, BuildDiagnosticSummary, BundleBuilder, BundleStore, CallSiteSummary,
+    InvestigationBundle, StaticArtifactSet, StringSnippet,
+};
 pub use fingerprint::{
     FingerprintComparison, FingerprintInput, FingerprintSnapshot, InMemorySnapshot,
     InvalidationPropagator, compare_fingerprint, compute_fingerprint,
