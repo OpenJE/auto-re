@@ -640,6 +640,50 @@ impl HypothesisStatus {
     }
 }
 
+// ---------------------------------------------------------------------------
+// PolicyDecision
+// ---------------------------------------------------------------------------
+
+/// Decision produced by policy-driven hypothesis arbitration (spec §3.3).
+///
+/// Used by `AcceptHypothesisPolicyDriven` to transition a hypothesis to a
+/// terminal status without treating the LLM recommendation as a fact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum PolicyDecision {
+    /// Accept the hypothesis as the current best explanation.
+    Accept,
+    /// Reject the hypothesis.
+    Reject,
+    /// Supersede the hypothesis by another, newer hypothesis.
+    Supersede,
+}
+
+impl PolicyDecision {
+    /// Returns the target [`HypothesisStatus`] for this decision.
+    pub fn target_status(
+        &self,
+        superseding_hypothesis_id: Option<HypothesisId>,
+    ) -> HypothesisStatus {
+        match self {
+            PolicyDecision::Accept => HypothesisStatus::Accepted,
+            PolicyDecision::Reject => HypothesisStatus::Rejected,
+            PolicyDecision::Supersede => HypothesisStatus::Superseded {
+                by: superseding_hypothesis_id.unwrap_or_default(),
+            },
+        }
+    }
+}
+
+impl std::fmt::Display for PolicyDecision {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PolicyDecision::Accept => write!(f, "Accept"),
+            PolicyDecision::Reject => write!(f, "Reject"),
+            PolicyDecision::Supersede => write!(f, "Supersede"),
+        }
+    }
+}
+
 impl std::fmt::Display for HypothesisStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -1469,10 +1513,10 @@ pub static EVENT_KIND_PROJECT_INDEXES_REBUILT: std::sync::LazyLock<NamespacedId>
 // ===========================================================================
 
 use crate::ids::{
-    BuildAttemptId, BuildDiagnosticId, CapabilityDescriptorId, ConflictRecordId,
-    DynamicObservationId, GeneratedSourceMappingId, ParsedLlmResultId, ProviderInstallationId,
-    ProviderInstanceId, RawLlmResponseId, ReconstructionCampaignId, RepairAttemptId,
-    VerificationComparisonId, VerificationScenarioId, WorkItemId,
+    BuildAttemptId, BuildDiagnosticId, CanonicalTypeHypothesisId, CapabilityDescriptorId,
+    ConflictRecordId, DynamicObservationId, GeneratedSourceMappingId, ParsedLlmResultId,
+    ProviderInstallationId, ProviderInstanceId, RawLlmResponseId, ReconstructionCampaignId,
+    RepairAttemptId, VerificationComparisonId, VerificationScenarioId, WorkItemId,
 };
 
 use crate::domain::task::Task;
@@ -2326,6 +2370,136 @@ impl BlockedReason {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// CanonicalTypeHypothesis
+// ---------------------------------------------------------------------------
+
+/// A shared canonical type/class hypothesis with per-field verification
+/// tracking.
+///
+/// Per §10.4, verification is split across individual layout aspects rather
+/// than collapsed into a single "verified" boolean. A class is NOT fully
+/// verified just because its total size is known.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CanonicalTypeHypothesis {
+    pub id: CanonicalTypeHypothesisId,
+    pub project: ProjectId,
+    pub entity_id: EntityId,
+    /// JSON-serialised `ReconciledLayout` (opaque to `autore-schema`).
+    pub layout_json: String,
+    pub verified_size: bool,
+    pub verified_alignment: bool,
+    pub verified_field_offsets: BTreeMap<String, bool>,
+    pub verified_field_interpretations: BTreeMap<String, bool>,
+    pub verified_inheritance_relations: BTreeMap<EntityId, bool>,
+    pub verified_vtable_slots: BTreeMap<usize, bool>,
+    pub verified_calling_convention: bool,
+    pub confidence: f64,
+    pub status: HypothesisStatus,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
+}
+
+impl CanonicalTypeHypothesis {
+    /// Creates a new canonical type hypothesis in `Proposed` status with zero
+    /// confidence and no verified fields.
+    pub fn new(project: ProjectId, entity_id: EntityId, layout_json: impl Into<String>) -> Self {
+        let now = Timestamp::now();
+        CanonicalTypeHypothesis {
+            id: CanonicalTypeHypothesisId::new(),
+            project,
+            entity_id,
+            layout_json: layout_json.into(),
+            verified_size: false,
+            verified_alignment: false,
+            verified_field_offsets: BTreeMap::new(),
+            verified_field_interpretations: BTreeMap::new(),
+            verified_inheritance_relations: BTreeMap::new(),
+            verified_vtable_slots: BTreeMap::new(),
+            verified_calling_convention: false,
+            confidence: 0.0,
+            status: HypothesisStatus::Proposed,
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
+    /// Bumps `updated_at` to the current time.
+    pub fn touch(&mut self) {
+        self.updated_at = Timestamp::now();
+    }
+}
+
+// ---------------------------------------------------------------------------
+// VerificationField
+// ---------------------------------------------------------------------------
+
+/// One independently-verifiable aspect of a canonical type hypothesis.
+///
+/// Per §10.4, each variant corresponds to a distinct confidence contribution.
+/// `IndividualFieldOffset` and `FieldInterpretation` are keyed by a field
+/// identifier (currently the byte offset as a string). `InheritanceRelation`
+/// and `VtableSlot` are keyed by the related entity or slot index.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum VerificationField {
+    /// The total size of the type has been verified.
+    Size,
+    /// The alignment of the type has been verified.
+    Alignment,
+    /// A specific field's offset has been verified.
+    IndividualFieldOffset(String),
+    /// A specific field's interpretation (type / meaning) has been verified.
+    FieldInterpretation(String),
+    /// An inheritance relation to a base entity has been verified.
+    InheritanceRelation(EntityId),
+    /// A specific vtable slot has been verified.
+    VtableSlot(usize),
+    /// The calling convention of the type (or its methods) has been verified.
+    CallingConvention,
+}
+
+// ---------------------------------------------------------------------------
+// Verification field kind constants
+// ---------------------------------------------------------------------------
+
+/// Verification check: type size.
+pub static VERIFICATION_CHECK_SIZE: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("verification.abi.layout.size").unwrap());
+
+/// Verification check: type alignment.
+pub static VERIFICATION_CHECK_ALIGNMENT: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| NamespacedId::parse("verification.abi.layout.alignment").unwrap());
+
+/// Verification check: individual field offset.
+pub static VERIFICATION_CHECK_FIELD_OFFSET: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| {
+        NamespacedId::parse("verification.abi.layout.field-offset").unwrap()
+    });
+
+/// Verification check: field interpretation.
+pub static VERIFICATION_CHECK_FIELD_INTERPRETATION: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| {
+        NamespacedId::parse("verification.abi.layout.field-interpretation").unwrap()
+    });
+
+/// Verification check: inheritance relation.
+pub static VERIFICATION_CHECK_INHERITANCE: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| {
+        NamespacedId::parse("verification.abi.layout.inheritance").unwrap()
+    });
+
+/// Verification check: vtable slot.
+pub static VERIFICATION_CHECK_VTABLE_SLOT: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| {
+        NamespacedId::parse("verification.abi.layout.vtable-slot").unwrap()
+    });
+
+/// Verification check: calling convention.
+pub static VERIFICATION_CHECK_CALLING_CONVENTION: std::sync::LazyLock<NamespacedId> =
+    std::sync::LazyLock::new(|| {
+        NamespacedId::parse("verification.abi.layout.calling-convention").unwrap()
+    });
 
 // ---------------------------------------------------------------------------
 // Stage 1 kind-string constants
@@ -4585,6 +4759,51 @@ mod tests {
         b.blocking_entities.push(EntityId::new());
         b.blocking_work_items.push(WorkItemId::new());
         s1_roundtrip("BlockedReason", &b);
+    }
+
+    #[test]
+    fn canonical_type_hypothesis_fixture() {
+        let mut h = CanonicalTypeHypothesis::new(
+            s1_project(),
+            EntityId::new(),
+            r#"{"entity_id":"01906789-abcd-7000-8000-000000000001","computed_size_bytes":32}"#,
+        );
+        h.verified_size = true;
+        h.verified_field_offsets.insert("8".into(), true);
+        h.verified_field_interpretations.insert("8".into(), false);
+        h.confidence = 0.25;
+        assert_eq!(h.status, HypothesisStatus::Proposed);
+        s1_roundtrip("CanonicalTypeHypothesis", &h);
+    }
+
+    #[test]
+    fn canonical_type_hypothesis_new_defaults() {
+        let h = CanonicalTypeHypothesis::new(s1_project(), EntityId::new(), r#"{}"#);
+        assert_eq!(h.confidence, 0.0);
+        assert!(!h.verified_size);
+        assert!(!h.verified_alignment);
+        assert!(!h.verified_calling_convention);
+        assert!(h.verified_field_offsets.is_empty());
+        assert!(h.verified_field_interpretations.is_empty());
+        assert!(h.verified_inheritance_relations.is_empty());
+        assert!(h.verified_vtable_slots.is_empty());
+        assert_eq!(h.status, HypothesisStatus::Proposed);
+    }
+
+    #[test]
+    fn verification_field_roundtrip() {
+        let fields = vec![
+            VerificationField::Size,
+            VerificationField::Alignment,
+            VerificationField::IndividualFieldOffset("8".into()),
+            VerificationField::FieldInterpretation("8".into()),
+            VerificationField::InheritanceRelation(EntityId::new()),
+            VerificationField::VtableSlot(3),
+            VerificationField::CallingConvention,
+        ];
+        for f in &fields {
+            s1_roundtrip("VerificationField", f);
+        }
     }
 
     #[test]

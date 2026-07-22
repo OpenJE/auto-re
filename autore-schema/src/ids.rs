@@ -251,6 +251,11 @@ define_id!(
     "Identifies a repair attempt — a single iteration of fixing a failing build or verification."
 );
 
+define_id!(
+    CanonicalTypeHypothesisId,
+    "Identifies a shared canonical type/class hypothesis — a reconciled layout proposal with per-field verification state."
+);
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -345,6 +350,7 @@ mod tests {
         let _ = VerificationScenarioId::new();
         let _ = VerificationComparisonId::new();
         let _ = RepairAttemptId::new();
+        let _ = CanonicalTypeHypothesisId::new();
     }
 
     #[test]
@@ -422,6 +428,10 @@ mod tests {
         roundtrip("VerificationScenarioId", &VerificationScenarioId::new());
         roundtrip("VerificationComparisonId", &VerificationComparisonId::new());
         roundtrip("RepairAttemptId", &RepairAttemptId::new());
+        roundtrip(
+            "CanonicalTypeHypothesisId",
+            &CanonicalTypeHypothesisId::new(),
+        );
     }
 
     #[test]
