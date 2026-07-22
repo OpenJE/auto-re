@@ -393,3 +393,18 @@
 - `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction --all-targets -- -D warnings`: clean
 - `cargo fmt --all --check`: clean
 - Evidence: `.omo/evidence/auto-re-stage-1/task-15-ida-end-to-end.txt`
+
+## 2026-07-21 Wave 4 Todo 16 (Additive Migrations V24..V27)
+
+### What was done
+- Created 4 additive migration files: `V24__conflict_records.sql`, `V25__generated_source_mappings.sql`, `V26__blocked_reasons.sql`, `V27__repair_attempts.sql`.
+- Added `STAGE1_V24_V27_TABLES` constant and updated `EXPECTED_MIGRATION_COUNT` to 27.
+- Added `migrations_v24_to_v27_idempotent` and `migrations_v14_to_v27_rollback_safe` tests.
+- All 4 new tables follow the exact V14..V23 conventions: `CREATE TABLE IF NOT EXISTS`, `id BLOB PRIMARY KEY NOT NULL`, no `AUTOINCREMENT`, JSON as `TEXT`, FKs without cascade.
+
+### Verification
+- `cargo test -p autore-store`: 170/170 passed (5 stage1 migration tests)
+- `cargo clippy --workspace --exclude ...`: clean
+- `cargo build` (default members): clean
+- `cargo fmt --all`: clean (no changes needed)
+- Evidence: `.omo/evidence/auto-re-stage-1/task-16-migrations-v24-v27.txt`

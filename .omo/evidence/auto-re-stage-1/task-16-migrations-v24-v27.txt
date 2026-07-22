@@ -1,0 +1,51 @@
+Task: Wave 4 Todo 16 — additive V24..V27 migrations
+Date: 2026-07-21
+
+## Files created
+
+1. migrations/V24__conflict_records.sql
+   - Table: conflict_records (id BLOB PK, work_item_id FK, kind_a, kind_b, evidence_a TEXT, evidence_b TEXT, status, created_at, resolved_at NULL)
+   - Indexes: idx_conflict_records_work_item, idx_conflict_records_status
+
+2. migrations/V25__generated_source_mappings.sql
+   - Table: generated_source_mappings (id BLOB PK, work_item_id FK, entity_id FK, declaration_artifact_id, definition_artifact_id, generation_operation_id FK ops, build_attempt_id NULL, verification_comparison_id NULL, last_change_hash, last_change_at)
+   - Indexes: idx_gen_source_map_work_item, idx_gen_source_map_entity, idx_gen_source_map_operation
+
+3. migrations/V26__blocked_reasons.sql
+   - Table: blocked_reasons (id BLOB PK, work_item_id FK, reason_kind TEXT, detail TEXT, created_at)
+   - Indexes: idx_blocked_reasons_work_item, idx_blocked_reasons_kind
+
+4. migrations/V27__repair_attempts.sql
+   - Table: repair_attempts (id BLOB PK, work_item_id FK, build_attempt_id NULL, attempt_seq INT, kind, sponsor, status, created_at, ended_at NULL)
+   - Indexes: idx_repair_attempts_work_item, idx_repair_attempts_seq
+
+## Files modified
+
+5. autore-store/tests/migrations_stage1.rs
+   - Added STAGE1_V24_V27_TABLES constant with 4 new table names
+   - Updated EXPECTED_MIGRATION_COUNT from 23 to 27
+   - Updated migrations_apply_clean to check V24..V27 tables
+   - Added migrations_v24_to_v27_idempotent test
+   - Added migrations_v14_to_v27_rollback_safe test
+   - Existing V14..V23 tests unchanged and still pass
+
+## Verification results
+
+- cargo build -p autore-store: clean
+- cargo test -p autore-store: 170/170 passed (158 unit + 6 fixture + 1 smoke + 5 stage1)
+- cargo clippy -p autore-store --all-targets -- -D warnings: clean
+- cargo build (default members): clean
+- cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction --all-targets -- -D warnings: clean
+- cargo test --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction: all pass
+- cargo fmt --all: clean
+
+## Design decisions
+
+- All tables use CREATE TABLE IF NOT EXISTS — idempotent, no destructive DDL.
+- All primary keys are BLOB (UUIDv7 application-supplied), no AUTOINCREMENT.
+- JSON fields stored as TEXT with '{}' defaults (matching V14..V23 convention).
+- Foreign keys without ON DELETE CASCADE (per Wave 17 reconciliation constraint).
+- Indexes use CREATE INDEX IF NOT EXISTS.
+- Timestamps are TEXT (matching V14..V23 ISO 8601 convention).
+- generated_source_mappings.declaration_artifact_id and definition_artifact_id are loose BLOB references (no FK constraint to stage0_artifacts — the referenced artifact may be a generated-source itself that hasn't been committed yet).
+- repair_attempts.build_attempt_id is a loose BLOB reference (no FK — build_attempts table may not exist yet in Stage 1 schema).
