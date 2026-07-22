@@ -246,12 +246,18 @@ fn build_concurrency_limits(
 ) -> Result<HashMap<String, Arc<Semaphore>>, RuntimeError> {
     let mut limits = HashMap::new();
 
-    // Parse max_concurrency JSON map (capability_id -> max).
+    // Parse max_concurrency JSON map. Integer values are treated as per-capability
+    // concurrency limits; non-integer entries (e.g. backend metadata strings) are
+    // ignored so providers can attach extension metadata without breaking the
+    // runtime.
     if !response.max_concurrency.is_empty() {
-        let map: HashMap<String, usize> = serde_json::from_slice(&response.max_concurrency)
-            .map_err(|e| RuntimeError::Spawn(format!("invalid max_concurrency JSON: {e}")))?;
+        let map: HashMap<String, serde_json::Value> =
+            serde_json::from_slice(&response.max_concurrency)
+                .map_err(|e| RuntimeError::Spawn(format!("invalid max_concurrency JSON: {e}")))?;
         for (cap_id, max) in map {
-            limits.insert(cap_id, Arc::new(Semaphore::new(max)));
+            if let Some(max_u) = max.as_u64() {
+                limits.insert(cap_id, Arc::new(Semaphore::new(max_u as usize)));
+            }
         }
     }
 
