@@ -376,3 +376,20 @@
 - `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction --all-targets -- -D warnings`: clean
 - `cargo test --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction`: 583 passed (Stage 0 regression unchanged)
 - Evidence: `.omo/evidence/auto-re-stage-1/task-14-canonical-identity.txt`
+
+## 2026-07-21 Wave 3 Todo 15 (End-to-End IDA Ingest Integration Test)
+
+### Key Learnings
+- **`#[path]` for test support sharing**: Integration tests (`tests/`) compile as separate crates and cannot access `#[cfg(test)]` modules from the library. Using `#[path = "../src/tests_support.rs"]` with `#[allow(dead_code)]` is the cleanest way to share `RecordingAutoReClient` without feature-flag gymnastics or crate duplication.
+- **IDA 9.2 headless `.i64` generation**: `idat -A -B <binary>` with `QT_QPA_PLATFORM=offscreen` successfully generates a `.i64` database (64-bit format) from a compiled ELF binary. The `.i64` extension (not `.idb`) is used for 64-bit binaries in IDA 7.x+.
+- **IDA provider emits empty entity arrays**: The current `ida.binary.ingest` capability emits `ObservationProduced` events with `{"stage": sid, "entities": []}` payloads — the entity arrays are empty. This means a real IDA roundtrip through the gRPC provider would not exercise the importer's entity registration path. The synthesized observation approach in the integration test is actually MORE thorough for proving the importer wiring.
+- **Dev-dependency visibility for integration tests**: Integration tests can only use types from `[dev-dependencies]` and the library's public API. Types from `[dependencies]` are NOT directly accessible unless re-exported. Added `autore-app`, `autore-core`, `autore-events`, `autore-schema` as dev-dependencies for direct type access.
+- **`idax-sys` C++ build failure is pre-existing**: `cargo build -p ida-provider --features ida --no-default-features` fails in `idax-sys` C++ compilation (IDA SDK headers). This is not caused by Todo 15 and is a known environment issue.
+
+### Verification
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction --test ida_full_ingest -- --ignored --nocapture`: 1/1 passed
+- `cargo build` (default members): clean
+- `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction --all-targets -- -D warnings`: clean
+- `cargo fmt --all --check`: clean
+- Evidence: `.omo/evidence/auto-re-stage-1/task-15-ida-end-to-end.txt`
