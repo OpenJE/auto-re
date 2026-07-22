@@ -13,6 +13,8 @@ pub mod dynamic;
 pub mod fingerprint;
 pub mod generation;
 pub mod identity;
+pub mod types;
+pub mod verification;
 pub mod work_graph;
 
 #[cfg(test)]
@@ -37,11 +39,22 @@ pub use fingerprint::{
     InvalidationPropagator, compare_fingerprint, compute_fingerprint,
 };
 pub use generation::{
-    FileRole, GeneratedFile, GeneratedSourceMappingIntent, ProjectSkeletonBuilder,
-    SkeletonManifest, StubPolicy,
+    CandidatePatch, FileRole, GeneratedFile, GeneratedSourceMappingIntent, PatchError,
+    PatchOutcome, PatchPipeline, ProjectSkeletonBuilder, SkeletonManifest, StubPolicy,
 };
 pub use identity::{
     CanonicalEntityKey, ImportSummary, ObservationImporter, entity_kind_for_observation_kind,
     entity_kind_from_observation, work_item_kind_for_entity,
+};
+pub use types::{
+    LayoutConstraint, LayoutConstraintKind, LayoutConstraintStore, ReconciledBaseAdjustment,
+    ReconciledField, ReconciledLayout, ReconciledParameterUsage, ReconciledReturnValueUse,
+    ReconciledVtableSlot, Reconciler,
+};
+pub use verification::{
+    ComparisonCounts, ComparisonLevel, ComparisonPolicy, ComparisonResult, ExecutionDiagnostic,
+    InitialState, NormalizationRule, Observation, ObservationBackend, ObservationError,
+    ObservationSet, Scenario as VerificationScenario, ScenarioExecutor, ScenarioInput,
+    VerificationComparison, Wave7ObservationBackend, compare,
 };
 pub use work_graph::{DependencyEdgeKind, WorkGraph, WorkGraphBuilder, WorkItemNode};

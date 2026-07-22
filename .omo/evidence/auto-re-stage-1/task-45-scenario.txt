@@ -1,0 +1,23 @@
+# Task 45: Scenario capture/replay/comparison model — typed, normalized, differential
+
+Command: PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction verification:: -- --nocapture
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.90s
+     Running unittests src/lib.rs (target/debug/deps/autore_reconstruction-e2778b281f454817)
+
+running 12 tests
+test verification::comparator::tests::scenario_normalize_relocated_addresses ... ok
+test verification::comparator::tests::scenario_normalize_timestamps ... ok
+test verification::comparator::tests::scenario_normalize_random_seeds_before_comparison ... ok
+test verification::comparator::tests::equal_under_normalization_stored_as_equivalent_under_normalization ... ok
+test verification::comparator::tests::different_diff_boosted_to_repair ... ok
+test verification::comparator::tests::execution_failed_exited_with_code_139_classified_execution_failed_with_diagnostic ... ok
+test verification::executor::tests::execute_original_imports_dynamic_observations ... ok
+test verification::executor::tests::execute_candidate_imports_dynamic_observations ... ok
+test verification::executor::tests::compare_and_record_emits_record_verification_comparison ... ok
+test verification::executor::tests::wave7_backend_mock_captures_observations ... ok
+
+Clippy: PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings
+Format: cargo fmt -p autore-reconstruction --check
+
+[OK] typed, normalized, differential verification model implemented and verified
