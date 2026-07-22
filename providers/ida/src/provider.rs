@@ -333,7 +333,12 @@ impl Provider for IdaProvider {
             package_id: "ida.analysis".into(),
             package_version: "0.1.0".into(),
             capabilities: Self::capabilities(),
-            max_concurrency: br#"{"ida.binary.open":4,"ida.binary.ingest":4,"ida.program.refresh":4,"ida.function.snapshot":4,"ida.type.snapshot":4,"ida.class.snapshot":4,"ida.references.query":4,"ida.reanalyze":4,"ida.native-artifact.export":4,"debug.target.launch":2,"debug.target.stop":2,"debug.scenario.execute":1,"debug.function.capture":1,"debug.function.trace":1,"debug.memory.capture":1,"debug.calls.capture":1}"#.to_vec(),
+            // Backend metadata is piggy-backed on max_concurrency because the
+            // proto NegotiateResponse has no dedicated extension field. The
+            // runtime ignores non-integer entries, so "ida.debugger.backend"
+            // coexists with per-capacity limits without affecting concurrency
+            // semaphore construction.
+            max_concurrency: br#"{"ida.binary.open":4,"ida.binary.ingest":4,"ida.program.refresh":4,"ida.function.snapshot":4,"ida.type.snapshot":4,"ida.class.snapshot":4,"ida.references.query":4,"ida.reanalyze":4,"ida.native-artifact.export":4,"debug.target.launch":2,"debug.target.stop":2,"debug.scenario.execute":1,"debug.function.capture":1,"debug.function.trace":1,"debug.memory.capture":1,"debug.calls.capture":1,"ida.debugger.backend":"gdb-wine"}"#.to_vec(),
         }))
     }
 
