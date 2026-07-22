@@ -476,3 +476,35 @@
 - `cargo build` (default members): clean
 - `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction --all-targets -- -D warnings`: clean
 - Evidence: `.omo/evidence/auto-re-stage-1/task-18-fingerprint.txt`
+
+## 2026-07-21 Wave 4 Todo 19 (Scheduler via AutoReClient + Priority Factors)
+
+### What was done
+- Replaced `RepositorySet` argument with `Arc<dyn AutoReClient>` + `ProjectId` + task snapshot (`&[Task]`) in `Scheduler::run_campaign` and related methods.
+- All direct `TaskRepository`/`SchedulerQueries` calls removed from production scheduler code. Mutations now route through `ApplicationCommand` variants: `FailWorkItem`, `RequeueWorkItem`, `PromoteWorkItem`, `LeaseWorkItem`. Reads use `ApplicationQuery::ListExpiredLeases`.
+- Scheduler methods became synchronous (non-async) since `AutoReClient` is sync.
+- Expanded `PriorityFactors` with 5 new weights per spec §7.4 (dependents_unblocked, high_impact_conflict, removes_build_blocker, verified_coverage, evidence_strength).
+- Added `PriorityContext` struct with zero/false defaults — preserves backward-compatible scores when caller doesn't supply context.
+- `evaluate_state` became a pure function (no client, no Result) — deterministic evaluation from task snapshot + dispatch count.
+- `RecordingAutoReClient` test stub records all commands/queries and answers `ListExpiredLeases` from configurable data.
+- Ported 5 existing campaign tests and added 9 new tests (14 total).
+
+### Decisions
+- **Snapshot-based dispatch**: The caller provides a task snapshot. The scheduler computes decisions and issues commands without refreshing the snapshot mid-tick. `dispatch_tasks` considers both `Ready` and `Pending` tasks with satisfied dependencies (since promotion commands have been issued but the snapshot is unchanged).
+- **`evaluate_state` terminal-first**: `Complete` takes precedence over `dispatched > 0`. If all tasks are terminal, the campaign is complete regardless of how many were dispatched this tick.
+- **No async**: Since `AutoReClient::execute`/`query` are synchronous, the scheduler methods are synchronous. Future async client implementations can wrap with `tokio::task::spawn_blocking`.
+- **Pre-existing clippy fixes**: Fixed 5 pre-existing clippy warnings in `campaign.rs`, `task.rs`, `headless.rs`, and `scheduler/mod.rs` (print_literal, collapsible_if, module_inception) that surfaced with `--no-default-features --all-targets -- -D warnings`.
+
+### Patterns established
+- Scheduler is a pure decision engine: takes snapshot + factors + context, returns decisions via commands. No storage access.
+- `Arc::clone(&client) as Arc<dyn AutoReClient>` for coercing concrete `Arc<RecordingAutoReClient>` to trait object when passing to methods.
+- `sort_by_key(|t| Reverse(t.priority.score()))` for descending priority sort (clippy-clean).
+- `PriorityContext::default()` has all-zero indicators, making new bonus terms contribute nothing.
+
+### Verification
+- `cargo build -p autore-stage1 --no-default-features`: clean (0 warnings)
+- `cargo test -p autore-stage1 --no-default-features scheduler::`: 14/14 passed
+- `cargo clippy -p autore-stage1 --no-default-features --all-targets -- -D warnings`: clean
+- `cargo build` (default members): clean
+- `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction --all-targets -- -D warnings`: clean
+- Evidence: `.omo/evidence/auto-re-stage-1/task-19-scheduler-via-app.txt`

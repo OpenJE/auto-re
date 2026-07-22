@@ -1,0 +1,78 @@
+Wave 4 Todo 19: Scheduler via AutoReClient + Expanded Priority Factors
+=======================================================================
+Date: 2026-07-21
+
+CHANGES
+-------
+1. autore-stage1/src/scheduler/scheduler.rs:
+   - Replaced `RepositorySet` argument with `Arc<dyn AutoReClient>` + `ProjectId` + task snapshot in `run_campaign` and related methods.
+   - Replaced all direct repo calls with ApplicationCommand/ApplicationQuery:
+     - `ListExpiredLeases` query for finding expired leases.
+     - `FailWorkItem` command for exhausted lease recovery.
+     - `RequeueWorkItem` command for retryable lease recovery.
+     - `PromoteWorkItem` command for pending-to-ready promotion.
+     - `LeaseWorkItem` command for task dispatch.
+   - Methods became synchronous (AutoReClient is sync).
+   - Expanded `PriorityFactors` with 5 new weights (spec §7.4):
+     - `dependents_unblocked_weight` (default 15.0)
+     - `high_impact_conflict_weight` (default 25.0)
+     - `removes_build_blocker_weight` (default 30.0)
+     - `verified_coverage_weight` (default 10.0)
+     - `evidence_strength_weight` (default 5.0)
+   - Added `PriorityContext` struct with indicator fields (all default to zero/false).
+   - `priority_score` formula extended with 5 new bonus terms; backward-compatible when context is default.
+   - `evaluate_state` became a pure function (no client, no Result).
+   - `dispatch_tasks` considers both Ready and promotable-Pending tasks (since snapshot is pre-mutation).
+   - `RecordingAutoReClient` test stub records all commands and answers `ListExpiredLeases`.
+
+2. autore-stage1/src/scheduler/mod.rs:
+   - Added `PriorityContext` to public exports.
+   - Added `#[allow(clippy::module_inception)]` to `mod scheduler;`.
+
+3. autore-stage1/src/cli/headless.rs:
+   - Adapted `run_campaign` call site: queries tasks first, passes snapshot + AutoReClient.
+   - Updated `NoopAutoReClient.query` to return `ExpiredLeases` for `ListExpiredLeases`.
+   - Removed `RepositorySet` construction (no longer needed).
+
+4. autore-stage1/src/cli/headless_queries.rs:
+   - Added `#[allow(dead_code)]` to `NoopCampaignRepo` and `NoopEvidenceRepo` (no longer used after RepositorySet removal).
+
+5. autore-stage1/src/cli/campaign.rs:
+   - Fixed pre-existing `clippy::print_literal` warnings.
+
+6. autore-stage1/src/cli/task.rs:
+   - Fixed pre-existing `clippy::print_literal` warning.
+
+TESTS
+-----
+14 tests in scheduler module, all passing:
+  - priority_score_is_stable (deterministic invariant, score=185)
+  - priority_score_unblocked_dependents_bonus (new factor)
+  - priority_score_build_blocker_bonus (new factor)
+  - priority_factors_are_inspectable (all 10 weights, serde roundtrip)
+  - priority_score_verification_bonus
+  - scheduler_score_tasks_batch
+  - scheduler_evaluates_complete_unchanged_after_refactor
+  - scheduler_recovers_expired_lease_via_command (RequeueWorkItem issued)
+  - scheduler_recovers_expired_lease_fails_exhausted (FailWorkItem issued)
+  - scheduler_does_not_touch_storage (ListExpiredLeases query via client only)
+  - scheduler_respects_dependencies (PromoteWorkItem + LeaseWorkItem)
+  - scheduler_idle_when_only_leased
+  - scheduler_dispatches_ready_by_priority (highest priority dispatched first)
+  - evaluate_state_pure_function (all 5 states + dispatched override)
+
+GATES
+-----
+- cargo build -p autore-stage1 --no-default-features: CLEAN (0 warnings)
+- cargo test -p autore-stage1 --no-default-features scheduler::: 14/14 PASSED
+- cargo clippy -p autore-stage1 --no-default-features --all-targets -- -D warnings: CLEAN
+- cargo build (default members): CLEAN
+- cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction --all-targets -- -D warnings: CLEAN
+- cargo fmt --all --check: CLEAN
+
+DESIGN NOTES
+------------
+- Snapshot-based design: the caller provides a task snapshot; the scheduler makes decisions and issues commands. The snapshot does NOT update after mutations within the same tick.
+- `dispatch_tasks` considers both `Ready` and `Pending` tasks with satisfied dependencies, since promotion commands have been issued but the snapshot still shows `Pending`.
+- `evaluate_state` checks terminal-first (Complete takes precedence over dispatched count).
+- Production code: 283 pure LOC (SIZE_OK — single responsibility: scoring + evaluation).
