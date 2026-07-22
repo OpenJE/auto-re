@@ -1,0 +1,40 @@
+Task 27: Deterministic Project Skeleton Generator (Wave 6)
+===========================================================
+Date: 2026-07-22
+Status: COMPLETE
+
+Module: autore-reconstruction/src/generation/
+
+Files created:
+  - generation/mod.rs (7 pure LOC) — module docs and re-exports
+  - generation/stub.rs (179 pure LOC) — StubPolicy, render_stub_header/cpp, path derivation, generation order, metadata rendering
+  - generation/mapping.rs (29 pure LOC) — GeneratedSourceMappingIntent
+  - generation/skeleton.rs (213 pure LOC) — ProjectSkeletonBuilder, SkeletonManifest
+  - generation/tests.rs (250 pure LOC) — 10 unit tests
+
+Files modified:
+  - src/lib.rs — added pub mod generation + re-exports
+  - src/tests_support.rs — added RegisterArtifact and RegisterGeneratedSourceMapping handling in RecordingAutoReClient
+
+Tests (10/10 passed):
+  - skeleton_produces_layout_from_spec
+  - skeleton_generates_stub_per_discovered_function
+  - skeleton_stubs_marked_explicit_status
+  - skeleton_source_paths_derived_from_canonical_entity_id_not_content
+  - skeleton_no_llm_involved
+  - skeleton_issues_register_artifact_and_mapping_commands
+  - skeleton_generation_order_follows_spec
+  - skeleton_stub_policy_static_assert
+  - skeleton_stub_policy_empty_body
+  - skeleton_no_duplicate_paths
+
+Build gates:
+  - PROTOC=... cargo build -p autore-reconstruction: PASS
+  - PROTOC=... cargo test -p autore-reconstruction generation:: --nocapture: 10/10 PASS
+  - PROTOC=... cargo clippy -p autore-reconstruction --all-targets -- -D warnings: CLEAN
+  - cargo build (default members): PASS
+  - cargo fmt --all --check: CLEAN
+
+Pre-existing: cargo clippy --workspace (excl stage1/providers/reconstruction) fails on autore-tui large_enum_variant (documented in issues.md Task 21).
+
+Commands per entity: 2× RegisterArtifact (hpp + cpp) + 1× RegisterGeneratedSourceMapping = 3 commands per entity.

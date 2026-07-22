@@ -9,6 +9,7 @@
 
 pub mod analysis;
 pub mod fingerprint;
+pub mod generation;
 pub mod identity;
 pub mod work_graph;
 
@@ -23,6 +24,10 @@ pub use analysis::{
 pub use fingerprint::{
     FingerprintComparison, FingerprintInput, FingerprintSnapshot, InMemorySnapshot,
     InvalidationPropagator, compare_fingerprint, compute_fingerprint,
+};
+pub use generation::{
+    FileRole, GeneratedFile, GeneratedSourceMappingIntent, ProjectSkeletonBuilder,
+    SkeletonManifest, StubPolicy,
 };
 pub use identity::{
     CanonicalEntityKey, ImportSummary, ObservationImporter, entity_kind_for_observation_kind,

@@ -621,3 +621,34 @@
 - Migration test constants follow a versioned pattern: `STAGE1_V14_V23_TABLES`, `STAGE1_V24_V27_TABLES`, `STAGE1_V28_V33_TABLES`. Each constant is checked by `migrations_apply_clean` and has its own idempotent + rollback-safe test pair.
 - V30 `build_attempts.work_item_id` is nullable (BLOB NULL) — some builds may occur outside a work-item context (e.g., standalone compilation experiments).
 - V31 `build_diagnostics` includes `candidate_cause` and `suggested_work_kind` TEXT columns for downstream repair-work classification, pre-staging the schema for Todo 30 (build classification).
+
+## 2026-07-22 Wave 6 Todo 27 (Generation Module — Project Skeleton Builder)
+
+### What was done
+- Created `autore-reconstruction::generation` module with 5 files: `mod.rs`, `stub.rs`, `mapping.rs`, `skeleton.rs`, `tests.rs`.
+- Implemented `ProjectSkeletonBuilder` that takes `SemanticEntity` objects and emits a deterministic managed source tree with explicit stub files.
+- Every generated file is registered as an artifact via `RegisterArtifact` (kind = `core.generated-candidate`), and each entity gets a `RegisterGeneratedSourceMapping` command.
+- Source paths derived from `EntityId` UUID hex: `<2hex>/<2hex>/<2hex>/<full-uuid>` — renaming display_name does NOT change paths.
+- `StubPolicy` enum controls function body rendering: `StaticAssert` (compile-fail) vs `EmptyBody` (compiles but no-op).
+- Generation order follows spec §11.2: external declarations → enums → types → globals → functions → classes → vtables → static initializers → entrypoints.
+- Updated `RecordingAutoReClient` to handle `RegisterArtifact` and `RegisterGeneratedSourceMapping` commands for test verification.
+- 10 unit tests covering layout, stub markers, path stability, command issuance, generation order, stub policies, and no-duplicate-paths.
+
+### Decisions
+- **Helpers in stub.rs**: `entity_id_to_relpath`, `generation_order`, `render_cmake`, `render_reconstruction_toml` moved from skeleton.rs to stub.rs to keep skeleton.rs under 250 LOC. These are rendering/path utilities closely related to stub generation.
+- **Entity ID as work_item_id**: `RegisterGeneratedSourceMappingRequest.work_item_id` uses the entity UUID string as a placeholder. Future wiring with `WorkGraphBuilder` will provide real work-item IDs.
+- **RegisterArtifact response construction**: `RecordingAutoReClient` constructs a minimal `Artifact` with `ContentHash::sha256(b"recording-client-stub")` and size 0 — tests verify command issuance, not artifact content.
+- **No `display_name` in paths**: The `entity_id_to_relpath` function uses only the UUID hex. Display names appear only in stub comments for human readability.
+
+### Patterns established
+- `ProjectSkeletonBuilder` follows the builder pattern: `new()` → `add_entity()` (multiple) → `build()`. The `build()` method consumes `self` and returns `Result<SkeletonManifest>`.
+- All mutations route through `ApplicationCommand` variants — zero direct storage access.
+- Stub files contain both a machine-readable marker (`[[reconstruction_status = "stubbed"]]`) and a human-readable header comment with the entity ID.
+
+### Verification
+- `PROTOC=... cargo build -p autore-reconstruction`: clean
+- `PROTOC=... cargo test -p autore-reconstruction generation:: -- --nocapture`: 10/10 passed
+- `PROTOC=... cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean
+- `cargo build` (default members): clean
+- `cargo fmt --all --check`: clean
+- Evidence: `.omo/evidence/auto-re-stage-1/task-27-generator-skeleton.txt`

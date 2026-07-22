@@ -166,3 +166,8 @@
 ## Task 26 — Migrations V28..V33 (2026-07-22)
 - No blocking issues encountered.
 - **Note**: V28..V33 tables deliberately omit `REFERENCES` clauses (unlike V24..V27 which include them). This is because V28..V33 reference tables that may not exist in a Stage 0-only database, and loose BLOB references avoid FK enforcement failures. Future todos that wire these tables to repositories should consider whether to add FK constraints at that point.
+
+## 2026-07-22 Wave 6 Todo 27 (Generation Module — Project Skeleton Builder)
+- **Pre-existing `autore-tui` clippy `large_enum_variant`**: The workspace clippy command (excluding stage1/providers/reconstruction) fails on `TuiEvent::Internal` being ≥416 bytes. This is a pre-existing issue from Task 21 — boxing `InternalTuiEvent` is the fix but out of scope for generation tasks.
+- **Entity ID as work_item_id placeholder**: `RegisterGeneratedSourceMappingRequest.work_item_id` currently receives the entity UUID string. When `WorkGraphBuilder` assigns real work-item IDs, the skeleton builder will need to accept a `HashMap<EntityId, WorkItemId>` mapping or be called after graph construction.
+- **`RegisterGeneratedSourceMapping` is event-only (pre-existing from Task 12)**: The handler validates + emits an event but does not persist to a table. The V25 `generated_source_mappings` table exists but is not wired to the handler. A future task can upgrade the handler to persist the mapping.

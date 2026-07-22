@@ -10,7 +10,7 @@ use autore_app::application_service::requests::{
     AddEvidenceResponse, AddHypothesisResponse, BlockWorkItemResponse, BlockWorkWithReasonResponse,
     CreateWorkItemsResponse, EntitiesResponse, FailWorkItemResponse,
     ImportProviderRunResultResponse, InvalidateWorkItemResponse, RecordWorkDependencyResponse,
-    RegisterEntityResponse,
+    RegisterArtifactResponse, RegisterEntityResponse, RegisterGeneratedSourceMappingResponse,
 };
 use autore_app::{ApplicationCommand, ApplicationQuery, AutoReClient, CommandResult, QueryResult};
 use autore_core::{Error, Result};
@@ -126,6 +126,32 @@ impl AutoReClient for RecordingAutoReClient {
             }
             ApplicationCommand::BlockWorkWithReason(_) => {
                 CommandResult::WorkBlocked(BlockWorkWithReasonResponse { blocked_count: 1 })
+            }
+            ApplicationCommand::RegisterArtifact(req) => {
+                let kind = NamespacedId::parse(&req.kind).map_err(|e| Error::Validation(e.0))?;
+                CommandResult::ArtifactRegistered(RegisterArtifactResponse {
+                    artifact: autore_schema::domain::records::Artifact {
+                        id: autore_schema::ids::ArtifactId::new(),
+                        project: req.project,
+                        kind,
+                        content_hash: autore_schema::domain::ContentHash::sha256(
+                            b"recording-client-stub",
+                        ),
+                        size: 0,
+                        storage: autore_schema::domain::records::ArtifactStorage::ManagedBlob {
+                            relative_path: req.source_path.clone(),
+                        },
+                        created_at: Timestamp::now(),
+                        metadata: MetadataMap::new(),
+                    },
+                })
+            }
+            ApplicationCommand::RegisterGeneratedSourceMapping(_req) => {
+                CommandResult::GeneratedSourceMappingRegistered(
+                    RegisterGeneratedSourceMappingResponse {
+                        mapping_id: uuid::Uuid::now_v7().to_string(),
+                    },
+                )
             }
             _ => {
                 return Err(Error::Unsupported(format!(
