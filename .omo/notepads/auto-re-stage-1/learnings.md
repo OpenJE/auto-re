@@ -508,3 +508,31 @@
 - `cargo build` (default members): clean
 - `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction --all-targets -- -D warnings`: clean
 - Evidence: `.omo/evidence/auto-re-stage-1/task-19-scheduler-via-app.txt`
+
+## 2026-07-21 Wave 4 Todo 20 (End-to-end work graph integration test)
+
+### Architecture
+- The whole-program work graph test exercises 7 steps in a single `#[ignore]` test:
+  ingest → work graph build → kind assertions → edge assertions → SCC cycle collapse
+  → fingerprint invalidation → scheduler priority ordering.
+- `WorkGraphBuilder::build` is the single entry point: takes entities + edges, issues
+  `CreateWorkItems` and `RecordWorkDependency` commands, collapses SCCs via Kosaraju,
+  and returns a `WorkGraph` with petgraph `DiGraph<WorkItemNode, DependencyEdgeKind>`.
+- `InvalidationPropagator` walks downstream via `GeneratedDeclRequirement` and
+  `BuildDependency` edges only — `DirectCall` edges do NOT propagate invalidation.
+- Scheduler priority ordering (spec §7.4) verified by assigning per-kind scores and
+  asserting `ProgramSkeleton` > `ExternalDependency` > `Function` in dispatch order.
+
+### Patterns
+- `RecordingAutoReClient` is pulled into integration tests via `#[path = "../src/tests_support.rs"]`
+  module import — same pattern as `ida_full_ingest.rs`.
+- `ContentHash` is not `Copy` — use `.clone()` when passing the same hash to multiple
+  `FingerprintInput` fields or storing in snapshot.
+- `sort_by_key(|b| Reverse(score))` is clippy-clean for descending sort.
+
+### Verification
+- `PROTOC=... cargo test -p autore-reconstruction --test whole_program_work_graph -- --ignored --nocapture`: 1/1 passed
+- `PROTOC=... cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean
+- `cargo build` (default members): clean
+- `cargo clippy --workspace --exclude ... --all-targets -- -D warnings`: clean
+- Evidence: `.omo/evidence/auto-re-stage-1/task-20-whole-program-work-graph.txt`

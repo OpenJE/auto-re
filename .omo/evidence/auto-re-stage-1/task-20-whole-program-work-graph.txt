@@ -1,0 +1,41 @@
+Evidence: Wave 4 Todo 20 — End-to-end work graph integration test
+=================================================================
+
+Date: 2026-07-21
+Test file: autore-reconstruction/tests/whole_program_work_graph.rs
+
+Test output (PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction \
+  --test whole_program_work_graph -- --ignored --nocapture):
+
+  running 1 test
+  [whole_program] SYNTHESIZED FALLBACK: using synthesized observation stream
+  [whole_program] Step 1: 5 entities created
+  [whole_program] Step 2: graph has 6 nodes, 4 edges
+  [whole_program] Step 3: 1 ProgramSkeleton, 4 Functions, 1 ExternalDependencies
+  [whole_program] Step 4: 3 DirectCall edges
+  [whole_program] Step 5: SCC collapsed f_a+f_b into FunctionCluster with 2 members
+  [whole_program] Step 6: 1 work items invalidated via 1 InvalidateWorkItem commands
+  [whole_program] Step 7: dispatch sequence = ["program-skeleton", "program-skeleton",
+    "external-dependency", "function" x6]
+  [whole_program] PASSED: all 7 steps verified
+  [OK] traversed executable without manual selection; priority ordering matched spec §7.4 sample
+  test whole_program_work_graph_end_to_end ... ok
+  test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+
+Gate results:
+  - PROTOC=... cargo clippy -p autore-reconstruction --all-targets -- -D warnings: PASS (clean)
+  - cargo build (default members): PASS (clean)
+  - cargo clippy --workspace --exclude ... --all-targets -- -D warnings: PASS (clean)
+  - LSP diagnostics on test file: 0 errors, 0 warnings
+
+Steps verified:
+  1. Ingest: 5 entities (4 functions + 1 external) via ObservationImporter + RecordingAutoReClient
+  2. Work graph: 6 nodes (1 ProgramSkeleton + 4 Function + 1 ExternalDependency), 4 edges
+  3. Work item kinds asserted by count
+  4. DirectCall edges >= 3 asserted
+  5. SCC cycle: f_a → f_b → f_a collapsed into 1 FunctionCluster with 2 ClusterMember edges
+  6. Fingerprint invalidation: upstream change propagated to downstream via GeneratedDeclRequirement
+  7. Scheduler priority: ProgramSkeleton dispatched before ExternalDependency before Function
+
+All mutations routed through ApplicationCommand — no direct storage access.
+Test marked #[ignore] for slow integration suite gating.
