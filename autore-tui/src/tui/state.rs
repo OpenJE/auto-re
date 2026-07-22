@@ -127,6 +127,16 @@ pub enum Pane {
     MigrationHistory,
     /// External artifact integrity checks.
     ExternalArtifactIntegrity,
+    /// Reconstruction campaign state (Stage 1).
+    Campaign,
+    /// Current work items, blocked items, stagnation reasons (Stage 1).
+    WorkQueue,
+    /// Running provider instances and health (Stage 1).
+    ActiveProviders,
+    /// Recent build diagnostics/failures (Stage 1).
+    CompilerFailures,
+    /// Recent verification comparisons/diffs (Stage 1).
+    VerificationDiffs,
 }
 
 // ---------------------------------------------------------------------------
@@ -213,6 +223,19 @@ pub struct ProjectViewState {
     pub schema_version: Option<SchemaVersion>,
     /// Validation status (if checked).
     pub validation_status: Option<ValidationStatus>,
+    // Stage 1 presentation snapshots — populated from query results.
+    /// Active campaign ID (if any).
+    pub campaign_id: Option<String>,
+    /// Work item IDs visible to the TUI.
+    pub work_items: Vec<String>,
+    /// Provider instance IDs visible to the TUI.
+    pub provider_instances: Vec<String>,
+    /// Build diagnostic summaries (opaque strings).
+    pub build_diagnostics: Vec<String>,
+    /// Verification coverage (covered, total).
+    pub verification_coverage: Option<(u32, u32)>,
+    /// Generated source mapping IDs.
+    pub generated_source_mappings: Vec<String>,
 }
 
 // ---------------------------------------------------------------------------

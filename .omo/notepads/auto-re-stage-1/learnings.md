@@ -1265,3 +1265,46 @@
 - `cargo clippy -p autore-cli --all-targets -- -D warnings`: clean.
 - `cargo test -p autore-cli`: 38/38 passed (18 new unit + 20 existing integration).
 - Evidence: `.omo/evidence/auto-re-stage-1/task-50-cli.txt`.
+
+## 2026-07-22 Wave 11 Todo 51 (Stage 1 TUI Panes and Actions)
+
+### What was done
+- Added 5 new `Pane` enum variants: `Campaign`, `WorkQueue`, `ActiveProviders`,
+  `CompilerFailures`, `VerificationDiffs`.
+- Extended `ProjectViewState` with Stage 1 snapshot fields: `campaign_id`,
+  `work_items`, `provider_instances`, `build_diagnostics`,
+  `verification_coverage`, `generated_source_mappings`.
+- Extended `dispatch_query` to route 7 new Stage 1 query variants by
+  extracting the `project` field; `GetCampaign` falls back to the current
+  navigation project since it's keyed by `campaign_id`.
+- Extended `apply_query_result` to populate Stage 1 snapshot fields from
+  `QueryResult::{WorkItems, ProviderInstances, BuildDiagnostics,
+  VerificationCoverage, GeneratedSourceMappings, Campaign}`.
+- Updated `render_tab_strip` from 7 to 12 tabs.
+- Added 5 new `render_*_pane` methods rendering Stage 1 pane content.
+- Added new keybindings: Alt+8..Alt+= for panes 8-12, `p`/`r`/`X` for
+  coordinator pause/resume/stop, `n` as alias for `c` (cancel), `R` for
+  requeue, `P` for provider dialog, `o` repurposed for campaign dialog,
+  `e`/`H`/`y`/`g`/`D`/`V` for selection-based inspection.
+- Extended `confirm_dialog` to dispatch `CreateReconstructionCampaign` or
+  `RegisterProviderInstance` based on dialog prompt prefix.
+- Extended `RecordingClient` in tests with 7 new Stage 1 command variants.
+- Added 5 new tests covering the new panes and actions.
+
+### Decisions
+- **Alt+8..12 mapping**: Standard keyboards have no Alt+10/11/12 single keys.
+  Used Alt+8 (8), Alt+9 (9), Alt+0 (10), Alt+- (11), Alt+= (12).
+- **`o` key repurposed**: Changed from `open_selected_project` to
+  `open_campaign_dialog` per spec; existing tests updated to call
+  `open_selected_project()` directly.
+- **Stage 1 types via full path**: `autore_app::application_service::requests::{...}`
+  rather than adding re-exports to `autore_app` root, matching Todo 50 pattern.
+- **Selection-based inspection keys**: `e`, `H`, `y`, `g`, `D`, `V` switch to
+  relevant panes rather than dispatching commands (presentation-only).
+
+### Verification
+- `cargo build -p autore-tui`: clean.
+- `cargo test -p autore-tui`: 61/61 passed (5 new + 56 existing).
+- `cargo clippy -p autore-tui --all-targets -- -D warnings`: clean.
+- `cargo fmt --all --check`: clean.
+- Evidence: `.omo/evidence/auto-re-stage-1/task-51-tui.txt`.

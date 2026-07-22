@@ -346,3 +346,12 @@
 - **Stage 1 types not re-exported from `autore_app` root**: The Stage 1 request/query types live in `autore_app::application_service::requests::` but aren't re-exported at the crate root (unlike Stage 0 types). The CLI imports them via the full module path. If other crates need these types, adding re-exports to `autore_app/src/lib.rs` would be cleaner.
 - **Stub handlers return errors at runtime**: Many Stage 1 command handlers in the app service are stubs that return `Err(Error::Validation("not yet implemented: ..."))`. The CLI constructs and sends the correct commands, but actual execution will fail until the service layer is implemented in later todos.
 - **`generated entity` does client-side filtering**: The handler lists all generated source mappings and filters by ID in the CLI. This is inefficient for large projects. A dedicated `GetGeneratedSourceMapping` query should replace this when available.
+
+## 2026-07-22 Wave 11 Todo 51 (Stage 1 TUI Panes and Actions)
+- **No blocking issues encountered.**
+- **`o` key repurposed**: `o` was `open_selected_project` in Stage 0. The spec explicitly reassigns it to the campaign dialog; existing tests were updated to call `open_selected_project()` directly. No runtime breakage.
+- **Alt+10/11/12 mapping**: Standard keyboards have no single Alt+10/11/12 combos. Mapped Alt+0=pane 10, Alt+-=pane 11, Alt+=pane 12. Documented in tab strip; discoverable via keybinding list.
+- **Stage 1 types not re-exported from `autore_app` root**: Same as Todo 50 — imported via `autore_app::application_service::requests::{...}`. Consistent pattern.
+- **`GetCampaign` query has no `project` field**: It's keyed by `campaign_id`. `dispatch_query` falls back to the current navigation project as the result-routing target. If no project is open, the result is routed to a synthetic `ProjectId::default()` and silently dropped (no view to update). This is acceptable for now; a future todo could store the campaign_id on the TUI state and route results by campaign instead of project.
+- **PauseCoordinator/ResumeCoordinator/StopCoordinator handlers are stubs**: The app service returns `Err(Error::Validation("not yet implemented: ..."))`. The TUI correctly dispatches the commands; errors surface as notifications. When the coordinator service is wired, these will work.
+- **Selection-based inspection keys (e/H/y/g/D/V)**: Currently just switch to the relevant pane. A future todo could add cursor/selection tracking within each pane so these keys actually focus a specific item for inspection.

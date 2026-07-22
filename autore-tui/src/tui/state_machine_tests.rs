@@ -397,8 +397,7 @@ async fn tui_state_machine_search_triggers_query() {
     tui.state_mut().filters.text_search = "alpha".to_string();
 
     // Open the selected project, which dispatches a summary query.
-    tui.handle_key_event(KeyEvent::new(KeyCode::Char('o'), KeyModifiers::NONE))
-        .unwrap();
+    tui.open_selected_project();
 
     for _ in 0..100 {
         tokio::task::yield_now().await;
@@ -589,8 +588,7 @@ async fn tui_state_machine_query_completion_updates_project_summary() {
     state.project_views.insert(pid, ProjectViewState::default());
 
     let mut tui = Tui::with_client(state, Box::new(recorder));
-    tui.handle_key_event(KeyEvent::new(KeyCode::Char('o'), KeyModifiers::NONE))
-        .unwrap();
+    tui.open_selected_project();
 
     for _ in 0..100 {
         tokio::task::yield_now().await;
@@ -839,8 +837,7 @@ async fn tui_state_machine_query_error() {
 
     let state = sample_state();
     let mut tui = Tui::with_client(state, Box::new(ErrorClient));
-    tui.handle_key_event(KeyEvent::new(KeyCode::Char('o'), KeyModifiers::NONE))
-        .unwrap();
+    tui.open_selected_project();
 
     for _ in 0..100 {
         tokio::task::yield_now().await;

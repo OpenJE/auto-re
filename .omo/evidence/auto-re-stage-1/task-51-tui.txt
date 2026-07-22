@@ -1,0 +1,73 @@
+## Task 51 — Stage 1 TUI Panes and Actions
+
+### Date
+2026-07-22
+
+### Summary
+Extended the Ratatui TUI in `autore-tui` with 5 new Stage 1 secondary panes
+(Campaign, WorkQueue, ActiveProviders, CompilerFailures, VerificationDiffs)
+and 15+ new action keybindings. All existing 7 panes and Stage 0 keybindings
+are preserved. All writes dispatch through `AutoReClient` on a background tokio
+task — the render thread never blocks.
+
+### Changes
+- `autore-tui/src/tui/state.rs`:
+  - Added 5 `Pane` enum variants: Campaign, WorkQueue, ActiveProviders,
+    CompilerFailures, VerificationDiffs.
+  - Added Stage 1 snapshot fields to `ProjectViewState`: campaign_id,
+    work_items, provider_instances, build_diagnostics, verification_coverage,
+    generated_source_mappings.
+- `autore-tui/src/tui.rs`:
+  - Extended `dispatch_query` to handle 7 new Stage 1 query variants
+    (ListWorkItems, ListProviderInstances, ListBuildDiagnostics,
+    GetVerificationCoverage, ListGeneratedSourceMappings, GetCampaign, etc.).
+  - Extended `apply_query_result` to populate Stage 1 snapshot fields.
+  - Extended `handle_key_event` with new keybindings:
+    - Alt+8..Alt+= for panes 8-12 (Campaign, WorkQueue, ActiveProviders,
+      CompilerFailures, VerificationDiffs).
+    - p = pause coordinator, r = resume coordinator, X = stop coordinator.
+    - n = cancel selected operation (alias for c).
+    - R = requeue selected work item.
+    - P = open provider start/stop dialog.
+    - o = open campaign start dialog (changed from open_selected_project).
+    - e, H, y, g, D, V = selection-based inspection shortcuts (switch pane).
+  - Updated `render_tab_strip` from 7 to 12 tabs.
+  - Added 5 new `render_*_pane` methods for the Stage 1 panes.
+  - Added action helpers: pause_coordinator, resume_coordinator,
+    stop_coordinator, requeue_selected_work_item, open_campaign_dialog,
+    open_provider_dialog.
+  - Extended `confirm_dialog` to dispatch CreateReconstructionCampaign or
+    RegisterProviderInstance based on dialog prompt prefix.
+  - Extended `RecordingClient` in tests to handle 7 new Stage 1 command
+    variants.
+  - Added 5 new tests:
+    - tui_renders_campaign_coverage_pane
+    - tui_renders_work_queue_pane
+    - tui_provider_start_action_issues_command
+    - tui_cancel_op_action_emits_cancel_command
+    - tui_no_blocking_render_in_storage_ops
+  - Updated existing tests that used `o` key to call `open_selected_project()`
+    directly (since `o` is now the campaign dialog key).
+- `autore-tui/src/tui/state_machine_tests.rs`:
+  - Updated 3 tests to call `open_selected_project()` directly instead of
+    pressing `o` (since `o` was repurposed for campaign dialog).
+
+### Verification
+- `cargo build -p autore-tui`: clean.
+- `cargo test -p autore-tui`: 61/61 passed (5 new + 56 existing).
+- `cargo clippy -p autore-tui --all-targets -- -D warnings`: clean.
+- `cargo fmt --all --check`: clean.
+- Full workspace `cargo build`: clean (no protoc required).
+
+### Decisions
+- **Alt+8..12 key mapping**: Standard keyboards don't have Alt+10/11/12 as
+  single keys. Used Alt+8 (8), Alt+9 (9), Alt+0 (10), Alt+- (11), Alt+= (12).
+- **`o` key repurposed**: `o` was open_selected_project (Stage 0). Now opens
+  campaign start dialog (Stage 1). Existing tests updated to call
+  `open_selected_project()` directly.
+- **Selection-based inspection keys**: e, H, y, g, D, V switch to relevant
+  panes rather than dispatching commands (selection context is presentation-
+  only, consistent with TuiState projection-only pattern).
+- **Stage 1 types imported via full path**: `autore_app::application_service::requests::{...}`
+  rather than adding re-exports to `autore_app` root, matching the pattern
+  established by Todo 50 (CLI surface).

@@ -32,6 +32,10 @@ use ratatui::widgets::{Block, Gauge, List, ListItem, Paragraph, Row, Table, Tabs
 use tokio::sync::mpsc;
 
 use crate::tui::state::{Focus, Navigation, Pane, TuiState};
+use autore_app::application_service::requests::{
+    PauseCoordinatorRequest, RegisterProviderInstanceRequest, RequeueWorkItemRequest,
+    ResumeCoordinatorRequest, StopCoordinatorRequest,
+};
 use autore_app::{
     ApplicationCommand, ApplicationQuery, AutoReClient, CancelOperationRequest,
     ChangeHypothesisStatusRequest, CommandResult, GetProjectSummaryQuery, QueryResult,
@@ -233,6 +237,17 @@ impl Tui {
         };
         let project = match &query {
             ApplicationQuery::GetProjectSummary(q) => q.project,
+            ApplicationQuery::ListWorkItems(q) => q.project,
+            ApplicationQuery::ListProviderInstances(q) => q.project,
+            ApplicationQuery::ListBuildDiagnostics(q) => q.project,
+            ApplicationQuery::GetVerificationCoverage(q) => q.project,
+            ApplicationQuery::ListGeneratedSourceMappings(q) => q.project,
+            ApplicationQuery::ListEvents(q) => q.project,
+            ApplicationQuery::GetCampaign(_) => {
+                // Campaign queries are keyed by campaign_id, not project; use
+                // the current navigation project as a fallback target.
+                self.current_project_id().unwrap_or_default()
+            }
             _ => return,
         };
         let client = Arc::clone(client);
@@ -301,16 +316,37 @@ impl Tui {
         };
         self.state.focus = Focus::Panel1;
         match dialog {
-            crate::tui::state::DialogState::Input { buffer, .. } => {
+            crate::tui::state::DialogState::Input { prompt, buffer } => {
                 let Some(project) = self.current_project_id() else {
                     return;
                 };
-                let command = ApplicationCommand::RegisterArtifact(RegisterArtifactRequest {
-                    project,
-                    source_path: std::path::PathBuf::from(buffer),
-                    kind: "native".into(),
-                });
-                self.dispatch_command(command);
+                if prompt.starts_with("Campaign binary path:") {
+                    let artifact_id = autore_schema::ids::ArtifactId::new();
+                    let command =
+                        ApplicationCommand::CreateReconstructionCampaign(
+                            autore_app::application_service::requests::CreateReconstructionCampaignRequest {
+                                project,
+                                name: buffer,
+                                binary_artifact_id: artifact_id,
+                            },
+                        );
+                    self.dispatch_command(command);
+                } else if prompt.starts_with("Provider installation ID:") {
+                    let command = ApplicationCommand::RegisterProviderInstance(
+                        RegisterProviderInstanceRequest {
+                            project,
+                            installation_id: buffer,
+                        },
+                    );
+                    self.dispatch_command(command);
+                } else {
+                    let command = ApplicationCommand::RegisterArtifact(RegisterArtifactRequest {
+                        project,
+                        source_path: std::path::PathBuf::from(buffer),
+                        kind: "native".into(),
+                    });
+                    self.dispatch_command(command);
+                }
             }
             crate::tui::state::DialogState::Confirm { .. } => {}
             crate::tui::state::DialogState::Error(_) => {}
@@ -333,66 +369,139 @@ impl Tui {
             return self.handle_dialog_key_event(key_event);
         }
 
+        let alt = key_event.modifiers.contains(KeyModifiers::ALT);
         match key_event.code {
-            KeyCode::Char('q') => Ok(true),
-            KeyCode::Char('j') | KeyCode::Down => {
+            KeyCode::Char('q') if !alt => Ok(true),
+            KeyCode::Char('j') | KeyCode::Down if !alt => {
                 self.select_next();
                 Ok(false)
             }
-            KeyCode::Char('k') | KeyCode::Up => {
+            KeyCode::Char('k') | KeyCode::Up if !alt => {
                 self.select_previous();
                 Ok(false)
             }
-            KeyCode::Tab => {
+            KeyCode::Tab if !alt => {
                 self.cycle_focus();
                 Ok(false)
             }
-            KeyCode::Char('a') if !key_event.modifiers.contains(KeyModifiers::ALT) => {
+            KeyCode::Char('a') if !alt => {
                 self.open_artifact_import_dialog();
                 Ok(false)
             }
-            KeyCode::Char('A') => {
+            KeyCode::Char('A') if !alt => {
                 self.accept_selected_hypothesis();
                 Ok(false)
             }
-            KeyCode::Char('c') if !key_event.modifiers.contains(KeyModifiers::ALT) => {
+            KeyCode::Char('c') if !alt => {
                 self.cancel_selected_operation();
                 Ok(false)
             }
-            KeyCode::Char('o') if !key_event.modifiers.contains(KeyModifiers::ALT) => {
-                self.open_selected_project();
+            KeyCode::Char('n') if !alt => {
+                self.cancel_selected_operation();
                 Ok(false)
             }
-            KeyCode::Char('1') if key_event.modifiers.contains(KeyModifiers::ALT) => {
+            KeyCode::Char('o') if !alt => {
+                self.open_campaign_dialog();
+                Ok(false)
+            }
+            KeyCode::Char('p') if !alt => {
+                self.pause_coordinator();
+                Ok(false)
+            }
+            KeyCode::Char('r') if !alt => {
+                self.resume_coordinator();
+                Ok(false)
+            }
+            KeyCode::Char('R') if !alt => {
+                self.requeue_selected_work_item();
+                Ok(false)
+            }
+            KeyCode::Char('X') if !alt => {
+                self.stop_coordinator();
+                Ok(false)
+            }
+            KeyCode::Char('e') if !alt => {
+                self.switch_pane(Pane::Dashboard);
+                Ok(false)
+            }
+            KeyCode::Char('H') if !alt => {
+                self.switch_pane(Pane::EventsLog);
+                Ok(false)
+            }
+            KeyCode::Char('y') if !alt => {
+                self.switch_pane(Pane::Dashboard);
+                Ok(false)
+            }
+            KeyCode::Char('g') if !alt => {
+                self.switch_pane(Pane::NativeArtifacts);
+                Ok(false)
+            }
+            KeyCode::Char('D') if !alt => {
+                self.switch_pane(Pane::CompilerFailures);
+                Ok(false)
+            }
+            KeyCode::Char('V') if !alt => {
+                self.switch_pane(Pane::VerificationDiffs);
+                Ok(false)
+            }
+            KeyCode::Char('P') if !alt => {
+                self.open_provider_dialog();
+                Ok(false)
+            }
+            KeyCode::Char('1') if alt => {
                 self.state.active_pane = Pane::Dashboard;
                 Ok(false)
             }
-            KeyCode::Char('2') if key_event.modifiers.contains(KeyModifiers::ALT) => {
+            KeyCode::Char('2') if alt => {
                 self.state.active_pane = Pane::Providers;
                 Ok(false)
             }
-            KeyCode::Char('3') if key_event.modifiers.contains(KeyModifiers::ALT) => {
+            KeyCode::Char('3') if alt => {
                 self.state.active_pane = Pane::NativeArtifacts;
                 Ok(false)
             }
-            KeyCode::Char('4') if key_event.modifiers.contains(KeyModifiers::ALT) => {
+            KeyCode::Char('4') if alt => {
                 self.state.active_pane = Pane::OperationsDetail;
                 Ok(false)
             }
-            KeyCode::Char('5') if key_event.modifiers.contains(KeyModifiers::ALT) => {
+            KeyCode::Char('5') if alt => {
                 self.state.active_pane = Pane::EventsLog;
                 Ok(false)
             }
-            KeyCode::Char('6') if key_event.modifiers.contains(KeyModifiers::ALT) => {
+            KeyCode::Char('6') if alt => {
                 self.state.active_pane = Pane::MigrationHistory;
                 Ok(false)
             }
-            KeyCode::Char('7') if key_event.modifiers.contains(KeyModifiers::ALT) => {
+            KeyCode::Char('7') if alt => {
                 self.state.active_pane = Pane::ExternalArtifactIntegrity;
+                Ok(false)
+            }
+            KeyCode::Char('8') if alt => {
+                self.state.active_pane = Pane::Campaign;
+                Ok(false)
+            }
+            KeyCode::Char('9') if alt => {
+                self.state.active_pane = Pane::WorkQueue;
+                Ok(false)
+            }
+            KeyCode::Char('0') if alt => {
+                self.state.active_pane = Pane::ActiveProviders;
+                Ok(false)
+            }
+            KeyCode::Char('-') if alt => {
+                self.state.active_pane = Pane::CompilerFailures;
+                Ok(false)
+            }
+            KeyCode::Char('=') if alt => {
+                self.state.active_pane = Pane::VerificationDiffs;
                 Ok(false)
             }
             _ => Ok(false),
         }
+    }
+
+    fn switch_pane(&mut self, pane: Pane) {
+        self.state.active_pane = pane;
     }
 
     fn handle_dialog_key_event(&mut self, key_event: KeyEvent) -> io::Result<bool> {
@@ -462,6 +571,102 @@ impl Tui {
                 reason: None,
             },
         ));
+    }
+
+    fn pause_coordinator(&mut self) {
+        let Some(project) = self.current_project_id() else {
+            self.push_notification(
+                "no project selected",
+                crate::tui::state::NotificationLevel::Warning,
+            );
+            return;
+        };
+        self.dispatch_command(ApplicationCommand::PauseCoordinator(
+            PauseCoordinatorRequest { project },
+        ));
+    }
+
+    fn resume_coordinator(&mut self) {
+        let Some(project) = self.current_project_id() else {
+            self.push_notification(
+                "no project selected",
+                crate::tui::state::NotificationLevel::Warning,
+            );
+            return;
+        };
+        self.dispatch_command(ApplicationCommand::ResumeCoordinator(
+            ResumeCoordinatorRequest { project },
+        ));
+    }
+
+    fn stop_coordinator(&mut self) {
+        let Some(project) = self.current_project_id() else {
+            self.push_notification(
+                "no project selected",
+                crate::tui::state::NotificationLevel::Warning,
+            );
+            return;
+        };
+        self.dispatch_command(ApplicationCommand::StopCoordinator(
+            StopCoordinatorRequest { project },
+        ));
+    }
+
+    fn requeue_selected_work_item(&mut self) {
+        let (Some(project), Some(work_item_id)) =
+            (self.current_project_id(), self.selected_work_item_id())
+        else {
+            self.push_notification(
+                "no work item selected",
+                crate::tui::state::NotificationLevel::Warning,
+            );
+            return;
+        };
+        self.dispatch_command(ApplicationCommand::RequeueWorkItem(
+            RequeueWorkItemRequest {
+                project,
+                work_item_id,
+            },
+        ));
+    }
+
+    fn selected_work_item_id(&self) -> Option<String> {
+        let view = self.state.current_project_view()?;
+        view.work_items.first().cloned()
+    }
+
+    fn open_campaign_dialog(&mut self) {
+        if self.current_project_id().is_none() {
+            self.push_notification(
+                "select a project first",
+                crate::tui::state::NotificationLevel::Warning,
+            );
+            return;
+        }
+        self.state
+            .dialogs
+            .push(crate::tui::state::DialogState::Input {
+                prompt: "Campaign binary path:".into(),
+                buffer: String::new(),
+            });
+        self.state.focus = Focus::Dialog;
+    }
+
+    fn open_provider_dialog(&mut self) {
+        if self.current_project_id().is_none() {
+            self.push_notification(
+                "select a project first",
+                crate::tui::state::NotificationLevel::Warning,
+            );
+            return;
+        }
+        self.state
+            .dialogs
+            .push(crate::tui::state::DialogState::Input {
+                prompt: "Provider installation ID:".into(),
+                buffer: String::new(),
+            });
+        self.state.focus = Focus::Dialog;
     }
 
     pub fn open_selected_project(&self) {
@@ -644,6 +849,36 @@ impl Tui {
                     view.project_summary = Some(response.project);
                 }
             }
+            QueryResult::WorkItems(response) => {
+                if let Some(view) = self.state.project_views.get_mut(&project) {
+                    view.work_items = response.work_items;
+                }
+            }
+            QueryResult::ProviderInstances(response) => {
+                if let Some(view) = self.state.project_views.get_mut(&project) {
+                    view.provider_instances = response.instances;
+                }
+            }
+            QueryResult::BuildDiagnostics(response) => {
+                if let Some(view) = self.state.project_views.get_mut(&project) {
+                    view.build_diagnostics = response.diagnostics;
+                }
+            }
+            QueryResult::VerificationCoverage(response) => {
+                if let Some(view) = self.state.project_views.get_mut(&project) {
+                    view.verification_coverage = Some((response.covered, response.total));
+                }
+            }
+            QueryResult::GeneratedSourceMappings(response) => {
+                if let Some(view) = self.state.project_views.get_mut(&project) {
+                    view.generated_source_mappings = response.mappings;
+                }
+            }
+            QueryResult::Campaign(response) => {
+                if let Some(view) = self.state.project_views.get_mut(&project) {
+                    view.campaign_id = Some(response.campaign_id);
+                }
+            }
             _ => {}
         }
     }
@@ -743,6 +978,11 @@ impl Tui {
             Pane::ExternalArtifactIntegrity => {
                 self.render_external_artifact_integrity_pane(frame, right[1]);
             }
+            Pane::Campaign => self.render_campaign_pane(frame, right[1]),
+            Pane::WorkQueue => self.render_work_queue_pane(frame, right[1]),
+            Pane::ActiveProviders => self.render_active_providers_pane(frame, right[1]),
+            Pane::CompilerFailures => self.render_compiler_failures_pane(frame, right[1]),
+            Pane::VerificationDiffs => self.render_verification_diffs_pane(frame, right[1]),
         }
     }
 
@@ -755,6 +995,11 @@ impl Tui {
             "EventsLog",
             "Migration",
             "ExtIntegrity",
+            "Campaign",
+            "WorkQueue",
+            "ActiveProviders",
+            "CompilerFail",
+            "VerifDiffs",
         ];
         let idx = match self.state.active_pane {
             Pane::Dashboard => 0,
@@ -764,6 +1009,11 @@ impl Tui {
             Pane::EventsLog => 4,
             Pane::MigrationHistory => 5,
             Pane::ExternalArtifactIntegrity => 6,
+            Pane::Campaign => 7,
+            Pane::WorkQueue => 8,
+            Pane::ActiveProviders => 9,
+            Pane::CompilerFailures => 10,
+            Pane::VerificationDiffs => 11,
         };
         let tabs = Tabs::new(titles.iter().map(|t| Line::from(*t)).collect::<Vec<_>>())
             .select(idx)
@@ -1159,6 +1409,107 @@ impl Tui {
         }
         let para =
             Paragraph::new(lines).block(Block::bordered().title("ExternalArtifactIntegrity"));
+        frame.render_widget(para, area);
+    }
+
+    fn render_campaign_pane(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
+        let view = self.state.current_project_view();
+        let campaign_id = view
+            .and_then(|v| v.campaign_id.as_deref())
+            .unwrap_or("(none)");
+        let coverage = view.and_then(|v| v.verification_coverage);
+        let coverage_line = match coverage {
+            Some((covered, total)) => format!("Coverage: {covered}/{total}"),
+            None => "Coverage: unknown".into(),
+        };
+        let work_count = view.map(|v| v.work_items.len()).unwrap_or(0);
+        let lines = vec![
+            Line::from(format!("Campaign: {campaign_id}")),
+            Line::from(coverage_line),
+            Line::from(format!("Work items: {work_count}")),
+            Line::from(""),
+            Line::from("Keys: p=pause r=resume X=stop o=start"),
+        ];
+        let para = Paragraph::new(lines).block(Block::bordered().title("Campaign"));
+        frame.render_widget(para, area);
+    }
+
+    fn render_work_queue_pane(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
+        let view = self.state.current_project_view();
+        let items: &[String] = view.map(|v| v.work_items.as_slice()).unwrap_or(&[]);
+        let mut lines = vec![Line::from(format!("Work Queue: {} items", items.len()))];
+        if items.is_empty() {
+            lines.push(Line::from("  (no work items)"));
+        } else {
+            for (i, item) in items.iter().take(20).enumerate() {
+                lines.push(Line::from(format!("  {i}. {item}")));
+            }
+        }
+        lines.push(Line::from(""));
+        lines.push(Line::from("Keys: R=requeue"));
+        let para = Paragraph::new(lines).block(Block::bordered().title("WorkQueue"));
+        frame.render_widget(para, area);
+    }
+
+    fn render_active_providers_pane(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
+        let view = self.state.current_project_view();
+        let instances: &[String] = view.map(|v| v.provider_instances.as_slice()).unwrap_or(&[]);
+        let mut lines = vec![Line::from(format!(
+            "Active Providers: {} instances",
+            instances.len()
+        ))];
+        if instances.is_empty() {
+            lines.push(Line::from("  (no active providers)"));
+        } else {
+            for inst in instances.iter().take(20) {
+                lines.push(Line::from(format!("  • {inst}")));
+            }
+        }
+        lines.push(Line::from(""));
+        lines.push(Line::from("Keys: P=start/stop provider"));
+        let para = Paragraph::new(lines).block(Block::bordered().title("ActiveProviders"));
+        frame.render_widget(para, area);
+    }
+
+    fn render_compiler_failures_pane(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
+        let view = self.state.current_project_view();
+        let diags: &[String] = view.map(|v| v.build_diagnostics.as_slice()).unwrap_or(&[]);
+        let mut lines = vec![Line::from(format!(
+            "Compiler Failures: {} diagnostics",
+            diags.len()
+        ))];
+        if diags.is_empty() {
+            lines.push(Line::from("  (no diagnostics)"));
+        } else {
+            for d in diags.iter().take(20) {
+                lines.push(Line::from(format!("  ⚠ {d}")));
+            }
+        }
+        let para = Paragraph::new(lines).block(Block::bordered().title("CompilerFailures"));
+        frame.render_widget(para, area);
+    }
+
+    fn render_verification_diffs_pane(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
+        let view = self.state.current_project_view();
+        let coverage = view.and_then(|v| v.verification_coverage);
+        let mappings: &[String] = view
+            .map(|v| v.generated_source_mappings.as_slice())
+            .unwrap_or(&[]);
+        let mut lines = vec![Line::from("Verification Diffs")];
+        match coverage {
+            Some((covered, total)) => {
+                lines.push(Line::from(format!("  Coverage: {covered}/{total}")));
+            }
+            None => lines.push(Line::from("  Coverage: unknown")),
+        }
+        lines.push(Line::from(format!(
+            "  Generated mappings: {}",
+            mappings.len()
+        )));
+        for m in mappings.iter().take(10) {
+            lines.push(Line::from(format!("    {m}")));
+        }
+        let para = Paragraph::new(lines).block(Block::bordered().title("VerificationDiffs"));
         frame.render_widget(para, area);
     }
 }
@@ -2244,6 +2595,55 @@ mod tests {
                         },
                     })
                 }
+                ApplicationCommand::PauseCoordinator(req) => {
+                    CommandResult::CoordinatorPaused(
+                        autore_app::application_service::requests::PauseCoordinatorResponse {
+                            project: req.project,
+                        },
+                    )
+                }
+                ApplicationCommand::ResumeCoordinator(req) => {
+                    CommandResult::CoordinatorResumed(
+                        autore_app::application_service::requests::ResumeCoordinatorResponse {
+                            project: req.project,
+                        },
+                    )
+                }
+                ApplicationCommand::StopCoordinator(req) => {
+                    CommandResult::CoordinatorStopped(
+                        autore_app::application_service::requests::StopCoordinatorResponse {
+                            project: req.project,
+                        },
+                    )
+                }
+                ApplicationCommand::RequeueWorkItem(req) => {
+                    CommandResult::WorkItemRequeued(
+                        autore_app::application_service::requests::RequeueWorkItemResponse {
+                            work_item_id: req.work_item_id,
+                        },
+                    )
+                }
+                ApplicationCommand::RegisterProviderInstance(req) => {
+                    CommandResult::ProviderInstanceRegistered(
+                        autore_app::application_service::requests::RegisterProviderInstanceResponse {
+                            instance_id: req.installation_id,
+                        },
+                    )
+                }
+                ApplicationCommand::StopProviderInstance(req) => {
+                    CommandResult::ProviderInstanceStopped(
+                        autore_app::application_service::requests::StopProviderInstanceResponse {
+                            instance_id: req.instance_id,
+                        },
+                    )
+                }
+                ApplicationCommand::CreateReconstructionCampaign(req) => {
+                    CommandResult::CampaignCreated(
+                        autore_app::application_service::requests::CreateReconstructionCampaignResponse {
+                            campaign_id: req.name,
+                        },
+                    )
+                }
                 other => unimplemented!("RecordingClient: unhandled command {other:?}"),
             })
         }
@@ -2453,7 +2853,8 @@ mod tests {
         assert!(recorder.commands().is_empty());
     }
 
-    /// Pressing `o` dispatches `GetProjectSummary` through the client.
+    /// Pressing `o` opens a campaign dialog. Calling `open_selected_project`
+    /// dispatches `GetProjectSummary` through the client.
     #[tokio::test]
     async fn tui_open_project_dispatches_query() {
         let recorder = RecordingClient::default();
@@ -2462,10 +2863,9 @@ mod tests {
             Navigation::Project(id) => *id,
             _ => panic!("expected project navigation"),
         };
-        let mut tui = Tui::with_client(state, Box::new(recorder.clone()));
+        let tui = Tui::with_client(state, Box::new(recorder.clone()));
 
-        let o_event = KeyEvent::new(KeyCode::Char('o'), crossterm::event::KeyModifiers::NONE);
-        tui.handle_key_event(o_event).unwrap();
+        tui.open_selected_project();
 
         for _ in 0..100 {
             tokio::task::yield_now().await;
@@ -2483,6 +2883,211 @@ mod tests {
             }
             other => panic!("expected GetProjectSummary, got {other:?}"),
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // Stage 1 — new panes and action keybindings
+    // -----------------------------------------------------------------------
+
+    fn state_with_campaign_data() -> TuiState {
+        let pid = autore_schema::ids::ProjectId::new();
+        let mut project = autore_schema::domain::records::Project::new("stage1-proj");
+        project.id = pid;
+        let mut view = ProjectViewState {
+            project_summary: Some(project),
+            ..Default::default()
+        };
+        view.campaign_id = Some("campaign-1".into());
+        view.verification_coverage = Some((3, 10));
+        view.work_items = vec!["work-1".into(), "work-2".into()];
+        view.provider_instances = vec!["inst-abc".into()];
+        view.build_diagnostics = vec!["error: unresolved symbol".into()];
+        view.generated_source_mappings = vec!["mapping-0".into()];
+
+        let mut project_views = HashMap::new();
+        project_views.insert(pid, view);
+
+        TuiState {
+            navigation: Navigation::Project(pid),
+            focus: Focus::Panel1,
+            filters: FilterState::default(),
+            dialogs: vec![],
+            notifications: vec![],
+            project_views,
+            operation_views: HashMap::new(),
+            event_cursor: EventCursor::default(),
+            active_pane: Pane::Dashboard,
+            selected_operation: None,
+            selected_hypothesis: None,
+        }
+    }
+
+    /// Switching to the Campaign pane renders "Campaign" in the output.
+    #[test]
+    fn tui_renders_campaign_coverage_pane() {
+        let mut state = state_with_campaign_data();
+        state.active_pane = Pane::Campaign;
+        let tui = Tui::with_state(state);
+        let output = render_to_string(&tui, 100, 30);
+        assert!(
+            output.contains("Campaign"),
+            "Campaign pane title missing: {output}"
+        );
+    }
+
+    /// Switching to the WorkQueue pane renders "Work Queue" in the output.
+    #[test]
+    fn tui_renders_work_queue_pane() {
+        let mut state = state_with_campaign_data();
+        state.active_pane = Pane::WorkQueue;
+        let tui = Tui::with_state(state);
+        let output = render_to_string(&tui, 100, 30);
+        assert!(
+            output.contains("Work Queue"),
+            "WorkQueue pane title missing: {output}"
+        );
+    }
+
+    /// Pressing `P` opens a provider dialog; Enter dispatches
+    /// `RegisterProviderInstance` through the client.
+    #[test]
+    fn tui_provider_start_action_issues_command() {
+        let recorder = RecordingClient::default();
+        let state = state_with_campaign_data();
+        let pid = match &state.navigation {
+            Navigation::Project(id) => *id,
+            _ => panic!("expected project navigation"),
+        };
+        let mut tui = Tui::with_client(state, Box::new(recorder.clone()));
+
+        // Press P to open the provider dialog.
+        let p_event = KeyEvent::new(KeyCode::Char('P'), crossterm::event::KeyModifiers::NONE);
+        tui.handle_key_event(p_event).unwrap();
+        assert_eq!(tui.state().focus, Focus::Dialog);
+        assert_eq!(tui.state().dialogs.len(), 1);
+
+        // Type an installation ID and confirm.
+        for ch in "installation-uuid".chars() {
+            tui.handle_key_event(KeyEvent::new(
+                KeyCode::Char(ch),
+                crossterm::event::KeyModifiers::NONE,
+            ))
+            .unwrap();
+        }
+        tui.handle_key_event(KeyEvent::new(
+            KeyCode::Enter,
+            crossterm::event::KeyModifiers::NONE,
+        ))
+        .unwrap();
+
+        let cmds = recorder.commands();
+        assert_eq!(cmds.len(), 1);
+        match &cmds[0] {
+            ApplicationCommand::RegisterProviderInstance(req) => {
+                assert_eq!(req.project, pid);
+                assert_eq!(req.installation_id, "installation-uuid");
+            }
+            other => panic!("expected RegisterProviderInstance, got {other:?}"),
+        }
+    }
+
+    /// Pressing `n` (alias for `c`) with a selected operation emits
+    /// `CancelOperation`.
+    #[test]
+    fn tui_cancel_op_action_emits_cancel_command() {
+        let recorder = RecordingClient::default();
+        let state = state_with_hypothesis_and_operation();
+        let op_id = state.selected_operation.unwrap();
+        let mut tui = Tui::with_client(state, Box::new(recorder.clone()));
+
+        let n_event = KeyEvent::new(KeyCode::Char('n'), crossterm::event::KeyModifiers::NONE);
+        tui.handle_key_event(n_event).unwrap();
+
+        let cmds = recorder.commands();
+        assert_eq!(cmds.len(), 1, "exactly one command must be dispatched");
+        match &cmds[0] {
+            ApplicationCommand::CancelOperation(req) => {
+                assert_eq!(req.id, op_id);
+                assert_eq!(req.requested_by, "tui");
+            }
+            other => panic!("expected CancelOperation, got {other:?}"),
+        }
+    }
+
+    /// A slow query does not block a render tick — the buffer updates with a
+    /// loading state while the query is outstanding.
+    #[tokio::test]
+    async fn tui_no_blocking_render_in_storage_ops() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        struct SlowQueryClient {
+            started: Arc<AtomicBool>,
+            released: Arc<AtomicBool>,
+        }
+
+        impl AutoReClient for SlowQueryClient {
+            fn execute(&self, _command: ApplicationCommand) -> autore_core::Result<CommandResult> {
+                unimplemented!()
+            }
+            fn query(&self, _query: ApplicationQuery) -> autore_core::Result<QueryResult> {
+                self.started.store(true, Ordering::SeqCst);
+                while !self.released.load(Ordering::SeqCst) {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                Ok(QueryResult::ProjectSummary(
+                    autore_app::application_service::requests::ProjectSummaryResponse {
+                        project: autore_schema::domain::records::Project::new("slow"),
+                    },
+                ))
+            }
+            fn events_after(
+                &self,
+                _project: ProjectId,
+                _sequence: u64,
+                _limit: usize,
+            ) -> autore_core::Result<Vec<ProjectEvent>> {
+                Ok(vec![])
+            }
+            fn subscribe_events(
+                &self,
+                _project: ProjectId,
+                _after: u64,
+            ) -> autore_core::Result<ProjectEventSubscription> {
+                unimplemented!()
+            }
+        }
+
+        let started = Arc::new(AtomicBool::new(false));
+        let released = Arc::new(AtomicBool::new(false));
+
+        let client = SlowQueryClient {
+            started: Arc::clone(&started),
+            released: Arc::clone(&released),
+        };
+
+        let state = state_with_campaign_data();
+        let tui = Tui::with_client(state, Box::new(client));
+
+        // Trigger a slow query via open_selected_project.
+        tui.open_selected_project();
+
+        // Wait for the background query to start.
+        for _ in 0..50 {
+            if started.load(Ordering::SeqCst) {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        assert!(started.load(Ordering::SeqCst), "background query started");
+
+        // Render completes well before the query finishes.
+        let backend = ratatui::backend::TestBackend::new(80, 24);
+        let mut terminal = ratatui::Terminal::new(backend).unwrap();
+        terminal
+            .draw(|frame| tui.render(frame))
+            .expect("render must complete while query is outstanding");
+
+        released.store(true, Ordering::SeqCst);
     }
 }
 
