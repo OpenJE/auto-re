@@ -15,6 +15,7 @@
 //! containment, configured image name, no shell metacharacters) before
 //! execution.
 
+pub mod classification;
 pub mod diagnostics;
 pub mod docker_msvc2002;
 pub mod trait_def;
@@ -23,6 +24,7 @@ pub mod types;
 #[cfg(test)]
 mod tests;
 
+pub use classification::{BuildFailureKind, RepairStrategy, classify, select_repair_strategy};
 pub use diagnostics::parse_msvc_diagnostics;
 pub use docker_msvc2002::{DockerMsvc2002BuildProvider, DockerMsvc2002Config};
 pub use trait_def::{BuildProviderError, BuildProviderTrait, BuildResult};
