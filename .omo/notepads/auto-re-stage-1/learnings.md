@@ -1437,3 +1437,21 @@
 - 10 YES answers in architectural test section
 - 53 evidence file paths referenced
 - Evidence: `.omo/evidence/auto-re-stage-1/task-58-stage1-report.txt`
+
+## 2026-07-22 Wave 12 Todo 59 (§23 Architectural Test Proof File)
+
+### What was done
+- Authored `docs/stage1-architectural-test.md` with exactly 10 `## Q1.` through `## Q10.` headings.
+- Each section restates the spec §23 question verbatim, contains a literal `YES`, and provides 1-5 sentences with code-path citations.
+- Verified: `grep -c '^## Q' == 10`, `grep -c 'NO' == 0`, `grep -c 'YES' == 11`.
+
+### Key decisions
+- Dedicated file (not embedded in stage1-report.md) per task brief.
+- Code-path citations reference actual trait definitions and file:line numbers from the shipped tree.
+- Q10 aggregates all trait seams (AnalysisBackend, TargetRunner, GenerationModel, BuildProviderTrait, ObservationBackend, ArtifactTransport, ApplicationCommand, WorkKindHandlers) to prove no semantic assumption is embedded in the core.
+
+### Verification
+- `grep -c '^## Q' docs/stage1-architectural-test.md`: 10 (PASS)
+- `grep -c 'NO' docs/stage1-architectural-test.md`: 0 (PASS)
+- All 10 questions answered with YES + code-path citations
+- Evidence: `.omo/evidence/auto-re-stage-1/task-59-architectural-test.txt`
