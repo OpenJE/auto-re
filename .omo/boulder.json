@@ -151,6 +151,19 @@
       "status": "completed",
       "ended_at": "2026-07-22T00:11:22.156Z",
       "elapsed_ms": 79949
+    },
+    "todo:13": {
+      "task_key": "todo:13",
+      "task_label": "13",
+      "task_title": "Implement external IDA provider binary `providers/ida/` over `idax = 0.3.0`",
+      "session_id": "opencode:ses_078d4aecaffeI4ytpaadiBFho1",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-07-22T00:28:35.360Z",
+      "started_at": "2026-07-22T00:27:45.651Z",
+      "status": "completed",
+      "ended_at": "2026-07-22T00:28:35.360Z",
+      "elapsed_ms": 49709
     }
   },
   "schema_version": 2,
@@ -980,7 +993,7 @@
       "plan_name": "auto-re-stage-1",
       "status": "active",
       "started_at": "2026-07-21T17:44:04.822Z",
-      "updated_at": "2026-07-22T00:11:22.156Z",
+      "updated_at": "2026-07-22T00:28:35.360Z",
       "session_ids": [
         "opencode:ses_07b120cc7ffePfarZ4ruWIR9gQ",
         "opencode:ses_07a348dafffe99Dm1TLNlyqYbw"
@@ -1131,12 +1144,25 @@
           "status": "completed",
           "ended_at": "2026-07-22T00:11:22.156Z",
           "elapsed_ms": 79949
+        },
+        "todo:13": {
+          "task_key": "todo:13",
+          "task_label": "13",
+          "task_title": "Implement external IDA provider binary `providers/ida/` over `idax = 0.3.0`",
+          "session_id": "opencode:ses_078d4aecaffeI4ytpaadiBFho1",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-07-22T00:28:35.360Z",
+          "started_at": "2026-07-22T00:27:45.651Z",
+          "status": "completed",
+          "ended_at": "2026-07-22T00:28:35.360Z",
+          "elapsed_ms": 49709
         }
       }
     }
   },
   "active_work_id": "auto-re-stage-1-1ac8869f",
-  "updated_at": "2026-07-22T00:11:22.156Z",
+  "updated_at": "2026-07-22T00:28:35.360Z",
   "status": "active",
   "agent": "atlas"
 }
