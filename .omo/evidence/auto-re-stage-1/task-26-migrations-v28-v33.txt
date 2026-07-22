@@ -1,0 +1,65 @@
+Task: Wave 6 Todo 26 — additive V28..V33 migrations for generation, build, verification records
+Date: 2026-07-22
+
+## Files created
+
+1. migrations/V28__generated_declaration_artifacts.sql
+   - Table: generated_declaration_artifacts (id BLOB PK, source_mapping_id BLOB NOT NULL, kind TEXT NOT NULL, declaration_artifact_id BLOB NOT NULL, last_change_hash BLOB NOT NULL)
+   - Indexes: idx_gen_decl_art_source_mapping
+   - Loose BLOB reference to generated_source_mappings (no FK constraint)
+
+2. migrations/V29__generated_definition_artifacts.sql
+   - Table: generated_definition_artifacts (id BLOB PK, source_mapping_id BLOB NOT NULL, kind TEXT NOT NULL, definition_artifact_id BLOB NOT NULL)
+   - Indexes: idx_gen_defn_art_source_mapping
+   - Loose BLOB reference to generated_source_mappings (no FK constraint)
+
+3. migrations/V30__build_attempts.sql
+   - Table: build_attempts (id BLOB PK, work_item_id BLOB NULL, configuration_blob TEXT, status TEXT NOT NULL, exit_code INT NULL, stdout_artifact_id BLOB NULL, stderr_artifact_id BLOB NULL, log_artifact_id BLOB NULL, started_at TEXT NOT NULL, ended_at TEXT NULL)
+   - Indexes: idx_build_attempts_work_item, idx_build_attempts_status
+   - work_item_id is loose BLOB reference (no FK constraint)
+
+4. migrations/V31__build_diagnostics.sql
+   - Table: build_diagnostics (id BLOB PK, build_attempt_id BLOB NOT NULL, diagnostic_code TEXT, severity TEXT, file_path TEXT, line INT NULL, column INT NULL, related_entity_id BLOB NULL, message TEXT, candidate_cause TEXT NULL, suggested_work_kind TEXT NULL)
+   - Indexes: idx_build_diagnostics_attempt, idx_build_diagnostics_severity
+   - build_attempt_id is loose BLOB reference (no FK constraint)
+
+5. migrations/V32__verification_scenarios.sql
+   - Table: verification_scenarios (id BLOB PK, name TEXT NOT NULL, level TEXT NOT NULL, scenario_blob TEXT, original_execution_blob TEXT NULL, captured_observations_blob TEXT NULL)
+   - Indexes: idx_verification_scenarios_level
+
+6. migrations/V33__verification_comparisons.sql
+   - Table: verification_comparisons (id BLOB PK, scenario_id BLOB NOT NULL, candidate_run_id BLOB NULL, comparison_kind TEXT, equal_count INT, equivalent_count INT, different_count INT, inconclusive_count INT, not_observed_count INT, failed_count INT, evidence_artifact_id BLOB NULL, generated_at TEXT NOT NULL)
+   - Indexes: idx_verification_comparisons_scenario, idx_verification_comparisons_kind
+
+## Files modified
+
+7. autore-store/tests/migrations_stage1.rs
+   - Added STAGE1_V28_V33_TABLES constant with 6 new table names
+   - Updated EXPECTED_MIGRATION_COUNT from 27 to 33
+   - Updated migrations_apply_clean to check V28..V33 tables
+   - Added migrations_v14_to_v33_idempotent test
+   - Added migrations_v14_to_v33_rollback_safe test
+   - Updated module doc comment to V14..V33
+   - Existing V14..V27 tests unchanged and still pass
+
+## Verification results
+
+- cargo clean -p autore-store && cargo test -p autore-store: 172/172 passed (158 unit + 6 fixture + 1 smoke + 7 stage1 migrations)
+- cargo clippy -p autore-store --all-targets -- -D warnings: clean
+- cargo build (default members): clean
+- cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction --exclude openai-compatible-provider --all-targets -- -D warnings: clean
+- cargo fmt --all --check: clean
+
+## Design decisions
+
+- All tables use CREATE TABLE IF NOT EXISTS — idempotent, no destructive DDL.
+- All primary keys are BLOB (UUIDv7 application-supplied), no AUTOINCREMENT.
+- JSON payloads stored as TEXT (matching V14..V27 convention).
+- No FOREIGN KEY constraints — all references are loose BLOB columns, per Wave 6 additive-only pattern.
+- No cascade deletes, no DB-generated ids.
+- Indexes use CREATE INDEX IF NOT EXISTS.
+- Timestamps are TEXT (ISO 8601 convention).
+- V28/V29 declaration/definition artifacts use loose BLOB refs to generated_source_mappings.
+- V30 build_attempts.work_item_id is NULLable (some builds may not be associated with a work item).
+- V31 build_diagnostics.build_attempt_id is NOT NULL (every diagnostic belongs to a build).
+- V32/V33 verification tables use loose BLOB references for cross-table linkage.

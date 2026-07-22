@@ -1,4 +1,4 @@
-//! Stage 1 migration tests (V14..V23).
+//! Stage 1 migration tests (V14..V33).
 //!
 //! Verifies that the additive reconstruction migrations apply cleanly,
 //! are idempotent, and are safe to roll back within a transaction.
@@ -26,8 +26,18 @@ const STAGE1_V24_V27_TABLES: &[&str] = &[
     "repair_attempts",
 ];
 
-/// Total number of migrations (V1..V27).
-const EXPECTED_MIGRATION_COUNT: i64 = 27;
+/// V28..V33 tables: generation artifacts, build records, verification.
+const STAGE1_V28_V33_TABLES: &[&str] = &[
+    "generated_declaration_artifacts",
+    "generated_definition_artifacts",
+    "build_attempts",
+    "build_diagnostics",
+    "verification_scenarios",
+    "verification_comparisons",
+];
+
+/// Total number of migrations (V1..V33).
+const EXPECTED_MIGRATION_COUNT: i64 = 33;
 
 fn table_exists(conn: &rusqlite::Connection, name: &str) -> bool {
     let count: i64 = conn
@@ -43,11 +53,11 @@ fn table_exists(conn: &rusqlite::Connection, name: &str) -> bool {
 #[test]
 fn migrations_apply_clean() {
     let db = autore_store::Database::open_in_memory()
-        .expect("in-memory database should open and apply V1..V23");
+        .expect("in-memory database should open and apply V1..V33");
 
     let conn = db.connection().unwrap();
 
-    // refinery_schema_history should contain exactly 23 entries.
+    // refinery_schema_history should contain all migration entries.
     let count: i64 = conn
         .query_row("SELECT COUNT(*) FROM refinery_schema_history", [], |row| {
             row.get(0)
@@ -71,6 +81,14 @@ fn migrations_apply_clean() {
         assert!(
             table_exists(&conn, table),
             "V24..V27 table '{table}' should exist after migration"
+        );
+    }
+
+    // All V28..V33 tables must exist.
+    for table in STAGE1_V28_V33_TABLES {
+        assert!(
+            table_exists(&conn, table),
+            "V28..V33 table '{table}' should exist after migration"
         );
     }
 }
@@ -267,6 +285,111 @@ fn migrations_v14_to_v27_rollback_safe() {
         assert!(
             !table_exists(&conn, table),
             "V24..V27 table '{table}' should not exist after ROLLBACK"
+        );
+    }
+}
+
+#[test]
+fn migrations_v14_to_v33_idempotent() {
+    let db = autore_store::Database::open_in_memory().expect("initial migration should succeed");
+
+    db.migrate()
+        .expect("second migration run should succeed without errors");
+
+    let conn = db.connection().unwrap();
+    let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM refinery_schema_history", [], |row| {
+            row.get(0)
+        })
+        .expect("query refinery history after re-run");
+    assert_eq!(
+        count, EXPECTED_MIGRATION_COUNT,
+        "history should not duplicate after idempotent re-run"
+    );
+
+    for table in STAGE1_V28_V33_TABLES {
+        assert!(
+            table_exists(&conn, table),
+            "V28..V33 table '{table}' should exist after idempotent re-run"
+        );
+    }
+}
+
+#[test]
+fn migrations_v14_to_v33_rollback_safe() {
+    let conn = rusqlite::Connection::open_in_memory().expect("open raw connection");
+
+    let base_sql: &[&str] = &[
+        include_str!("../../migrations/V1__initial_schema.sql"),
+        include_str!("../../migrations/V2__stage0_projects.sql"),
+        include_str!("../../migrations/V3__stage0_artifacts.sql"),
+        include_str!("../../migrations/V4__semantic_entities.sql"),
+        include_str!("../../migrations/V5__providers.sql"),
+        include_str!("../../migrations/V6__aliases_native.sql"),
+        include_str!("../../migrations/V7__evidence.sql"),
+        include_str!("../../migrations/V8__hypotheses.sql"),
+        include_str!("../../migrations/V9__contradictions_verification.sql"),
+        include_str!("../../migrations/V10__operations.sql"),
+        include_str!("../../migrations/V11__events.sql"),
+        include_str!("../../migrations/V12__drop_obsolete_v1.sql"),
+        include_str!("../../migrations/V13__derived_indexes.sql"),
+    ];
+    for sql in base_sql {
+        conn.execute_batch(sql)
+            .expect("base migration should apply cleanly");
+    }
+
+    for table in STAGE1_V28_V33_TABLES {
+        assert!(
+            !table_exists(&conn, table),
+            "V28..V33 table '{table}' should not exist before migrations"
+        );
+    }
+
+    conn.execute("BEGIN IMMEDIATE", [])
+        .expect("begin transaction");
+
+    let stage1_sql: &[&str] = &[
+        include_str!("../../migrations/V14__reconstruction_campaigns.sql"),
+        include_str!("../../migrations/V15__work_items.sql"),
+        include_str!("../../migrations/V16__work_dependencies.sql"),
+        include_str!("../../migrations/V17__work_fingerprints.sql"),
+        include_str!("../../migrations/V18__work_leases.sql"),
+        include_str!("../../migrations/V19__provider_installations.sql"),
+        include_str!("../../migrations/V20__provider_instances.sql"),
+        include_str!("../../migrations/V21__provider_runs.sql"),
+        include_str!("../../migrations/V22__capability_descriptors.sql"),
+        include_str!("../../migrations/V23__native_snapshots_and_dynamic_observations.sql"),
+        include_str!("../../migrations/V24__conflict_records.sql"),
+        include_str!("../../migrations/V25__generated_source_mappings.sql"),
+        include_str!("../../migrations/V26__blocked_reasons.sql"),
+        include_str!("../../migrations/V27__repair_attempts.sql"),
+        include_str!("../../migrations/V28__generated_declaration_artifacts.sql"),
+        include_str!("../../migrations/V29__generated_definition_artifacts.sql"),
+        include_str!("../../migrations/V30__build_attempts.sql"),
+        include_str!("../../migrations/V31__build_diagnostics.sql"),
+        include_str!("../../migrations/V32__verification_scenarios.sql"),
+        include_str!("../../migrations/V33__verification_comparisons.sql"),
+    ];
+    for sql in stage1_sql {
+        conn.execute_batch(sql)
+            .expect("Stage 1 migration should apply within transaction");
+    }
+
+    for table in STAGE1_V28_V33_TABLES {
+        assert!(
+            table_exists(&conn, table),
+            "V28..V33 table '{table}' should exist within transaction"
+        );
+    }
+
+    conn.execute("ROLLBACK", [])
+        .expect("rollback should succeed");
+
+    for table in STAGE1_V28_V33_TABLES {
+        assert!(
+            !table_exists(&conn, table),
+            "V28..V33 table '{table}' should not exist after ROLLBACK"
         );
     }
 }

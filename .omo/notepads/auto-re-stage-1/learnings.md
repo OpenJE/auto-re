@@ -614,3 +614,10 @@
 - `ProviderRuntime::spawn` completes the full 13-step bootstrap: CoordinatorBootstrap → bind socket → spawn child → authenticate (secret echo) → version negotiation → gRPC address exchange → channel connect → Negotiate RPC → package identity verification → concurrency limits → cancellation token. The test exercises all of these against the real provider binary.
 - The importer produces `AddHypothesis` commands for follow-up work (not `CreateWorkItems`). The predicate is `{capability_id}.follow-up-work`. This is a design choice: follow-up observations are hypotheses until accepted, at which point they become work items through a separate flow.
 - Event collection from the gRPC stream uses `tokio_stream::StreamExt::next` in a loop. The provider emits exactly 5 events for a successful execution: Accepted, Progress, ObservationProduced (raw), ObservationProduced (parsed), Completed (Succeeded).
+
+## 2026-07-22 Wave 6 Todo 26 (Migrations V28..V33)
+- V28..V33 use **loose BLOB references only** (no `REFERENCES` clauses), diverging from V24..V27 which used `REFERENCES`. This is deliberate: Wave 6 tables are additive-only and reference tables that may not yet exist in a Stage 0 database. Loose references avoid FK enforcement failures when referenced tables are absent.
+- `cargo clean -p autore-store` is required after adding new migration SQL files because refinery's `embed_migrations!` macro uses `include_str!` which the compiler caches. Without the clean, the new migrations won't be picked up by tests.
+- Migration test constants follow a versioned pattern: `STAGE1_V14_V23_TABLES`, `STAGE1_V24_V27_TABLES`, `STAGE1_V28_V33_TABLES`. Each constant is checked by `migrations_apply_clean` and has its own idempotent + rollback-safe test pair.
+- V30 `build_attempts.work_item_id` is nullable (BLOB NULL) — some builds may occur outside a work-item context (e.g., standalone compilation experiments).
+- V31 `build_diagnostics` includes `candidate_cause` and `suggested_work_kind` TEXT columns for downstream repair-work classification, pre-staging the schema for Todo 30 (build classification).

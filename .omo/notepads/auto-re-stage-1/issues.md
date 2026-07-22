@@ -162,3 +162,7 @@
 
 - **Follow-up work as `AddHypothesis` not `CreateWorkItems`**: The `LlmImporter` creates `AddHypothesis` commands with predicate `{capability_id}.follow-up-work` for `recommended_follow_up_work` items. The task brief expected `CreateWorkItems`. This is a design decision in Todo 23's importer: follow-up items start as proposed hypotheses and graduate to work items through the hypothesis acceptance flow. No bug — documented for traceability.
 - **Provider binary build latency**: The first test run (cold cache) triggers `cargo build -p openai-compatible-provider` which takes ~30s. Subsequent runs skip the build when the binary already exists. The `ensure_provider_binary()` helper checks for existence first.
+
+## Task 26 — Migrations V28..V33 (2026-07-22)
+- No blocking issues encountered.
+- **Note**: V28..V33 tables deliberately omit `REFERENCES` clauses (unlike V24..V27 which include them). This is because V28..V33 reference tables that may not exist in a Stage 0-only database, and loose BLOB references avoid FK enforcement failures. Future todos that wire these tables to repositories should consider whether to add FK constraints at that point.
