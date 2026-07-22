@@ -1,6 +1,6 @@
-//! External IDA provider binary with 9 capabilities over `idax` 0.3.0.
+//! External IDA provider binary with 9 static + 7 debug capabilities.
 //!
-//! Capabilities:
+//! Static analysis capabilities:
 //! - `ida.binary.open` — open an IDB via `idax::database`
 //! - `ida.binary.ingest` — whole-binary walk emitting observations + artifacts
 //! - `ida.program.refresh` — delta-only re-walk
@@ -10,6 +10,12 @@
 //! - `ida.references.query` — cross-reference query
 //! - `ida.reanalyze` — re-analyze an address range
 //! - `ida.native-artifact.export` — export IDA-native DB snapshot
+//!
+//! Debug capabilities:
+//! - `debug.target.launch` / `debug.target.stop`
+//! - `debug.scenario.execute` — execute a validated typed debugger scenario
+//! - `debug.function.capture` / `debug.function.trace`
+//! - `debug.memory.capture` / `debug.calls.capture`
 
 mod provider;
 

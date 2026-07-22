@@ -1,5 +1,7 @@
-//! Provider trait implementation with 9 IDA capabilities over idax 0.3.0.
+//! Provider trait implementation with 9 static + 7 debug IDA capabilities.
 
+use std::collections::HashMap;
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -12,6 +14,11 @@ use autore_provider_protocol::v1::{
     HealthRequest, HealthResponse, NegotiateRequest, NegotiateResponse, ShutdownRequest,
     ShutdownResponse, completed, diagnostic, execution_event, health_response,
 };
+use autore_reconstruction::dynamic::{
+    CaptureContext, Scenario, ScenarioResult, TargetRunner, WineGdbRunner, debug_capabilities,
+    permissive_validation_context,
+};
+use autore_schema::ids::{ArtifactId, EntityId};
 
 type BoxStream<T> = Pin<Box<dyn tokio_stream::Stream<Item = Result<T, Status>> + Send>>;
 type Event = execution_event::Event;
@@ -35,6 +42,7 @@ pub struct IdaProvider {
     instance_id: String,
     shutdown_signal: Arc<Notify>,
     _db_open: Arc<Mutex<bool>>,
+    runner: Arc<dyn TargetRunner + Send + Sync>,
 }
 
 impl IdaProvider {
@@ -43,6 +51,7 @@ impl IdaProvider {
             instance_id,
             shutdown_signal,
             _db_open: Arc::new(Mutex::new(false)),
+            runner: Arc::new(WineGdbRunner::from_env()),
         }
     }
 
@@ -57,7 +66,7 @@ impl IdaProvider {
     }
 
     fn capabilities() -> Vec<CapabilityDescriptor> {
-        vec![
+        let mut caps = vec![
             Self::cap("ida.binary.open", "IDA Binary Open"),
             Self::cap("ida.binary.ingest", "IDA Binary Ingest"),
             Self::cap("ida.program.refresh", "IDA Program Refresh"),
@@ -67,7 +76,9 @@ impl IdaProvider {
             Self::cap("ida.references.query", "IDA References Query"),
             Self::cap("ida.reanalyze", "IDA Reanalyze"),
             Self::cap("ida.native-artifact.export", "IDA Native Artifact Export"),
-        ]
+        ];
+        caps.extend(debug_capabilities());
+        caps
     }
 
     fn ctx(&self, req: &ExecutionRequest) -> Ctx {
@@ -100,6 +111,211 @@ macro_rules! evt {
     }};
 }
 
+impl IdaProvider {
+    fn debug_observation_event(
+        &self,
+        req: &ExecutionRequest,
+        seq: &mut u64,
+        obs: &autore_reconstruction::dynamic::DebugObservation,
+        artifacts: Vec<ArtifactDescriptor>,
+    ) -> ExecutionEvent {
+        let payload = serde_json::to_vec(obs).unwrap_or_default();
+        let ctx = self.ctx(req);
+        *seq += 1;
+        evt!(
+            ctx,
+            { *seq - 1 },
+            ObservationProduced {
+                observation_kind: "debug.observation".into(),
+                payload: payload,
+                artifacts: artifacts
+            }
+        )
+    }
+
+    fn debug_completed_event(
+        &self,
+        req: &ExecutionRequest,
+        seq: &mut u64,
+        status: completed::Status,
+        summary: &str,
+    ) -> ExecutionEvent {
+        let ctx = self.ctx(req);
+        *seq += 1;
+        evt!(
+            ctx,
+            { *seq - 1 },
+            Completed {
+                status: status as i32,
+                summary: summary.into()
+            }
+        )
+    }
+
+    fn debug_diagnostic_event(
+        &self,
+        req: &ExecutionRequest,
+        seq: &mut u64,
+        severity: diagnostic::Severity,
+        code: &str,
+        message: &str,
+    ) -> ExecutionEvent {
+        let ctx = self.ctx(req);
+        *seq += 1;
+        evt!(
+            ctx,
+            { *seq - 1 },
+            Diagnostic {
+                severity: severity as i32,
+                code: code.into(),
+                message: message.into()
+            }
+        )
+    }
+
+    fn emit_debug_result(
+        &self,
+        req: &ExecutionRequest,
+        result: Result<ScenarioResult, autore_reconstruction::dynamic::RunnerError>,
+        seq: &mut u64,
+    ) -> Vec<ExecutionEvent> {
+        let mut evts = Vec::new();
+        match result {
+            Ok(scenario_result) => {
+                let artifacts = scenario_result.ctx.artifacts.clone();
+                for obs in &scenario_result.ctx.observations {
+                    evts.push(self.debug_observation_event(req, seq, obs, artifacts.clone()));
+                }
+                let status = if scenario_result.status
+                    == autore_reconstruction::dynamic::ScenarioStatus::Passed
+                {
+                    completed::Status::Succeeded
+                } else {
+                    completed::Status::Failed
+                };
+                evts.push(self.debug_completed_event(req, seq, status, "debug session completed"));
+            }
+            Err(e) => {
+                evts.push(self.debug_diagnostic_event(
+                    req,
+                    seq,
+                    diagnostic::Severity::Error,
+                    "debug.execution-failed",
+                    &e.to_string(),
+                ));
+                evts.push(self.debug_completed_event(
+                    req,
+                    seq,
+                    completed::Status::Failed,
+                    "debug session failed",
+                ));
+            }
+        }
+        evts
+    }
+
+    async fn execute_debug(
+        &self,
+        req: &ExecutionRequest,
+    ) -> Result<ScenarioResult, autore_reconstruction::dynamic::RunnerError> {
+        use autore_reconstruction::dynamic::RunnerError;
+        use autore_reconstruction::dynamic::execute_scenario;
+
+        let cap = req.capability_id.as_str();
+        let runner = Arc::clone(&self.runner);
+
+        if cap == "debug.target.launch" {
+            let payload: LaunchRequest = serde_json::from_slice(&req.payload)
+                .map_err(|e| RunnerError::InvalidRequest(format!("invalid launch payload: {e}")))?;
+            runner
+                .launch(payload.exe_artifact, payload.env, payload.working_dir)
+                .await?;
+            let mut ctx = CaptureContext::new();
+            ctx.record_observation("target-launched", None, None, None, serde_json::json!({}));
+            return Ok(ScenarioResult {
+                ctx,
+                status: autore_reconstruction::dynamic::ScenarioStatus::Passed,
+            });
+        }
+
+        if cap == "debug.target.stop" {
+            runner.stop().await?;
+            let mut ctx = CaptureContext::new();
+            ctx.record_observation("target-stopped", None, None, None, serde_json::json!({}));
+            return Ok(ScenarioResult {
+                ctx,
+                status: autore_reconstruction::dynamic::ScenarioStatus::Passed,
+            });
+        }
+
+        if cap == "debug.scenario.execute" {
+            let scenario: Scenario = serde_json::from_slice(&req.payload).map_err(|e| {
+                RunnerError::InvalidRequest(format!("invalid scenario payload: {e}"))
+            })?;
+            let (entities, segments, allowlist) = permissive_validation_context(&scenario);
+            autore_reconstruction::dynamic::ScenarioVerifier::validate(
+                &scenario, &entities, &segments, &allowlist,
+            )
+            .map_err(|e| RunnerError::InvalidRequest(format!("scenario validation failed: {e}")))?;
+            return execute_scenario(&*runner, &scenario).await;
+        }
+
+        if cap == "debug.function.capture" {
+            let payload: FunctionCaptureRequest =
+                serde_json::from_slice(&req.payload).map_err(|e| {
+                    RunnerError::InvalidRequest(format!("invalid function capture payload: {e}"))
+                })?;
+            let ctx = runner
+                .capture_function(payload.entity, payload.run_count)
+                .await?;
+            return Ok(ScenarioResult {
+                ctx,
+                status: autore_reconstruction::dynamic::ScenarioStatus::Passed,
+            });
+        }
+
+        if cap == "debug.function.trace" {
+            let payload: FunctionTraceRequest =
+                serde_json::from_slice(&req.payload).map_err(|e| {
+                    RunnerError::InvalidRequest(format!("invalid function trace payload: {e}"))
+                })?;
+            let ctx = runner.trace_function(payload.entity, payload.depth).await?;
+            return Ok(ScenarioResult {
+                ctx,
+                status: autore_reconstruction::dynamic::ScenarioStatus::Passed,
+            });
+        }
+
+        if cap == "debug.memory.capture" {
+            let payload: MemoryCaptureRequest =
+                serde_json::from_slice(&req.payload).map_err(|e| {
+                    RunnerError::InvalidRequest(format!("invalid memory capture payload: {e}"))
+                })?;
+            let ctx = runner.capture_memory(payload.addr, payload.size).await?;
+            return Ok(ScenarioResult {
+                ctx,
+                status: autore_reconstruction::dynamic::ScenarioStatus::Passed,
+            });
+        }
+
+        if cap == "debug.calls.capture" {
+            let payload: CallsCaptureRequest =
+                serde_json::from_slice(&req.payload).map_err(|e| {
+                    RunnerError::InvalidRequest(format!("invalid calls capture payload: {e}"))
+                })?;
+            let ctx = runner.capture_calls(payload.entity).await?;
+            return Ok(ScenarioResult {
+                ctx,
+                status: autore_reconstruction::dynamic::ScenarioStatus::Passed,
+            });
+        }
+
+        Err(RunnerError::InvalidRequest(format!(
+            "unknown debug capability: {cap}"
+        )))
+    }
+}
+
 #[tonic::async_trait]
 impl Provider for IdaProvider {
     async fn negotiate(
@@ -117,7 +333,7 @@ impl Provider for IdaProvider {
             package_id: "ida.analysis".into(),
             package_version: "0.1.0".into(),
             capabilities: Self::capabilities(),
-            max_concurrency: br#"{"ida.binary.open":4,"ida.binary.ingest":4,"ida.program.refresh":4,"ida.function.snapshot":4,"ida.type.snapshot":4,"ida.class.snapshot":4,"ida.references.query":4,"ida.reanalyze":4,"ida.native-artifact.export":4}"#.to_vec(),
+            max_concurrency: br#"{"ida.binary.open":4,"ida.binary.ingest":4,"ida.program.refresh":4,"ida.function.snapshot":4,"ida.type.snapshot":4,"ida.class.snapshot":4,"ida.references.query":4,"ida.reanalyze":4,"ida.native-artifact.export":4,"debug.target.launch":2,"debug.target.stop":2,"debug.scenario.execute":1,"debug.function.capture":1,"debug.function.trace":1,"debug.memory.capture":1,"debug.calls.capture":1}"#.to_vec(),
         }))
     }
 
@@ -324,6 +540,12 @@ impl Provider for IdaProvider {
                     }
                 ));
             }
+            cap_id if DEBUG_CAPABILITY_IDS.contains(&cap_id) => {
+                evts.push(evt!(ctx, { s }, Accepted {}));
+                s += 1;
+                let result = self.execute_debug(&req).await;
+                evts.extend(self.emit_debug_result(&req, result, &mut s));
+            }
             cap_id => {
                 let known = [
                     "ida.function.snapshot",
@@ -420,4 +642,44 @@ impl Provider for IdaProvider {
             pending_operations: 0,
         }))
     }
+}
+
+const DEBUG_CAPABILITY_IDS: &[&str] = &[
+    "debug.target.launch",
+    "debug.target.stop",
+    "debug.scenario.execute",
+    "debug.function.capture",
+    "debug.function.trace",
+    "debug.memory.capture",
+    "debug.calls.capture",
+];
+
+#[derive(Debug, serde::Deserialize)]
+struct LaunchRequest {
+    exe_artifact: ArtifactId,
+    env: HashMap<String, String>,
+    working_dir: PathBuf,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct FunctionCaptureRequest {
+    entity: EntityId,
+    run_count: u32,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct FunctionTraceRequest {
+    entity: EntityId,
+    depth: u32,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct MemoryCaptureRequest {
+    addr: u128,
+    size: usize,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct CallsCaptureRequest {
+    entity: EntityId,
 }

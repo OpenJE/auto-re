@@ -9,6 +9,7 @@
 
 pub mod analysis;
 pub mod build;
+pub mod dynamic;
 pub mod fingerprint;
 pub mod generation;
 pub mod identity;
@@ -27,6 +28,9 @@ pub use build::{
     BuildProviderTrait, BuildResult, CompileResult, CompileUnit, DiagnosticSeverity,
     DockerMsvc2002BuildProvider, DockerMsvc2002Config, GeneratorManifest, LinkResult,
     RunTestResult, SuggestedWorkKind,
+};
+pub use dynamic::{
+    AddressRange, Scenario, ScenarioValidationError, ScenarioVerifier, SetupOp, Step, StopOp,
 };
 pub use fingerprint::{
     FingerprintComparison, FingerprintInput, FingerprintSnapshot, InMemorySnapshot,

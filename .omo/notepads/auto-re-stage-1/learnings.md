@@ -663,3 +663,99 @@
 - Container names derived from `blake3(project_root)` provide deterministic, collision-resistant names for concurrent builds.
 - `pub(crate)` visibility on validation methods allows unit tests to exercise them directly without spawning Docker.
 - The provider binary pattern from `providers/fixture/` is reusable: bootstrap handshake (secret, negotiate), gRPC server on random port, `Provider` trait implementation routing capabilities to internal logic.
+
+## 2026-07-22 Wave 6 Todo 29 (Skeleton First Build Integration Test)
+
+### Key learnings
+- **`BuildProviderTrait` must be explicitly imported**: The trait methods (`configure_project`, `compile_units`, `link_target`, `collect_diagnostics`) are not available on `DockerMsvc2002BuildProvider` without `use BuildProviderTrait`. Rust requires traits to be in scope for method dispatch even when the concrete type is known.
+- **NixOS has no `/bin/bash`**: Shell script fixtures must use `#!/usr/bin/env bash` (or `#!/usr/bin/env sh`) for portable shebangs. Hard-coded `/bin/bash` fails on NixOS where bash lives in the Nix store.
+- **Env-var-based test configuration races in parallel tests**: `std::env::set_var` / `remove_var` are process-global and not thread-safe across parallel `cargo test` execution. Solution: use separate mock scripts (e.g., `mock-docker-success.sh` and `mock-docker-failure.sh`) instead of env-var-controlled behavior.
+- **`BuildAwareClient` wrapper pattern**: `RecordingAutoReClient` doesn't handle `RecordBuildAttempt` (falls into the `_ => Unsupported` arm). A thin wrapper client intercepts `RecordBuildAttempt` and delegates everything else, combining command vectors for assertions.
+- **`configure_project` returns `Ok(BuildConfigured { success: false })` on non-zero exit**: The provider does NOT error on build failure — it propagates the exit code via `BuildConfigured.success`. The test must check this boolean rather than expecting `Err`.
+- **`entity_id_to_relpath` is `pub(crate)`**: Integration tests cannot access it directly. The test replicates the trivial 4-line path derivation function locally.
+- **Mock docker scripts are test fixtures**: Two scripts (`mock-docker-success.sh`, `mock-docker-failure.sh`) under `tests/fixtures/` serve as fake Docker binaries. The failure script emits MSVC C2079 errors to stderr. This is more robust than env-var switching and avoids parallel test races.
+- **`SuggestedWorkKind::MissingDeclaration`** maps to MSVC C2079 (use of undefined type) — the most likely error when a stub declaration is dropped from the skeleton tree.
+
+## 2026-07-22 Wave 6 Todo 30 (Build-Failure Classification Taxonomy)
+
+### What was done
+- Created `autore-reconstruction::build::classification` module with 13-variant `BuildFailureKind` enum, `RepairStrategy` enum, `classify()` and `select_repair_strategy()` pure functions.
+- Classification is deterministic: MSVC code → `BuildFailureKind` via match arms; context-sensitive routing for C2440 (layout vs abi) and C2065 (stdlib vs missing-decl) using `candidate_cause` and `message` text inspection.
+- Environment errors detected via `ENV*` code prefix or message/cause text patterns (cmake not found, docker daemon, command not found).
+- Repair strategies name the next step without issuing commands: `CreateWorkItems`, `BlockWorkItem`, `RequestLlmAnalysis`, `RequestLayoutInvestigation`, `NoAction`.
+- 23 tests: 15 classification tests (one per variant + layout/abi split + stdlib C2065), 3 routing tests, 4 repair-strategy routing tests, 1 display coverage test.
+
+### Key decisions
+- **`WorkItemKind` from `autore_schema`**: Repair strategies reference `WorkItemKind::Generation`, `ConflictResolution`, `LinkFailure`, `BuildFailure` — the existing schema variants cover all repair paths without adding new kinds.
+- **`RepairStrategy` is a pure data enum**: No `ApplicationCommand` variants, no command issuance. Callers translate strategies into commands at the right time. This keeps the classifier a pure function testable without any client infrastructure.
+- **C2440 context sensitivity**: `has_layout_context()` checks for "layout", "size", or "offset" in the combined message + candidate_cause text. This distinguishes structural mismatches (requiring Wave 8 investigation) from simple type-conversion errors (routed to generation).
+- **Fallback to `Syntax`**: Unrecognized MSVC codes with error severity classify as `Syntax`, routed to `BuildFailure` work items. This is conservative — unknown errors are flagged but don't trigger aggressive repair.
+
+### Patterns established
+- Classification modules are pure functions: take `&BuildDiagnostic`, return an enum. Zero I/O, zero side effects, zero client dependencies.
+- Test fixtures use a `diag()` helper that creates `BuildDiagnostic` with sensible defaults (severity=Error, file="test.cpp", line=1) — only code and message vary.
+- `diag_with_cause()` variant for context-sensitive tests (C2440 layout, C2065 stdlib) where `candidate_cause` drives the classification branch.
+
+### Verification
+- `PROTOC=... cargo build -p autore-reconstruction`: clean
+- `PROTOC=... cargo test -p autore-reconstruction build::classification:: -- --nocapture`: 23/23 passed
+- `PROTOC=... cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean
+- `cargo build` (default members): clean
+- `cargo fmt --all --check`: clean
+- Evidence: `.omo/evidence/auto-re-stage-1/task-30-build-classification.txt`
+
+## 2026-07-22 Wave 7 Todo 31 (Typed Debugger Scenario Language + Verifier)
+
+### What was done
+- Created `autore-reconstruction::dynamic` module with 3 files: `mod.rs`, `scenario.rs`, `verifier.rs`.
+- Defined typed `Scenario` AST: `SetupOp` (2 variants), `Step` (14 variants), `StopOp` (3 variants), `AddressRange` struct.
+- Implemented `ScenarioVerifier::validate()` as a pure function enforcing 4 invariants: entity existence, address containment in mapped segments, API allowlist, memory delta ≤ 64 KiB.
+- Added 6 `ScenarioValidationError` variants with `Display` and `Error` implementations.
+- All AST types derive `serde::Serialize`/`serde::Deserialize` for JSON wire transport.
+- 17 tests: 6 scenario AST tests + 11 verifier tests (5 required acceptance + 6 edge cases).
+
+### Key decisions
+- **`EntityId` from `autore_schema::ids`** (UUID wrapper), NOT `autore_schema::domain::EntityId` (enum from evidence.rs). The `SemanticEntity.id` field is typed as `ids::EntityId`; the domain enum is a different type with the same name. This is a pre-existing naming collision in the schema crate.
+- **`AddressRange` defined locally** in `scenario.rs` rather than reusing schema types. The schema has `Address { space: AddressSpace, value: u128 }` but no contiguous-range type. The local `AddressRange { start: u128, end: u128 }` is simpler and purpose-built for segment validation.
+- **Pure-function verifier**: `ScenarioVerifier::validate()` takes references and returns `Result<(), ScenarioValidationError>`. No side effects, no I/O, no client dependency. This matches the `classification` module pattern from Todo 30.
+- **`CaptureMemoryDelta` validates both size AND address**: Size is checked first (fast reject), then address containment. Both checks are necessary — a large delta at an unmapped address should report the size error (checked first).
+
+### Patterns established
+- Dynamic investigation modules follow the same pattern as `build/` and `generation/`: `mod.rs` with re-exports, separate files for AST types and logic, inline `#[cfg(test)] mod tests`.
+- Verifier tests use `make_entity()` helper that constructs a `SemanticEntity` with a known `EntityId`, `make_scenario()` for common scenario shapes, and `make_segments()`/`make_allowlist()` for constraints.
+
+### Verification
+- `PROTOC=... cargo test -p autore-reconstruction dynamic:: -- --nocapture`: 17/17 passed
+- `PROTOC=... cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean
+- `cargo build` (default members): clean
+- `cargo fmt --all --check`: clean
+- Evidence: `.omo/evidence/auto-re-stage-1/task-31-scenario-lang.txt`
+
+## 2026-07-22 Wave 7 Todo 32 (IDA Debug Capabilities)
+
+### What was done
+- Added `TargetRunner` trait in `autore-reconstruction/src/dynamic/runner.rs` with async methods for launch, attach, stop, step execution, function capture/trace, memory capture, and calls capture.
+- Implemented `WineGdbRunner` with configurable Wine/gdbserver paths and deterministic mock mode under `AUTORE_TEST_MOCK_RUNNER=1`.
+- Implemented `WindowsGdbServerRunner` compile-time stub returning `RunnerError::Unsupported` for every method, proving the backend-agnostic seam.
+- Added `CaptureContext` and `DebugObservation` types for accumulating observations and staged artifacts.
+- Added `debug_capabilities()` descriptor helper and `execute_scenario()` executor in `autore-reconstruction/src/dynamic/ida_provider.rs`.
+- Added provider-side re-validation using `ScenarioVerifier` with a permissive context derived from the scenario's own references (defense-in-depth after coordinator validation).
+- Extended `providers/ida/src/provider.rs` to advertise 9 static + 7 debug capabilities and dispatch all 7 debug capabilities through the runner, emitting `ObservationProduced{kind=debug.observation}` + `Completed` events.
+- Created `tools/wine-launch-vanburen-gdb.sh` operator helper script using `#!/usr/bin/env sh`.
+
+### Decisions
+- `TargetRunner` uses `async-trait` so it remains object-safe (`Arc<dyn TargetRunner + Send + Sync>`) in the provider.
+- `execute_scenario` accepts `&dyn TargetRunner` rather than a generic parameter, allowing the provider to store a trait object.
+- Real Wine/gdbserver subprocess plumbing is intentionally left as a stub; the runner returns `ExecutionFailed` unless mock mode is active. This satisfies the "mockable subprocess for tests" wording and avoids environment dependencies.
+- Provider-side validation runs `ScenarioVerifier` with a permissive context that accepts every entity/address/API referenced by the scenario, catching structural errors (empty setup/body) while trusting the coordinator's canonical validation.
+- Added `serde` as a direct dependency of `ida-provider` so request payload structs can derive `Deserialize`.
+
+### Verification
+- `cargo test -p autore-reconstruction dynamic::ida_provider`: 6/6 passed.
+- `cargo test -p autore-reconstruction`: 105/105 passed.
+- `cargo build -p ida-provider --no-default-features`: clean.
+- `cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean.
+- `cargo clippy -p ida-provider --all-targets -- -D warnings`: clean.
+- `cargo fmt --all --check`: clean.
+- `cargo build` (default members): clean.
+

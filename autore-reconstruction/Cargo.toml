@@ -21,6 +21,7 @@ petgraph = { workspace = true }
 jsonschema = { workspace = true }
 handlebars = { workspace = true }
 tokio = { workspace = true }
+tokio-util = { workspace = true }
 
 [dev-dependencies]
 autore-app = { path = "../autore-app" }

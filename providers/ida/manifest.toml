@@ -69,6 +69,55 @@ name = "IDA Native Artifact Export"
 request_schema = ""
 response_schema = ""
 
+[[capabilities]]
+capability_id = "debug.target.launch"
+version = "1.0.0"
+name = "Debug Target Launch"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "debug.target.stop"
+version = "1.0.0"
+name = "Debug Target Stop"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "debug.scenario.execute"
+version = "1.0.0"
+name = "Debug Scenario Execute"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "debug.function.capture"
+version = "1.0.0"
+name = "Debug Function Capture"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "debug.function.trace"
+version = "1.0.0"
+name = "Debug Function Trace"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "debug.memory.capture"
+version = "1.0.0"
+name = "Debug Memory Capture"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "debug.calls.capture"
+version = "1.0.0"
+name = "Debug Calls Capture"
+request_schema = ""
+response_schema = ""
+
 [max_concurrency]
 "ida.binary.open" = 4
 "ida.binary.ingest" = 4
@@ -79,3 +128,10 @@ response_schema = ""
 "ida.references.query" = 4
 "ida.reanalyze" = 4
 "ida.native-artifact.export" = 4
+"debug.target.launch" = 2
+"debug.target.stop" = 2
+"debug.scenario.execute" = 1
+"debug.function.capture" = 1
+"debug.function.trace" = 1
+"debug.memory.capture" = 1
+"debug.calls.capture" = 1
