@@ -142,3 +142,7 @@
   because the mock and most OpenAI-compatible servers (llama.cpp, Ollama)
   return usage in different shapes. Parsing the real `usage` object from
   the response root is a follow-up (likely Todo 25).
+
+## Task 22 — Analysis Module Issues (2026-07-21)
+
+- Pre-existing `lib.rs` had incorrect re-export name `entity_kind_for_observation` (should be `entity_kind_for_observation_kind`). Fixed in this task.

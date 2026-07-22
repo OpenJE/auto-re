@@ -577,3 +577,12 @@
 - `PROTOC=... cargo clippy -p openai-compatible-provider --all-targets -- -D warnings`: clean
 - `cargo build` (default members): clean
 - Evidence: `.omo/evidence/auto-re-stage-1/task-21-openai-compatible-provider.txt`
+
+## Task 22 — InvestigationBundle + Analysis Schemas (2026-07-21)
+
+- `InvestigationBundle` carries only artifact handles (`ArtifactId`), never raw bytes — `byte_size_estimate()` stays well under 64 KiB.
+- `BundleStore` trait + `StubStore` pattern works well for testing without the full app service.
+- `petgraph::visit::EdgeRef` must be imported explicitly for `edge_ref.target()` / `edge_ref.source()` — the trait is not prelude.
+- `jsonschema` 0.33 `validator_for()` returns `Result<(), ValidationError>` (single error), not an iterator.
+- Schemas embedded via `include_str!` from `schemas/analysis/*.schema.json` — compile-time inclusion, zero runtime I/O.
+- Fixed pre-existing lib.rs re-export typo: `entity_kind_for_observation` → `entity_kind_for_observation_kind`.

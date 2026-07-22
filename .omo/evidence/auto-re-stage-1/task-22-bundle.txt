@@ -1,0 +1,44 @@
+Task 22: autore-reconstruction::analysis — bounded InvestigationBundle + JSON-Schema per capability
+Date: 2026-07-21
+
+FILES CREATED:
+- autore-reconstruction/src/analysis/mod.rs (12 pure LOC)
+- autore-reconstruction/src/analysis/bundle.rs (46 pure LOC)
+- autore-reconstruction/src/analysis/builder.rs (109 pure LOC)
+- autore-reconstruction/src/analysis/schemas.rs (54 pure LOC)
+- autore-reconstruction/src/analysis/tests.rs (246 pure LOC)
+- autore-reconstruction/schemas/analysis/analysis-bundle-request.schema.json
+- autore-reconstruction/schemas/analysis/function-analysis.schema.json
+- autore-reconstruction/schemas/analysis/type-analysis.schema.json
+- autore-reconstruction/schemas/analysis/class-analysis.schema.json
+- autore-reconstruction/schemas/analysis/subsystem-analysis.schema.json
+- autore-reconstruction/schemas/analysis/conflict-analysis.schema.json
+- autore-reconstruction/schemas/analysis/failure-analysis.schema.json
+- autore-reconstruction/schemas/analysis/experiment-design.schema.json
+
+FILES MODIFIED:
+- autore-reconstruction/Cargo.toml (added jsonschema workspace dep)
+- autore-reconstruction/src/lib.rs (pub mod analysis + re-exports)
+
+GATE RESULTS:
+- `PROTOC=... cargo build -p autore-reconstruction`: clean
+- `PROTOC=... cargo test -p autore-reconstruction analysis::`: 8/8 passed
+  - bundle_serializes_via_serde_json
+  - bundle_excludes_artifact_bytes
+  - bundle_only_relevant_calls_in_callers_list
+  - function_analysis_schema_rejects_missing_required_field
+  - bundle_size_bounded
+  - request_payload_matches_capability_schema
+  - all_schemas_are_valid_json_schema_2020_12
+  - validate_response_payload_round_trip
+- `PROTOC=... cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean
+- `cargo build` (default members): clean
+- `cargo clippy --workspace --exclude ... --all-targets -- -D warnings`: clean
+- All files ≤ 250 pure LOC
+
+DESIGN DECISIONS:
+- BundleStore trait abstracts data source (tests use StubStore, prod plugs into app service)
+- BundleBuilder walks WorkGraph (petgraph) for direct callers/callees
+- Schemas embedded via include_str! from committed JSON files
+- All artifact fields are ArtifactId handles, never raw bytes
+- jsonschema 0.33 validator_for() API for schema validation
