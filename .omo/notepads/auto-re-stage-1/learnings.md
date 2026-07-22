@@ -349,3 +349,30 @@
 - `cargo build` (default-members): clean (ida-provider not in default-members)
 - `cargo test -p ida-provider`: 7 passed, 6 ignored (IDA-dependent), 0 failed
 - Evidence: `.omo/evidence/auto-re-stage-1/task-13-ida-provider.txt`
+
+## 2026-07-21 Wave 3 Todo 14 (Canonical Entity Identity)
+
+### What was done
+- Created the `autore-reconstruction` crate — first appearance in the workspace. Registered in `members` but NOT `default-members` (transitively pulls `protoc` via `autore-provider-runtime → autore-provider-protocol → tonic-build`).
+- Implemented `CanonicalEntityKey` with four structural fields (`binary_revision_id || address_space || entry_address || entity_kind`) and a sidecar `provider_native_extension` HashMap for IDA row ids. The extension is deliberately excluded from `stable_key()` and `identity_hash()` — this is what makes refresh-after-relocation stable.
+- Stable key is `StableEntityKey::ExternalIdentity{ namespace: "autore.recon.canonical", value: canonical_json }` using `BTreeMap`-backed JSON for deterministic ordering.
+- Implemented `ObservationImporter.import()` that issues `RegisterEntity` for unseen entities and `ImportProviderRunResult` for rematch (detected via `ApplicationQuery::ListEntities`, no direct SQL).
+- Implemented `ObservationImporter.import_stale_diagnostics()` that issues `BlockWorkItem(reason="ProviderObservedStaleEntity")` + `CreateWorkItems` for each stale diagnostic. Entities are NEVER deleted.
+- Built `RecordingAutoReClient` — in-memory `AutoReClient` that records every `ApplicationCommand` and answers `ListEntities` from the registered set. Used by tests to prove that every canonical mutation goes through a command.
+- Observation payload parser accepts three JSON shapes: array of entities, object with single array-typed value (`{"entities":[..]}`), or single object.
+
+### Decisions
+- **Module split**: `identity.rs` is the root of the `identity::` module with four sub-modules (`key`, `payload`, `routing`, `importer`). Each sub-module is ≤130 pure LOC; `identity.rs` itself is ~80 pure LOC production code + 250 LOC of tests. This keeps every file under the 250 pure-LOC ceiling while preserving the `identity::tests::*` path the plan required.
+- **`RecordingAutoReClient` under `#[cfg(test)]`**: Test-only helper lives in `src/tests_support.rs`, gated to test builds. Not re-exported from `lib.rs` — production code cannot accidentally depend on it.
+- **`autore-events` as a regular dependency**: Required because `AutoReClient::subscribe_events` returns `Result<ProjectEventSubscription>` which needs the type in scope at trait-impl time (even when the test impl returns `Err(Unsupported)`).
+- **`external_identities` column stopgap**: The plan text mentions a V14 `external_identities TEXT` column; it does not exist. Storing `provider_native_extension` as a sidecar HashMap on `CanonicalEntityKey` for now. A future migration todo can add the column and persist the extension JSON onto `SemanticEntity.metadata` or a dedicated table.
+- **Negative-proof pattern**: `canonical_key_excludes_ida_row_id` shows (a) the correct implementation produces identical stable keys across different `ea` values AND (b) a hypothetical incorrect implementation that includes the extension produces DIFFERENT JSON. The conjunction proves the exclusion is intentional.
+
+### Verification
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo build -p autore-reconstruction`: clean
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction identity:: -- --nocapture`: 9/9 passed
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean
+- `cargo build` (default members): clean
+- `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction --all-targets -- -D warnings`: clean
+- `cargo test --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction`: 583 passed (Stage 0 regression unchanged)
+- Evidence: `.omo/evidence/auto-re-stage-1/task-14-canonical-identity.txt`
