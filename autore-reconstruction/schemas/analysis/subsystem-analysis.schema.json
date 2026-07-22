@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "subsystem-analysis-response",
+  "title": "SubsystemAnalysisResponse",
+  "description": "Parsed LLM output for subsystem-level analysis.",
+  "type": "object",
+  "required": [
+    "subsystem_name",
+    "member_entity_ids",
+    "responsibility",
+    "evidence_references"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "subsystem_name": { "type": "string" },
+    "responsibility": { "type": "string" },
+    "member_entity_ids": { "type": "array", "items": { "type": "string" } },
+    "evidence_references": { "type": "array", "items": { "type": "string" } },
+    "confidence": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+  }
+}

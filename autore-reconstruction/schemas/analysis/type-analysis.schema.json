@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "type-analysis-response",
+  "title": "TypeAnalysisResponse",
+  "description": "Parsed LLM output for type/struct-level analysis.",
+  "type": "object",
+  "required": [
+    "proposed_name",
+    "proposed_layout",
+    "evidence_references",
+    "confidence"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "proposed_name": { "type": "string" },
+    "proposed_layout": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["field_name", "offset", "size"],
+        "additionalProperties": true,
+        "properties": {
+          "field_name": { "type": "string" },
+          "offset": { "type": "integer", "minimum": 0 },
+          "size": { "type": "integer", "minimum": 1 },
+          "type_hint": { "type": "string" }
+        }
+      }
+    },
+    "size_bytes": { "type": "integer", "minimum": 0 },
+    "alignment": { "type": "integer", "minimum": 1 },
+    "evidence_references": { "type": "array", "items": { "type": "string" } },
+    "confidence": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+  }
+}

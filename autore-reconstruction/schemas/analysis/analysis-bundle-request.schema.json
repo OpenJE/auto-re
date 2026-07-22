@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "analysis-bundle-request",
+  "title": "InvestigationBundleRequest",
+  "description": "Bounded investigation bundle sent to an LLM analysis capability. Contains only artifact handles and cooked textual summaries — never raw artifact bytes.",
+  "type": "object",
+  "required": [
+    "subject_identity",
+    "callers_and_callees",
+    "relevant_types",
+    "relevant_globals",
+    "strings_and_constants",
+    "dynamic_observations",
+    "accepted_hypotheses",
+    "unresolved_conflicts",
+    "compiler_diagnostics",
+    "verification_failures",
+    "requested_output_schema"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "subject_identity": {
+      "type": "string",
+      "description": "WorkItemId of the subject work item."
+    },
+    "subject_entity_id": {
+      "type": ["string", "null"],
+      "description": "EntityId of the semantic entity under analysis, if any."
+    },
+    "static_structural_snapshot": {
+      "type": ["string", "null"],
+      "description": "ArtifactId for the IDA function/type snapshot."
+    },
+    "decompilation_artifact": {
+      "type": ["string", "null"],
+      "description": "ArtifactId for the decompilation pseudocode."
+    },
+    "disassembly_artifact": {
+      "type": ["string", "null"],
+      "description": "ArtifactId for the disassembly listing."
+    },
+    "cfg_summary": {
+      "type": ["string", "null"],
+      "description": "ArtifactId for the control-flow graph summary."
+    },
+    "callers_and_callees": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["work_item_id", "brief", "edge_kind"],
+        "additionalProperties": false,
+        "properties": {
+          "work_item_id": { "type": "string" },
+          "brief": { "type": "string" },
+          "edge_kind": { "type": "string" }
+        }
+      }
+    },
+    "relevant_types": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "EntityIds of types referenced by the subject."
+    },
+    "relevant_globals": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "EntityIds of globals referenced by the subject."
+    },
+    "strings_and_constants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["value", "context"],
+        "additionalProperties": false,
+        "properties": {
+          "value": { "type": "string" },
+          "context": { "type": "string" }
+        }
+      }
+    },
+    "dynamic_observations": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "ArtifactIds for dynamic trace observations (empty in Wave 5)."
+    },
+    "accepted_hypotheses": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "HypothesisIds accepted for this subject."
+    },
+    "unresolved_conflicts": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "ConflictRecordIds still open for this subject."
+    },
+    "prior_generated_candidate": {
+      "type": ["string", "null"],
+      "description": "ArtifactId of a prior generated candidate, if any."
+    },
+    "compiler_diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["severity", "message"],
+        "additionalProperties": false,
+        "properties": {
+          "severity": { "type": "string" },
+          "source_file": { "type": ["string", "null"] },
+          "line": { "type": ["integer", "null"] },
+          "code": { "type": ["string", "null"] },
+          "message": { "type": "string" }
+        }
+      },
+      "description": "Summarized build diagnostics (empty in Wave 5)."
+    },
+    "verification_failures": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "VerificationComparisonIds of failures (empty in Wave 5)."
+    },
+    "requested_output_schema": {
+      "type": "object",
+      "description": "The JSON Schema for the target capability's parsed result."
+    }
+  }
+}

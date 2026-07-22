@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "conflict-analysis-response",
+  "title": "ConflictAnalysisResponse",
+  "description": "Parsed LLM output for conflict resolution analysis.",
+  "type": "object",
+  "required": [
+    "resolution_kind",
+    "accepted_hypothesis_id",
+    "rejected_hypothesis_ids",
+    "rationale",
+    "evidence_references"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "resolution_kind": { "type": "string" },
+    "accepted_hypothesis_id": { "type": "string" },
+    "rejected_hypothesis_ids": { "type": "array", "items": { "type": "string" } },
+    "rationale": { "type": "string" },
+    "evidence_references": { "type": "array", "items": { "type": "string" } },
+    "confidence": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+  }
+}

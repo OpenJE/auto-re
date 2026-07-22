@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "failure-analysis-response",
+  "title": "FailureAnalysisResponse",
+  "description": "Parsed LLM output for build/verification failure analysis.",
+  "type": "object",
+  "required": [
+    "root_cause",
+    "affected_entity_ids",
+    "recommended_action",
+    "evidence_references"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "root_cause": { "type": "string" },
+    "affected_entity_ids": { "type": "array", "items": { "type": "string" } },
+    "recommended_action": { "type": "string" },
+    "evidence_references": { "type": "array", "items": { "type": "string" } },
+    "confidence": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+  }
+}

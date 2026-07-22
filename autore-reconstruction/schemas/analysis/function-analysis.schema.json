@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "function-analysis-response",
+  "title": "FunctionAnalysisResponse",
+  "description": "Parsed LLM output for function-level analysis.",
+  "type": "object",
+  "required": [
+    "proposed_name",
+    "behavior_claims",
+    "evidence_references",
+    "confidence",
+    "recommended_follow_up_work"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "proposed_name": { "type": "string" },
+    "behavior_claims": { "type": "array", "items": { "type": "string" } },
+    "side_effects": { "type": "array", "items": { "type": "string" } },
+    "signature": { "type": "string" },
+    "evidence_references": { "type": "array", "items": { "type": "string" } },
+    "confidence": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+    "recommended_follow_up_work": { "type": "array", "items": { "type": "string" } }
+  }
+}

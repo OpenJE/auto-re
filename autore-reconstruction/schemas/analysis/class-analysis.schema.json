@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "class-analysis-response",
+  "title": "ClassAnalysisResponse",
+  "description": "Parsed LLM output for C++ class analysis.",
+  "type": "object",
+  "required": [
+    "proposed_name",
+    "vtable_address",
+    "method_ids",
+    "evidence_references"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "proposed_name": { "type": "string" },
+    "base_class_ids": { "type": "array", "items": { "type": "string" } },
+    "vtable_address": { "type": "integer", "minimum": 0 },
+    "method_ids": { "type": "array", "items": { "type": "string" } },
+    "evidence_references": { "type": "array", "items": { "type": "string" } },
+    "confidence": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+  }
+}

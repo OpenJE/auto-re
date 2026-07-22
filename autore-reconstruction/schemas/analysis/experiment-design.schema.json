@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "experiment-design-response",
+  "title": "ExperimentDesignResponse",
+  "description": "Parsed LLM output for experiment design.",
+  "type": "object",
+  "required": [
+    "hypothesis_statement",
+    "test_plan",
+    "expected_observations",
+    "required_capabilities"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "hypothesis_statement": { "type": "string" },
+    "test_plan": { "type": "array", "items": { "type": "string" } },
+    "expected_observations": { "type": "array", "items": { "type": "string" } },
+    "required_capabilities": { "type": "array", "items": { "type": "string" } },
+    "risk_factors": { "type": "array", "items": { "type": "string" } }
+  }
+}
