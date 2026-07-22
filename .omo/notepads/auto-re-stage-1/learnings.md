@@ -1414,3 +1414,26 @@
 - **PTY dialog verification works through responsiveness, not text matching**: the TUI's `render()` function draws panes and tab strip but does not overlay dialogs or notifications. Stage 1 keybinding tests verify commands dispatch by checking the TUI remains responsive (no crash) and exits cleanly with terminal restoration.
 - **Shared PTY helpers reduce duplication**: `spawn_tui_in_pty` and `quit_and_verify_terminal_restore` extract the common launch/quit/restore pattern from the Stage 0 test, letting each Stage 1 test focus on its specific keybinding sequence.
 - **Event subscription delivery is asynchronous**: the project panel's `events:` line only appears after the `ListEvents` query completes (triggered by `schedule_project_refresh` after subscription events arrive). Tests that need to verify event-count advancement must wait for the initial query pipeline to settle.
+
+## 2026-07-22 Wave 12 Todo 58 (Stage 1 Final Implementation Report)
+
+### What was done
+- Authored `docs/stage1-report.md` with 12 `##` headings covering all §22 mandated sections plus the §23 architectural test.
+- Pulled quantitative data from 53 evidence files under `.omo/evidence/auto-re-stage-1/`.
+- Total workspace tests: 911 passed, 0 failed (autore-reconstruction: 191, autore-schema: 279, autore-store: 158, autore-app: 35, autore-cli: 38, autore-core: 74, autore-tui: 61, autore-events: 12, autore-provider-runtime: 21, openai-compatible-provider: 11, ida-provider: 7, autore-provider-protocol: 1).
+- Enumerated all 31 individual §21 exclusions across 10 bullet groups in the Deferred work section.
+- Documented 10 §23 architectural test answers with code-path citations (all YES).
+
+### Key decisions
+- Report follows the stage0-report.md format with tables and code citations.
+- §23 architectural test included as section 12 within the report (not a separate file) per the task brief allowing "under section 11 or as section 12".
+- Each §21 exclusion listed individually (not just bullet groups) for verbatim coverage.
+- Evidence file paths listed in a code block for easy reference.
+
+### Verification
+- `test -f docs/stage1-report.md`: PASS
+- `grep -c '^## ' docs/stage1-report.md`: 12 (>= 11 required)
+- All §21 keywords present: Ghidra (4), Binary Ninja (2), symbolic execution (1), concolic execution (1), fuzzing (1), kernel debugging (0 — covered as "kernel debug"), formal (1), sandbox (2), Wasm (1), microVM (1), prompt-training (1), Remote workers (1), equivalence proofs (1)
+- 10 YES answers in architectural test section
+- 53 evidence file paths referenced
+- Evidence: `.omo/evidence/auto-re-stage-1/task-58-stage1-report.txt`

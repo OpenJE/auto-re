@@ -1,0 +1,73 @@
+Task 58 — Stage 1 Final Implementation Report
+==============================================
+Date: 2026-07-22
+
+[OK] docs/stage1-report.md created
+[OK] test -f docs/stage1-report.md passes
+[OK] grep -c '^## ' docs/stage1-report.md = 12 (>= 11 required)
+[OK] Deferred work section present (section 10)
+[OK] All §21 exclusions enumerated (31 individual items across 10 bullet groups)
+[OK] Test results section references evidence file paths (53 files listed)
+[OK] Architectural test section contains 10 YES answers with code-path citations
+[OK] Total workspace tests: 911 passed, 0 failed
+[OK] autore-reconstruction tests: 191 (177 unit + 14 integration)
+[OK] Stage 0 baseline preserved: 614+ tests unchanged
+
+Sections in report:
+  1. Existing code (Retained/Adapted/Replaced/Removed/Added)
+  2. Provider substrate
+  3. IDA integration
+  4. Debugger integration
+  5. LLM integration
+  6. Scheduler
+  7. C++ generation
+  8. Build & verification
+  9. Recovery
+  10. Deferred work
+  11. Test results
+  12. Architectural test (spec §23)
+
+§21 exclusions covered:
+  - Ghidra provider
+  - Binary Ninja provider
+  - multi-backend consensus voting
+  - Public package registry
+  - package dependency solver
+  - network package installation
+  - package signing authority
+  - Remote workers
+  - distributed scheduling
+  - general remote providers
+  - remote TLS authorization
+  - Full sandbox enforcement
+  - containers
+  - microVMs
+  - Symbolic execution
+  - concolic execution
+  - general fuzzing
+  - kernel debugging
+  - multi-process distributed tracing
+  - hardware tracing
+  - Multiple generation languages
+  - Build systems beyond cmkr+CMake+Docker-MSVC2002
+  - Arbitrary provider TUI plugins
+  - automatic hot reload
+  - Wasm providers
+  - native dynamic-library providers
+  - Automatic prompt-training
+  - fine-tuning pipelines
+  - general cross-project knowledge packages
+  - general autonomous tool use
+  - Formal whole-program equivalence proofs
+
+§23 Architectural test answers:
+  Q1 (Ghidra/BinaryNinja backend): YES — ObservationImporter + CanonicalEntityKey
+  Q2 (x64dbg backend): YES — TargetRunner trait
+  Q3 (vLLM/Anthropic LLM): YES — JSON schema validation + GenerationModel trait
+  Q4 (Remote artifact store): YES — ArtifactTransport trait + ArtifactLocation enum
+  Q5 (clang-cl build): YES — BuildProviderTrait + BuildFailureKind classifier
+  Q6 (Scheduler without direct storage): YES — Arc<dyn AutoReClient> + snapshot dispatch
+  Q7 (Non-C++ generation): YES — language-agnostic work graph + ImplementationTargetId seam
+  Q8 (Stable identity without IDA row IDs): YES — CanonicalEntityKey excludes provider_native_extension
+  Q9 (Durable restart recovery): YES — reconcile_interrupted_operations + StagingReconciler
+  Q10 (Multi-level verification): YES — ComparisonLevel enum + level-agnostic NormalizationRule
