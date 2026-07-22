@@ -264,6 +264,7 @@ dependencies = [
  "autore-schema",
  "autore-store",
  "blake3",
+ "petgraph",
  "serde",
  "serde_json",
  "tempfile",

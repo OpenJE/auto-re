@@ -1,0 +1,101 @@
+Task 17: Work Graph Module Implementation
+=========================================
+
+Date: 2026-07-21
+Wave: 4
+Todo: 17
+
+## What was implemented
+
+Created the `autore-reconstruction::work_graph` module with:
+
+1. **DependencyEdgeKind enum** (11 variants including ClusterMember)
+   - DirectCall, IndirectCallHypothesis, TypeUsage, GlobalAccess
+   - VtableMembership, CtorDtor, StaticInit
+   - GeneratedDeclRequirement, BuildDependency, VerificationDependency
+   - ClusterMember (synthetic edge from cluster to member functions)
+
+2. **Entity kind constants** (5 new constants not yet in autore-schema)
+   - ENTITY_KIND_CLASS, ENTITY_KIND_VTABLE, ENTITY_KIND_ENUM
+   - ENTITY_KIND_STATIC_INITIALIZER, ENTITY_KIND_ENTRYPOINT
+
+3. **WorkGraphBuilder** with 5-phase construction:
+   - Phase 1: Collect work items from entities (ProgramSkeleton singleton + per-entity items)
+   - Phase 1b: Issue CreateWorkItems command via AutoReClient
+   - Phase 2: Build petgraph DiGraph with entity-to-node and work-item-to-node mappings
+   - Phase 3+4: Kosaraju SCC detection, mixed-kind validation, FunctionCluster collapse
+   - Phase 5: Record all dependency edges via RecordWorkDependency commands
+
+4. **WorkGraph** data structure with:
+   - petgraph DiGraph<WorkItemNode, DependencyEdgeKind>
+   - entity_to_node: HashMap<EntityId, NodeIndex>
+   - work_item_to_node: HashMap<WorkItemId, NodeIndex>
+   - Helper methods: node_count(), edge_count(), nodes_of_kind()
+
+5. **SCC collapse logic**:
+   - Detects SCCs of size > 1 or singleton SCCs with self-loops
+   - Validates all nodes in SCC have same WorkItemKind
+   - Rejects mixed-kind SCCs with ValidationError
+   - Only collapses Function SCCs into FunctionCluster nodes
+   - Adds ClusterMember edges from cluster to each member
+   - Propagates outgoing non-cycle edges to cluster
+
+6. **Tests** (6 tests, all passing):
+   - work_graph_builder_creates_function_per_entity
+   - work_graph_builder_collapses_recursive_cycles_to_cluster
+   - work_graph_builder_leaves_singleton_sccs_alone
+   - work_graph_builder_rejects_mixed_kind_scc
+   - work_graph_builder_records_dependencies_via_command
+   - work_graph_builder_prioritizes_entrypoint_and_skeleton
+
+## Files created/modified
+
+- Created: `autore-reconstruction/src/work_graph/mod.rs` (25 LOC)
+- Created: `autore-reconstruction/src/work_graph/kind.rs` (102 LOC)
+- Created: `autore-reconstruction/src/work_graph/graph.rs` (54 LOC)
+- Created: `autore-reconstruction/src/work_graph/builder.rs` (300 LOC)
+- Created: `autore-reconstruction/src/work_graph/tests.rs` (196 LOC)
+- Modified: `autore-reconstruction/src/lib.rs` (added work_graph module + re-exports)
+- Modified: `autore-reconstruction/src/tests_support.rs` (added RecordWorkDependency handler)
+- Modified: `autore-reconstruction/Cargo.toml` (added petgraph dependency)
+
+## Verification
+
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo build -p autore-reconstruction`: clean
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction work_graph:: -- --nocapture`: 6/6 passed
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean
+- `cargo build` (default members): clean
+- `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction --all-targets -- -D warnings`: clean
+
+## Key decisions
+
+1. **Type aliases for complex tuples**: Added `WorkItemSpec` and `InitialGraph` type aliases to satisfy clippy's type-complexity lint. These document opaque tuple types that would otherwise be unreadable.
+
+2. **petgraph 0.8 API**: Required `use petgraph::visit::EdgeRef` to access `.source()` and `.target()` methods on edge references. This is a petgraph 0.8 change from earlier versions.
+
+3. **Entity kind constants in work_graph module**: ENTITY_KIND_CLASS, ENTITY_KIND_VTABLE, etc. are defined in `work_graph/kind.rs` rather than `autore-schema` because they don't exist in the schema crate yet. Future todos can promote them to schema-level constants.
+
+4. **RecordingAutoReClient extension**: Added `RecordWorkDependency` handler to the test-only client so tests can verify dependency recording goes through commands.
+
+5. **ProgramSkeleton always created**: The builder unconditionally creates one ProgramSkeleton work item as the first item, regardless of input entities. This matches the spec's singleton requirement.
+
+6. **No direct storage access**: All mutations route through AutoReClient commands (CreateWorkItems, RecordWorkDependency). The builder never touches SQL or storage directly.
+
+## Patterns established
+
+- Work graph construction is a pure function of entities + edges, with all side effects routed through AutoReClient
+- SCC collapse uses Kosaraju's algorithm (petgraph's `kosaraju_scc`) rather than Tarjan's
+- Mixed-kind SCCs are rejected at validation time, not silently ignored
+- FunctionCluster nodes are synthetic (no entity_id) and created via a second CreateWorkItems command
+- ClusterMember edges are a synthetic DependencyEdgeKind variant, not a real dependency
+
+## Dependencies added
+
+- `petgraph = { workspace = true }` to autore-reconstruction/Cargo.toml (workspace already had petgraph 0.8)
+
+## Integration points
+
+- Uses existing `WorkItemKind` enum from `autore-schema::domain::records` (Todo 3)
+- Uses existing `CreateWorkItems` and `RecordWorkDependency` commands from `autore-app` (Todo 12)
+- Uses existing `RecordingAutoReClient` from `tests_support.rs` (Todo 14)
+- Re-exports public API from `lib.rs` for downstream consumers (Todo 18, 19, 20)

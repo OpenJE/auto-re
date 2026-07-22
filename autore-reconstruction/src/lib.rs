@@ -8,6 +8,7 @@
 //! Stage 0 event store remains the single source of truth.
 
 pub mod identity;
+pub mod work_graph;
 
 #[cfg(test)]
 mod tests_support;
@@ -16,3 +17,4 @@ pub use identity::{
     CanonicalEntityKey, ImportSummary, ObservationImporter, entity_kind_for_observation_kind,
     entity_kind_from_observation, work_item_kind_for_entity,
 };
+pub use work_graph::{DependencyEdgeKind, WorkGraph, WorkGraphBuilder, WorkItemNode};

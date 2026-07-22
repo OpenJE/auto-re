@@ -408,3 +408,37 @@
 - `cargo build` (default members): clean
 - `cargo fmt --all`: clean (no changes needed)
 - Evidence: `.omo/evidence/auto-re-stage-1/task-16-migrations-v24-v27.txt`
+
+## 2026-07-21 Wave 4 Todo 17 (Work Graph Module)
+
+### What was done
+- Created `autore-reconstruction::work_graph` module with 4 sub-modules (mod.rs, kind.rs, graph.rs, builder.rs, tests.rs)
+- Implemented `DependencyEdgeKind` enum with 11 variants (10 spec + 1 synthetic ClusterMember)
+- Added 5 entity kind constants not yet in autore-schema (CLASS, VTABLE, ENUM, STATIC_INITIALIZER, ENTRYPOINT)
+- Implemented `WorkGraphBuilder` with 5-phase construction: collect → create → build graph → SCC collapse → record dependencies
+- Implemented SCC detection via Kosaraju's algorithm with mixed-kind validation
+- Function SCCs collapse into FunctionCluster nodes with ClusterMember edges
+- All mutations route through AutoReClient commands (CreateWorkItems, RecordWorkDependency)
+- 6 tests covering entity mapping, cycle collapse, singleton preservation, mixed-kind rejection, dependency recording, and skeleton/entrypoint creation
+
+### Key decisions
+- **Type aliases for complex tuples**: `WorkItemSpec` and `InitialGraph` type aliases satisfy clippy's type-complexity lint while documenting opaque tuple types
+- **petgraph 0.8 API**: Required `use petgraph::visit::EdgeRef` to access `.source()` and `.target()` methods on edge references (API change from earlier versions)
+- **Entity kind constants in work_graph module**: Defined locally rather than in autore-schema because they don't exist there yet; future todos can promote them
+- **ProgramSkeleton always created**: Unconditionally created as first item regardless of input entities (spec requirement)
+- **Two CreateWorkItems commands**: One for initial items, one for FunctionCluster nodes (cleaner separation than batching)
+
+### Patterns established
+- Work graph construction is a pure function of entities + edges with all side effects routed through AutoReClient
+- SCC collapse uses Kosaraju's algorithm (petgraph's `kosaraju_scc`) rather than Tarjan's
+- Mixed-kind SCCs are rejected at validation time with descriptive error messages
+- FunctionCluster nodes are synthetic (no entity_id) and created via separate CreateWorkItems command
+- ClusterMember edges are a synthetic DependencyEdgeKind variant, not a real dependency
+
+### Verification
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo build -p autore-reconstruction`: clean
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction work_graph:: -- --nocapture`: 6/6 passed
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean
+- `cargo build` (default members): clean
+- `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction --all-targets -- -D warnings`: clean
+- Evidence: `.omo/evidence/auto-re-stage-1/task-17-work-graph.txt`

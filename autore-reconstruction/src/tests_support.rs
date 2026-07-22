@@ -8,7 +8,7 @@ use std::sync::Mutex;
 
 use autore_app::application_service::requests::{
     BlockWorkItemResponse, CreateWorkItemsResponse, EntitiesResponse,
-    ImportProviderRunResultResponse, RegisterEntityResponse,
+    ImportProviderRunResultResponse, RecordWorkDependencyResponse, RegisterEntityResponse,
 };
 use autore_app::{ApplicationCommand, ApplicationQuery, AutoReClient, CommandResult, QueryResult};
 use autore_core::{Error, Result};
@@ -95,6 +95,11 @@ impl AutoReClient for RecordingAutoReClient {
                     req.descriptions.iter().map(|_| WorkItemId::new()).collect();
                 CommandResult::WorkItemsCreated(CreateWorkItemsResponse {
                     work_item_ids: ids.iter().map(|id| id.to_string()).collect(),
+                })
+            }
+            ApplicationCommand::RecordWorkDependency(req) => {
+                CommandResult::WorkDependencyRecorded(RecordWorkDependencyResponse {
+                    work_item_id: req.work_item_id.clone(),
                 })
             }
             _ => {
