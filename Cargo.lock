@@ -275,6 +275,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util",
+ "tonic",
  "tracing",
  "uuid",
 ]
@@ -2335,6 +2336,7 @@ dependencies = [
  "autore-provider-protocol",
  "autore-provider-runtime",
  "autore-schema",
+ "base64",
  "bytes",
  "handlebars",
  "jsonschema",

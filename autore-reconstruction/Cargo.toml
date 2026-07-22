@@ -32,3 +32,4 @@ autore-store = { path = "../autore-store" }
 tokio = { workspace = true }
 tokio-stream = { workspace = true }
 tempfile = { workspace = true }
+tonic = { workspace = true }

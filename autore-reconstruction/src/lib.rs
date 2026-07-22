@@ -9,6 +9,7 @@
 
 pub mod analysis;
 pub mod build;
+pub mod coordinator;
 pub mod dynamic;
 pub mod fingerprint;
 pub mod generation;
@@ -31,6 +32,11 @@ pub use build::{
     DockerMsvc2002BuildProvider, DockerMsvc2002Config, GeneratorManifest, LinkResult,
     RunTestResult, SuggestedWorkKind,
 };
+pub use coordinator::{
+    CompletionPolicy, Coordinator, CoordinatorConfig, CoordinatorState, CoordinatorWorkItem,
+    DispatchKind, HandlerOutput, NoProgressDetector, NoProgressKind, ProviderHealth, TickResult,
+    WorkKindHandlers,
+};
 pub use dynamic::{
     AddressRange, Scenario, ScenarioValidationError, ScenarioVerifier, SetupOp, Step, StopOp,
 };
@@ -52,9 +58,12 @@ pub use types::{
     ReconciledVtableSlot, Reconciler,
 };
 pub use verification::{
-    ComparisonCounts, ComparisonLevel, ComparisonPolicy, ComparisonResult, ExecutionDiagnostic,
-    InitialState, NormalizationRule, Observation, ObservationBackend, ObservationError,
-    ObservationSet, Scenario as VerificationScenario, ScenarioExecutor, ScenarioInput,
-    VerificationComparison, Wave7ObservationBackend, compare,
+    CauseCategory, ComparisonCounts, ComparisonLevel, ComparisonPolicy, ComparisonResult,
+    ExecutionDiagnostic, FailureAnalysisRequest, InitialState, NormalizationRule, Observation,
+    ObservationBackend, ObservationError, ObservationSet, RegressionSet, RegressionTracker,
+    RepairConfig, RepairGenerationRequest, RepairResult, Scenario as VerificationScenario,
+    ScenarioExecutor, ScenarioInput, VerificationComparison, VerificationRepairDriver,
+    Wave7ObservationBackend, bounded_diff_for_llm, compare, determine_cause,
+    is_regression_edge_kind, is_regression_fingerprint_edge_kind,
 };
 pub use work_graph::{DependencyEdgeKind, WorkGraph, WorkGraphBuilder, WorkItemNode};
