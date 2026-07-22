@@ -1,0 +1,57 @@
+schema_version = 1
+package_id = "build.msvc2002"
+version = "0.1.0"
+content_hash = "0000000000000000000000000000000000000000000000000000000000000000"
+entrypoint = "bin/build-provider"
+protocol_range = [1, 1]
+configuration_schema = '{"type": "object"}'
+
+[[capabilities]]
+capability_id = "build.configure"
+version = "1.0.0"
+name = "Configure Build"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "build.compile"
+version = "1.0.0"
+name = "Compile Units"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "build.link"
+version = "1.0.0"
+name = "Link Target"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "build.run-test"
+version = "1.0.0"
+name = "Run Test"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "build.collect-diagnostics"
+version = "1.0.0"
+name = "Collect Diagnostics"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "build.abort"
+version = "1.0.0"
+name = "Abort Build"
+request_schema = ""
+response_schema = ""
+
+[max_concurrency]
+"build.configure" = 1
+"build.compile" = 4
+"build.link" = 1
+"build.run-test" = 4
+"build.collect-diagnostics" = 4
+"build.abort" = 4

@@ -1,0 +1,73 @@
+Task 28: Build Provider — cmkr+cmake+Docker-MSVC2002 with typed diagnostics
+============================================================================
+
+Date: 2026-07-22
+Status: PASS
+
+## Files Created
+
+### autore-reconstruction/src/build/
+- mod.rs — module docs and re-exports
+- trait_def.rs — `BuildProviderTrait` (async) with 5 methods
+- types.rs — `GeneratorManifest`, `CompileUnit`, `BuildConfigured`, `CompileResult`,
+  `LinkResult`, `RunTestResult`, `BuildLogs`, `BuildDiagnostic`, `DiagnosticSeverity`,
+  `SuggestedWorkKind` structs/enums
+- docker_msvc2002.rs — `DockerMsvc2002BuildProvider` implementing `BuildProviderTrait`
+  with command validation (metacharacter check, image name check, path containment),
+  Docker exec wrappers, and MSVC diagnostic parser
+- tests.rs — 8 unit tests
+
+### providers/build/
+- Cargo.toml — workspace member, off default-members
+- src/main.rs — bootstrap via env vars (same pattern as fixture/openai-compatible)
+- src/provider.rs — gRPC `Provider` service with 6 capabilities:
+  `build.configure`, `build.compile`, `build.link`, `build.run-test`,
+  `build.collect-diagnostics`, `build.abort`
+- manifest.toml — package_id `build.msvc2002`, version `0.1.0`, protocol_range [1,1]
+
+### Modified Files
+- autore-reconstruction/src/lib.rs — added `pub mod build;` and re-exports
+- autore-reconstruction/Cargo.toml — added `async-trait` and `tokio` deps
+- Cargo.toml (workspace) — added `providers/build` to members
+
+## Gate Results
+
+### Build
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo build -p autore-reconstruction` — PASS
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo build -p build-provider` — PASS
+- `cargo build` (default members) — PASS
+
+### Tests
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction build:: -- --nocapture`
+  8 passed; 0 failed
+  - build_provider_invokes_cmkr_gen_then_cmake_build_inside_docker
+  - build_provider_parses_compiler_diagnostics_to_typed_records
+  - build_provider_propagates_fail_status_to_completed_with_failed
+  - build_provider_never_uses_unconfigured_image_names
+  - trait_admits_other_adapters
+  - validate_no_metacharacters_rejects_shell_injection
+  - parse_msvc_diagnostics_handles_empty_input
+  - parse_msvc_diagnostics_classifies_known_codes
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p build-provider -- --nocapture` — PASS (0 tests, binary-only crate)
+
+### Clippy
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings` — CLEAN
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p build-provider --all-targets -- -D warnings` — CLEAN
+- `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction --exclude openai-compatible-provider --exclude build-provider --all-targets -- -D warnings` — CLEAN
+
+### Format
+- `cargo fmt --all --check` — CLEAN
+
+## Design Decisions
+
+1. `trait.rs` is named `trait_def.rs` because `trait` is a Rust reserved keyword.
+2. Validation methods (`validate_no_metacharacters`, `validate_image_name`) are
+   `pub(crate)` so tests can exercise them directly without going through Docker.
+3. `BuildDiagnostic`, `DiagnosticSeverity`, `SuggestedWorkKind` derive `Serialize`
+   so the provider binary can serialize diagnostics as observation payloads.
+4. `CompileUnit` derives both `Serialize` and `Deserialize` for JSON round-tripping
+   in the provider's `execute_compile` handler.
+5. Container names are derived from blake3 hash of the project root for determinism.
+6. The `echo` binary is used as a fake docker binary in the sequence test — it
+   succeeds (exit 0) and prints its arguments, proving the command sequence.
+7. `docker_binary` is `Option<String>` in the config, defaulting to `"docker"` when None.

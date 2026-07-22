@@ -8,6 +8,7 @@
 //! Stage 0 event store remains the single source of truth.
 
 pub mod analysis;
+pub mod build;
 pub mod fingerprint;
 pub mod generation;
 pub mod identity;
@@ -20,6 +21,12 @@ pub use analysis::{
     BUNDLE_MAX_BYTES, BuildDiagnosticSummary, BundleBuilder, BundleStore, CallSiteSummary,
     InvestigationBundle, LlmImportError, LlmImportResult, LlmImporter, StaticArtifactSet,
     StringSnippet,
+};
+pub use build::{
+    BuildConfigured, BuildDiagnostic as BuildDiag, BuildLogs, BuildProviderError,
+    BuildProviderTrait, BuildResult, CompileResult, CompileUnit, DiagnosticSeverity,
+    DockerMsvc2002BuildProvider, DockerMsvc2002Config, GeneratorManifest, LinkResult,
+    RunTestResult, SuggestedWorkKind,
 };
 pub use fingerprint::{
     FingerprintComparison, FingerprintInput, FingerprintSnapshot, InMemorySnapshot,

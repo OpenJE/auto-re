@@ -171,3 +171,10 @@
 - **Pre-existing `autore-tui` clippy `large_enum_variant`**: The workspace clippy command (excluding stage1/providers/reconstruction) fails on `TuiEvent::Internal` being ≥416 bytes. This is a pre-existing issue from Task 21 — boxing `InternalTuiEvent` is the fix but out of scope for generation tasks.
 - **Entity ID as work_item_id placeholder**: `RegisterGeneratedSourceMappingRequest.work_item_id` currently receives the entity UUID string. When `WorkGraphBuilder` assigns real work-item IDs, the skeleton builder will need to accept a `HashMap<EntityId, WorkItemId>` mapping or be called after graph construction.
 - **`RegisterGeneratedSourceMapping` is event-only (pre-existing from Task 12)**: The handler validates + emits an event but does not persist to a table. The V25 `generated_source_mappings` table exists but is not wired to the handler. A future task can upgrade the handler to persist the mapping.
+
+## 2026-07-22 Wave 6 Todo 28 (Build Provider)
+- **`trait.rs` reserved keyword**: Rust reserves the `trait` keyword, so the build trait file is named `trait_def.rs` instead. All imports reference `super::trait_def::*`.
+- **`ArtifactDescriptor.size` is `u64`**: The protobuf field is `uint64` (unsigned), not `int64`. The fixture provider uses `65536` literal which is fine; the build provider must use `as u64` cast.
+- **No tests in `providers/build/`**: The build-provider binary crate has 0 tests — all logic is tested via `autore-reconstruction`'s `build::tests` module. The provider binary is a thin gRPC wrapper routing to `DockerMsvc2002BuildProvider`.
+- **`build.abort` is a no-op**: The abort capability currently just acknowledges the request without actually killing any running Docker container. A future task should implement `docker kill` or `docker stop` when abort is requested.
+- **`link_target` hardcodes `--target all`**: The `DockerMsvc2002BuildProvider::link_target` method passes `--target all` instead of the actual executable target name from the generator manifest. This should be fixed when the manifest's `executable_target` field is properly threaded through the provider state.

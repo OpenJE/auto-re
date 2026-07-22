@@ -13,6 +13,7 @@ members = [
     "providers/fixture",
     "providers/ida",
     "providers/openai-compatible",
+    "providers/build",
     "autore-reconstruction",
 ]
 default-members = [

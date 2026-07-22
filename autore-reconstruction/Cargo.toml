@@ -10,6 +10,7 @@ autore-events = { path = "../autore-events" }
 autore-schema = { path = "../autore-schema" }
 autore-provider-protocol = { path = "../autore-provider-protocol" }
 autore-provider-runtime = { path = "../autore-provider-runtime" }
+async-trait = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
@@ -19,6 +20,7 @@ tracing = { workspace = true }
 petgraph = { workspace = true }
 jsonschema = { workspace = true }
 handlebars = { workspace = true }
+tokio = { workspace = true }
 
 [dev-dependencies]
 autore-app = { path = "../autore-app" }

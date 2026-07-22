@@ -652,3 +652,14 @@
 - `cargo build` (default members): clean
 - `cargo fmt --all --check`: clean
 - Evidence: `.omo/evidence/auto-re-stage-1/task-27-generator-skeleton.txt`
+
+## 2026-07-22 Wave 6 Todo 28 (Build Provider)
+
+### Key learnings
+- `trait` is a Rust reserved keyword — module file must be named `trait_def.rs` (or similar), not `trait.rs`.
+- MSVC diagnostic format: `<file>(<line>) : <severity> <code>: <message>`. The parser handles both `error` and `warning` severities and classifies C2065, C2061, C2079, C2440, C2039, C2027, and LNK* codes.
+- Command validation against an allowlist (metacharacter check, image name check, path containment) is essential before executing any Docker command. Even `docker exec` with user-supplied arguments needs validation.
+- Using `echo` as a fake Docker binary in tests is effective: it exits 0 and prints its arguments to stdout, allowing verification of the command sequence without mocking.
+- Container names derived from `blake3(project_root)` provide deterministic, collision-resistant names for concurrent builds.
+- `pub(crate)` visibility on validation methods allows unit tests to exercise them directly without spawning Docker.
+- The provider binary pattern from `providers/fixture/` is reusable: bootstrap handshake (secret, negotiate), gRPC server on random port, `Provider` trait implementation routing capabilities to internal logic.
