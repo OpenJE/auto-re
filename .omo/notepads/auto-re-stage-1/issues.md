@@ -67,3 +67,9 @@
 - **`reconstruction_campaigns` has no `name` column**: V14 migration doesn't include a `name` column despite the request struct having a `name` field. The campaign name is validated but not persisted. A future migration could add this column.
 - **`reconstruction_work_items` has no `description` column**: V15 migration doesn't include a description column. `CreateWorkItems` creates N work items based on the count of descriptions, but the descriptions themselves are not persisted.
 - **Refinery migration cache staleness**: After adding V14-V23 migration files, `cargo clean -p autore-store` was required to force refinery to re-embed the new SQL files. The `refinery::embed_migrations!` macro uses `include_str!` which is cached by the compiler. Without a clean rebuild, the old migration set was used.
+
+## 2026-07-21 Wave 3 Todo 13 (IDA Provider)
+- **IDA Pro not installed**: All tests requiring real IDA are marked `#[ignore]`. To run them: `cargo test -p ida-provider --features ida -- --ignored`. The 7 compile-only / structural tests pass in all environments.
+- **`manifest.toml` content_hash placeholder**: The `content_hash` field in `manifest.toml` is all zeros. The real BLAKE3 hash must be computed after packaging the built binary. This is consistent with the fixture provider's pattern.
+- **Provider `execute` method size**: The single `execute` method in `provider.rs` handles all 9 capabilities via match arms. While under the 250 LOC file ceiling (236 LOC), the method itself is long (~130 lines). If more capabilities are added, splitting into `capabilities.rs` is recommended.
+- **idax optional feature**: The `ida` feature flag means the provider compiles without IDA SDK but cannot actually open databases. The `ida.binary.open` capability returns `Diagnostic{code=ida.feature.disabled}` when built without the feature. This is by design — the binary builds clean in CI environments without IDA.

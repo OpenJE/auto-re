@@ -11,6 +11,7 @@ members = [
     "autore-provider-protocol",
     "autore-provider-runtime",
     "providers/fixture",
+    "providers/ida",
 ]
 default-members = [
     "autore-schema",

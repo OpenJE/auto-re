@@ -324,3 +324,28 @@
 - `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --all-targets -- -D warnings`: clean
 - `cargo test --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider`: 648+ tests passed
 - Evidence: `.omo/evidence/auto-re-stage-1/task-12-app-handlers.txt`
+
+## 2026-07-21 Wave 3 Todo 13 (IDA Provider)
+
+### Architecture
+- External IDA provider follows same bootstrap protocol as fixture provider: env vars → UDS/TCP auth → negotiate → gRPC address exchange.
+- 9 capabilities mapped: `ida.binary.open`, `ida.binary.ingest`, `ida.program.refresh`, `ida.function.snapshot`, `ida.type.snapshot`, `ida.class.snapshot`, `ida.references.query`, `ida.reanalyze`, `ida.native-artifact.export`.
+- `idax` is behind an `ida` feature flag. Without it, `ida.binary.open` returns a diagnostic error. This allows building the provider crate without the IDA SDK.
+- Compact event construction via `Ctx` tuple + `evt!` macro keeps `provider.rs` under 250 LOC with 9 capabilities (236 pure LOC).
+
+### idax API Pattern
+- `idax::database::init()` — must be called before any database operations.
+- `idax::database::open(path, read_only=true)` — opens an IDB. Returns `Result<(), idax::Error>`.
+- Same pattern as `autore-stage1/src/engine.rs::Engine::open()`.
+
+### Artifact Staging
+- Provider writes artifacts to `temp_dir()/ida-provider-staging/<request_id>/` — staging paths never contain `artifacts/sha256`.
+- Snapshot artifacts: disassembly, decompilation, CFG, instructions, types (5 files per ingest).
+- Typed snapshot/export capabilities produce a single artifact per request.
+
+### Verification
+- `PROTOC=... cargo build -p ida-provider --no-default-features`: clean
+- `PROTOC=... cargo clippy -p ida-provider --all-targets -- -D warnings`: clean
+- `cargo build` (default-members): clean (ida-provider not in default-members)
+- `cargo test -p ida-provider`: 7 passed, 6 ignored (IDA-dependent), 0 failed
+- Evidence: `.omo/evidence/auto-re-stage-1/task-13-ida-provider.txt`

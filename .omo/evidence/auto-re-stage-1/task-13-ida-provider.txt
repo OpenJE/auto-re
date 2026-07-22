@@ -1,0 +1,76 @@
+TASK 13 — External IDA Provider over idax 0.3.0
+=================================================
+Date: 2026-07-21
+Status: COMPLETED
+
+FILES CREATED
+-------------
+- providers/ida/Cargo.toml (package ida-provider, off default-members)
+- providers/ida/src/main.rs (bootstrap protocol, 108 pure LOC)
+- providers/ida/src/provider.rs (Provider trait impl, 9 capabilities, 236 pure LOC)
+- providers/ida/manifest.toml (9 capabilities, schema_version=1)
+- providers/ida/tests/provider_tests.rs (7 passing + 6 IDA-gated ignored)
+
+FILES MODIFIED
+--------------
+- Cargo.toml (root): added "providers/ida" to workspace.members (not default-members)
+
+CAPABILITIES IMPLEMENTED
+-------------------------
+1. ida.binary.open      — idax::database::init + open (feature-gated)
+2. ida.binary.ingest    — 11-stage walk, observation batches, 5 snapshot artifacts
+3. ida.program.refresh  — delta-only re-walk, progress per stage
+4. ida.function.snapshot — typed response + staged artifact
+5. ida.type.snapshot    — typed response + staged artifact
+6. ida.class.snapshot   — typed response + staged artifact
+7. ida.references.query — typed response
+8. ida.reanalyze        — typed response
+9. ida.native-artifact.export — typed response + staged artifact
+
+DEPENDENCIES
+------------
+- autore-provider-protocol, autore-provider-runtime, autore-schema
+- tokio, tonic, prost, prost-types, bytes, uuid, tokio-stream, serde_json, time, tracing, blake3
+- idax = "0.3.0" (optional, behind "ida" feature)
+
+DESIGN DECISIONS
+-----------------
+- idax is an optional dependency behind "ida" feature flag. Without the feature,
+  ida.binary.open returns a Diagnostic{code=ida.feature.disabled} + Completed{Failed}.
+  This allows building the provider without the IDA SDK installed.
+- Event construction uses a compact Ctx tuple + evt! macro to stay under the 250 LOC
+  ceiling in provider.rs (236 pure LOC with 9 capabilities).
+- Artifact staging uses std::env::temp_dir()/ida-provider-staging/<request_id>/ —
+  paths do NOT contain "artifacts/sha256" (verified by test).
+- All ExecutionEvents include provider_instance_id, request_id, operation_id,
+  capability_id, capability_version, and monotonic sequence numbers.
+
+GATE RESULTS
+-------------
+$ PROTOC=/tmp/opencode/protoc/bin/protoc cargo build -p ida-provider --no-default-features
+  -> Finished (clean, no warnings)
+
+$ PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p ida-provider --all-targets -- -D warnings
+  -> Finished (clean)
+
+$ cargo build (default-members)
+  -> Finished (clean, ida-provider not in default-members)
+
+$ cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol \
+    --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider \
+    --all-targets -- -D warnings
+  -> Finished (clean)
+
+$ PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p ida-provider
+  -> 7 passed, 6 ignored (IDA-dependent), 0 failed
+
+$ cargo fmt --all
+  -> Clean
+
+NOTES
+-----
+- IDA Pro is not installed in this environment. Tests requiring IDA are marked
+  #[ignore = "requires IDA Pro installation and 'ida' feature"].
+- To run IDA-dependent tests: cargo test -p ida-provider --features ida -- --ignored
+- manifest.toml content_hash is a placeholder (all zeros); real hash computed after
+  packaging the built binary.

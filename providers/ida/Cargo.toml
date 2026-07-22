@@ -1,0 +1,32 @@
+[package]
+name = "ida-provider"
+version = "0.1.0"
+edition.workspace = true
+
+[features]
+default = []
+ida = ["dep:idax"]
+
+[[bin]]
+name = "ida-provider"
+path = "src/main.rs"
+
+[dependencies]
+autore-provider-protocol = { path = "../../autore-provider-protocol" }
+autore-provider-runtime = { path = "../../autore-provider-runtime" }
+autore-schema = { path = "../../autore-schema" }
+tokio = { workspace = true }
+tonic = { workspace = true }
+prost = { workspace = true }
+prost-types = { workspace = true }
+bytes = "1"
+uuid = { workspace = true }
+tokio-stream = { workspace = true }
+serde_json = { workspace = true }
+time = { workspace = true }
+tracing = { workspace = true }
+blake3 = { workspace = true }
+idax = { version = "0.3.0", optional = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

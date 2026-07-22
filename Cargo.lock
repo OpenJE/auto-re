@@ -1522,6 +1522,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "ida-provider"
+version = "0.1.0"
+dependencies = [
+ "autore-provider-protocol",
+ "autore-provider-runtime",
+ "autore-schema",
+ "blake3",
+ "bytes",
+ "idax",
+ "prost",
+ "prost-types",
+ "serde_json",
+ "tempfile",
+ "time",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "idax"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

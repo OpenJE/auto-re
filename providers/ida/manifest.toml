@@ -1,0 +1,81 @@
+schema_version = 1
+package_id = "ida.analysis"
+version = "0.1.0"
+content_hash = "0000000000000000000000000000000000000000000000000000000000000000"
+entrypoint = "bin/ida-provider"
+protocol_range = [1, 1]
+configuration_schema = '{"type":"object"}'
+
+[[capabilities]]
+capability_id = "ida.binary.open"
+version = "1.0.0"
+name = "IDA Binary Open"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "ida.binary.ingest"
+version = "1.0.0"
+name = "IDA Binary Ingest"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "ida.program.refresh"
+version = "1.0.0"
+name = "IDA Program Refresh"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "ida.function.snapshot"
+version = "1.0.0"
+name = "IDA Function Snapshot"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "ida.type.snapshot"
+version = "1.0.0"
+name = "IDA Type Snapshot"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "ida.class.snapshot"
+version = "1.0.0"
+name = "IDA Class Snapshot"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "ida.references.query"
+version = "1.0.0"
+name = "IDA References Query"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "ida.reanalyze"
+version = "1.0.0"
+name = "IDA Reanalyze"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "ida.native-artifact.export"
+version = "1.0.0"
+name = "IDA Native Artifact Export"
+request_schema = ""
+response_schema = ""
+
+[max_concurrency]
+"ida.binary.open" = 4
+"ida.binary.ingest" = 4
+"ida.program.refresh" = 4
+"ida.function.snapshot" = 4
+"ida.type.snapshot" = 4
+"ida.class.snapshot" = 4
+"ida.references.query" = 4
+"ida.reanalyze" = 4
+"ida.native-artifact.export" = 4
