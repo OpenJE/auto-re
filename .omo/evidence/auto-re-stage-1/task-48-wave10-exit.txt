@@ -1,0 +1,45 @@
+Task 48 — Wave 10 exit slice: function-level + cluster-level differential test success
+Date: 2026-07-22
+
+What was done
+-------------
+Created integration test `autore-reconstruction/tests/wave10_differential.rs` that exercises:
+- Small fixture binary + two function entities (`f_a`, `f_b`) with a call dependency.
+- `ProjectSkeletonBuilder` (Wave 6) emitting empty-body stubs.
+- `GenerationOrchestrator` + mock `GenerationModel` (Wave 9) replacing stubs leaf-first.
+- `ScenarioExecutor` with a mock `ObservationBackend` (no Wine+GDB).
+- Function-level `ComparisonLevel::Function` scenario for `f_a`.
+- Cluster-level `ComparisonLevel::Cluster` scenario for the `f_a+f_b` cluster.
+- `RegressionTracker::compute_affected_entities` + `schedule_regressions` after a simulated
+  callee change (fingerprint/source replacement of `f_b`).
+- Re-verification of the affected entity (`f_a`) with the consistent mock backend.
+
+Verification commands
+---------------------
+1. Integration test (ignored by default, run explicitly):
+   PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction --test wave10_differential -- --nocapture --ignored
+
+   Output ended with:
+   [OK] function-verified + cluster-verified + regression-passed
+   test wave10_function_and_cluster_differential_verification ... ok
+   test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+
+2. Lint:
+   PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings
+   Result: clean (Finished dev profile)
+
+3. Format:
+   cargo fmt -p autore-reconstruction --check
+   Result: clean (no output)
+
+4. Existing autore-reconstruction regression suite:
+   PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction -- --nocapture
+   Result: 165 unit tests + 14 analysis tests passed; integration tests compile and are ignored by default.
+
+Files changed
+-------------
+- autore-reconstruction/tests/wave10_differential.rs (new)
+
+Commit message style
+--------------------
+test(reconstruction/verification): wave-10 end-to-end differential verification with regression guard

@@ -1,0 +1,65 @@
+Task 29 — Skeleton First Build Integration Test
+Date: 2026-07-22
+Status: PASSED
+
+## Test Execution
+Command: PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction --test skeleton_first_build -- --nocapture --ignored
+
+running 2 tests
+[skeleton_build] HAPPY PATH: skeleton → configure → compile → link
+[skeleton_build] FAILURE PATH: drop one stub → build fails → diagnostics
+[skeleton_build] skeleton issued 9 commands (6 RegisterArtifact, 3 RegisterGeneratedSourceMapping)
+[skeleton_build] dropped stub for entity 'alpha' at /tmp/.tmpHRR3El/src/generated/01/9f/8a/019f8a412f5170308403644e6c77dba9.cpp
+[skeleton_build] configure_project: success=true
+[skeleton_build] build failed as expected: stderr=src/generated/missing_entity.cpp(10) : error C2079: 'missing_entity' : uses undefined struct 'UndefinedType'
+[skeleton_build] diagnostic: code=C2079, severity=Error, file=src/generated/missing_entity.cpp, suggested=MissingDeclaration
+[skeleton_build] BUILD FAILED with 1 typed diagnostics -> BuildFailures work items created
+[skeleton_build] missing entity 'alpha' at .../src/generated/01/9f/8a/...cpp matched diagnostic file_path=src/generated/missing_entity.cpp
+[skeleton_build] compile_units: success=true, 3 objects
+test skeleton_first_build_failure_path ... ok
+[skeleton_build] link_target: success=true, exe=build/...obj
+[skeleton_build] BUILD PASSED, exe committed
+[skeleton_build] totals: 1 RecordBuildAttempt, 7 RegisterArtifact, 3 RegisterGeneratedSourceMapping
+test skeleton_first_build_happy_path ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+
+## Clippy
+Command: PROTOC=... cargo clippy -p autore-reconstruction --all-targets -- -D warnings
+Result: clean (0 warnings, 0 errors)
+
+## Formatting
+Command: cargo fmt --all --check
+Result: clean (exit 0)
+
+## Default Build
+Command: cargo build
+Result: clean (autore-reconstruction not in default-members)
+
+## Stage 0 Regression
+Command: PROTOC=... cargo test --workspace --exclude autore-stage1 --exclude fixture-provider --exclude ida-provider --exclude openai-compatible-provider --exclude autore-tui
+Result: all tests passed (0 failed)
+
+## Files Created
+- autore-reconstruction/tests/skeleton_first_build.rs (integration test, ~460 lines)
+- autore-reconstruction/tests/fixtures/mock-docker.sh (original mock, env-var controlled)
+- autore-reconstruction/tests/fixtures/mock-docker-success.sh (success-only mock)
+- autore-reconstruction/tests/fixtures/mock-docker-failure.sh (failure mock with C2079)
+
+## Happy Path Assertions
+- ProjectSkeletonBuilder produces 3 entities → 6 RegisterArtifact (.hpp+.cpp) + 3 RegisterGeneratedSourceMapping
+- configure_project succeeds (mock docker exits 0)
+- compile_units succeeds (3 objects)
+- link_target succeeds (executable path returned)
+- RecordBuildAttempt issued exactly once
+- RegisterArtifact issued for linked executable (total: 7 = 6 skeleton + 1 exe)
+- All mutations are ApplicationCommand variants
+
+## Failure Path Assertions
+- Stub deletion verified (victim .cpp removed from disk)
+- Build fails (mock exits non-zero with MSVC C2079 error)
+- collect_diagnostics parses 1 typed BuildDiagnostic
+- diagnostic_code = "C2079" (use of undefined type)
+- suggested_work_kind = MissingDeclaration
+- RecordBuildAttempt issued exactly once
+- All mutations are ApplicationCommand variants

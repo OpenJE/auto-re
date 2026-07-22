@@ -1,0 +1,36 @@
+=== Wave 9 Todo 41 Verification ===
+
+=== cargo test -p openai-compatible-provider generation:: ===
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.13s
+     Running unittests src/lib.rs (target/debug/deps/openai_compatible_provider-8c3d9ca47bda5021)
+
+running 4 tests
+test provider::generation::provider_advertises_six_generation_capabilities ... ok
+test provider::generation::generation_test_schema_rejects_unsupported_test_kind ... ok
+test provider::generation::generation_function_schema_rejects_missing_entity_target_id ... ok
+test provider::generation::generation_function_stages_candidate_artifact_with_mock_llm ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.08s
+
+     Running unittests src/main.rs (target/debug/deps/openai_compatible_provider-c09e23a2db8cc984)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/provider_tests.rs (target/debug/deps/provider_tests-c2b7c2106543a7fb)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+
+=== cargo build -p openai-compatible-provider ===
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.10s
+
+=== cargo clippy -p openai-compatible-provider --all-targets -- -D warnings ===
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.14s
+
+=== cargo fmt --all --check ===
+
+[OK] Wave 9 Todo 41 generation capabilities implemented and verified

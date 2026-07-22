@@ -1,0 +1,49 @@
+Task 34 — LLM-proposed scenario → validated → scheduled → executed end-to-end smoke test
+================================================================================
+
+Evidence generated: 2026-07-22
+Test file: autore-reconstruction/tests/dynamic_llm_proposed_scenario.rs
+
+Acceptance command:
+  PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction --test dynamic_llm_proposed_scenario -- --nocapture --ignored
+
+Result:
+  running 1 test
+  [llm_experiment_flow] bootstrapping project + campaign
+  [llm_experiment_flow] function work item: <uuid> for entity <uuid>
+  [llm_experiment_flow] LLM proposed scenario: Scenario { ... }
+  [llm_experiment_flow] scenario verifier: PASS
+  [llm_experiment_flow] scheduled investigation work item
+  [llm_experiment_flow] scenario executed: 3 observations
+  [llm_experiment_flow] observation imported; invalidated 1 work item(s)
+  [llm_experiment_flow] verifier rejected hallucinated unmapped address
+  [llm_experiment_flow] recorded FailWorkItem + BlockWorkWithReason
+  [llm_experiment_flow] command audit passed: 8 canonical mutation(s)
+  [OK] experiment proposed, validated, scheduled, executed, observed+imported+op invalidated dependent analysis
+  test llm_proposed_scenario_end_to_end ... ok
+
+Lint:
+  PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings
+  -> clean
+
+Format:
+  cargo fmt --all --check
+  -> clean
+
+What the test proves:
+- A typed Scenario AST is constructed directly (simulating an LLM's parsed
+  `llm.experiment.design` output) without contacting a real model endpoint.
+- ScenarioVerifier validates the proposal against the known function entity,
+  mapped segments [0x400000, 0x500000), and an API allowlist.
+- On valid, a CreateWorkItems command is issued; the investigation intent is
+  encoded in the description because the request struct has no `kind` field.
+- WineGdbRunner::mock() executes the scenario and emits DebugObservation records.
+- DynamicObservationImporter imports the observation, recomputes the target
+  work item's fingerprint, and issues InvalidateWorkItem for the originating
+  Function analysis work item.
+- On invalid (unmapped address 0xDEAD_0000), the verifier rejects the scenario
+  and the test records FailWorkItem + BlockWorkWithReason with reason
+  "UnvalidatedScenarioRejection".
+- All canonical mutations route through ApplicationCommand variants only.
+
+No real LLM endpoint, Wine, or GDB was required.

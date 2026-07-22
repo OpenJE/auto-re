@@ -1,0 +1,334 @@
+================================================================================
+F3: Real Manual QA — Readiness Check
+================================================================================
+Date: 2026-07-22
+Reviewer: Sisyphus-Junior (automated readiness verification)
+Scope: CLI command surface, TUI panes, operator checklist
+
+================================================================================
+VERDICT: APPROVE
+================================================================================
+
+The CLI command surface is complete, all TUI panes exist, and all handlers are
+implemented. The operator can proceed with manual QA once a small binary
+fixture is supplied.
+
+================================================================================
+SECTION 1: CLI SUBCOMMAND VERIFICATION
+================================================================================
+
+All subcommands verified via source (cli.rs L392-L541, handlers.rs L978-L1310)
+AND runtime `cargo run -p autore-cli -- <subcommand> --help`.
+
+1.1 reconstruct start
+    Source: cli.rs L402-L420, handlers.rs L984-L1026
+    Flags verified at runtime:
+      --binary <BINARY>                    Path to the binary to reconstruct
+      --output <OUTPUT>                    Output directory for generated artifacts
+      --analysis-provider <SPEC>           Analysis provider specification
+      --model-provider <SPEC>              Model provider specification
+      --build-profile <PROFILE>            Build profile identifier
+    All 5 flags REQUIRED (no defaults). ✅
+
+1.2 reconstruct status
+    Source: cli.rs L421-L425, handlers.rs L1027-L1046
+    Flags: --output (default: human) ✅
+
+1.3 reconstruct pause
+    Source: cli.rs L426-L427, handlers.rs L1048-L1058
+    No additional flags. ✅
+
+1.4 reconstruct resume
+    Source: cli.rs L428-L429, handlers.rs L1059-L1069
+    No additional flags. ✅
+
+1.5 reconstruct stop
+    Source: cli.rs L430-L431, handlers.rs L1070-L1080
+    No additional flags. ✅
+
+1.6 reconstruct validate
+    Source: cli.rs L432-L436, handlers.rs L1081-L1113
+    Flags: --output (default: human) ✅
+
+1.7 work list
+    Source: cli.rs L505-L509, handlers.rs (handle_work → ListWorkItems)
+    Flags: --output (default: human) ✅
+
+1.8 work show
+    Source: cli.rs L510-L518
+    Flags: --id <ID>, --output (default: human) ✅
+
+1.9 work blockers
+    Source: cli.rs L519-L526
+    Flags: --id <ID>, --output (default: human) ✅
+
+1.10 work retry
+    Source: cli.rs L527-L532
+    Flags: --id <ID> ✅
+
+1.11 work dependencies
+    Source: cli.rs L533-L540
+    Flags: --id <ID>, --output (default: human) ✅
+
+1.12 provider (supplementary — for campaign setup)
+    Subcommands: refresh, list, show, start, stop, restart, health ✅
+
+1.13 generated (supplementary)
+    Subcommands: status, files, entity ✅
+
+1.14 build (supplementary)
+    Subcommands: latest ✅
+
+================================================================================
+SECTION 2: TUI PANE VERIFICATION
+================================================================================
+
+Source: autore-tui/src/tui.rs (Pane enum, handle_key_event, render methods)
+TUI state: autore-tui/src/tui/state.rs
+
+The TUI has 12 panes total (7 Stage 0 + 5 Stage 1).
+
+Stage 1 panes required by spec §19/F3:
+
+  Pane                Alt-Key   Render Method                        Status
+  ─────────────────   ───────   ─────────────────────────────────    ──────
+  Campaign            Alt+8     render_campaign_pane()               ✅
+  WorkQueue           Alt+9     render_work_queue_pane()            ✅
+  ActiveProviders     Alt+0     render_active_providers_pane()      ✅
+  CompilerFailures    Alt+-     render_compiler_failures_pane()     ✅
+  VerificationDiffs   Alt+=     render_verification_diffs_pane()    ✅
+
+Tab strip (tui.rs L989-L1023) shows all 12 pane titles:
+  Dashboard, Providers, NativeArtifacts, OpsDetail, EventsLog,
+  Migration, ExtIntegrity, Campaign, WorkQueue, ActiveProviders,
+  CompilerFail, VerifDiffs
+
+TUI keybindings for campaign control:
+  'o'  — Open campaign dialog (binary path input)
+  'p'  — Pause coordinator
+  'r'  — Resume coordinator
+  'R'  — Requeue selected work item
+  'X'  — Stop coordinator
+  'P'  — Open provider instance dialog
+
+================================================================================
+SECTION 3: FIXTURE / SAMPLES STATUS
+================================================================================
+
+  samples/ directory:           DOES NOT EXIST
+  tests/fixtures/ directory:    DOES NOT EXIST (at workspace root)
+
+  However, autore-reconstruction/tests/fixtures/ contains:
+    - hello (15KB ELF binary, committed for integration tests)
+    - hello.i64 (124KB IDA database)
+
+  The operator must either:
+    (a) Supply a small PE/EXE binary at ./samples/<small.exe>
+    (b) Use an existing binary from the system (e.g., any small Windows PE)
+    (c) Use the autore-reconstruction test fixture if targeting ELF
+
+  NOTE: The CLI `reconstruct start --binary` accepts ANY path — the file
+  need not be in samples/. The operator can point to any binary.
+
+================================================================================
+SECTION 4: OPERATOR MANUAL QA CHECKLIST
+================================================================================
+
+PREREQUISITES:
+  [ ] A project.auto-re/ directory exists (run `auto-re project create --name test-campaign`)
+  [ ] A small binary is available (e.g., ./samples/small.exe or any PE/ELF)
+  [ ] IDA Pro is accessible (or mock-mode flag is set)
+  [ ] A local LLM endpoint is running (or mock-mode flag is set)
+  [ ] Docker is available for msvc-docker build profile
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 1: Start a reconstruction campaign
+────────────────────────────────────────────────────────────────────────────────
+
+  Command:
+    auto-re reconstruct start \
+      --binary ./samples/small.exe \
+      --output /tmp/gen-out \
+      --analysis-provider ida \
+      --model-provider openai-compatible \
+      --build-profile msvc-docker
+
+  Expected outcome:
+    - JSON output with $schema "auto-re/schema/campaign-created/v2.0"
+    - "Campaign created: ..." message
+    - "output=/tmp/gen-out, analysis=ida, model=openai-compatible, profile=msvc-docker"
+
+  Acceptance criteria:
+    [ ] Command exits 0
+    [ ] Campaign creation JSON is printed
+    [ ] /tmp/gen-out directory is created (or will be on first write)
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 2: Check campaign status
+────────────────────────────────────────────────────────────────────────────────
+
+  Command:
+    auto-re reconstruct status
+
+  Expected outcome:
+    - "Campaign: <uuid>" and "Name: small" (or binary stem name)
+
+  Acceptance criteria:
+    [ ] Command exits 0
+    [ ] Campaign ID and name are displayed
+
+  JSON variant:
+    auto-re reconstruct status --output json
+    [ ] Valid JSON with $schema "auto-re/schema/campaign-status/v2.0"
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 3: Stop the coordinator
+────────────────────────────────────────────────────────────────────────────────
+
+  Command:
+    auto-re reconstruct stop
+
+  Expected outcome:
+    - JSON with $schema "auto-re/schema/coordinator-stopped/v2.0"
+
+  Acceptance criteria:
+    [ ] Command exits 0
+    [ ] Coordinator stopped event is emitted
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 4: Resume the coordinator
+────────────────────────────────────────────────────────────────────────────────
+
+  Command:
+    auto-re reconstruct resume
+
+  Expected outcome:
+    - JSON with $schema "auto-re/schema/coordinator-resumed/v2.0"
+
+  Acceptance criteria:
+    [ ] Command exits 0
+    [ ] Coordinator resumed event is emitted
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 5: Pause the coordinator
+────────────────────────────────────────────────────────────────────────────────
+
+  Command:
+    auto-re reconstruct pause
+
+  Expected outcome:
+    - JSON with $schema "auto-re/schema/coordinator-paused/v2.0"
+
+  Acceptance criteria:
+    [ ] Command exits 0
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 6: List work items
+────────────────────────────────────────────────────────────────────────────────
+
+  Command:
+    auto-re work list
+
+  Expected outcome:
+    - Human-readable table of work items (may be empty if campaign hasn't
+      progressed) OR "No work items" message
+
+  Acceptance criteria:
+    [ ] Command exits 0
+    [ ] Output format is tabular (human) or valid JSON (--output json)
+
+  JSON variant:
+    auto-re work list --output json
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 7: TUI dashboard verification
+────────────────────────────────────────────────────────────────────────────────
+
+  Command:
+    auto-re tui
+
+  Expected outcome:
+    - 12-tab TUI renders without crash
+    - All 5 Stage 1 panes accessible via Alt+8 through Alt+=
+
+  Acceptance criteria:
+    [ ] TUI launches and renders
+    [ ] Alt+8 shows Campaign pane
+    [ ] Alt+9 shows WorkQueue pane
+    [ ] Alt+0 shows ActiveProviders pane
+    [ ] Alt+- shows CompilerFailures pane
+    [ ] Alt+= shows VerificationDiffs pane
+    [ ] 'o' key opens campaign dialog
+    [ ] 'p' key pauses coordinator (with project selected)
+    [ ] 'r' key resumes coordinator
+    [ ] 'X' key stops coordinator
+    [ ] 'R' key requeues selected work item
+    [ ] 'P' key opens provider dialog
+    [ ] 'q' key quits cleanly
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 8: Validate reconstruction
+────────────────────────────────────────────────────────────────────────────────
+
+  Command:
+    auto-re reconstruct validate
+
+  Expected outcome:
+    - "Reconstruction validation passed." or "Reconstruction validation failed:
+      N finding(s)"
+
+  Acceptance criteria:
+    [ ] Command exits 0 if passed, non-zero if failed
+    [ ] Validation report is displayed
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 9: Inspect build status
+────────────────────────────────────────────────────────────────────────────────
+
+  Command:
+    auto-re build latest
+
+  Expected outcome:
+    - Latest build status displayed
+
+  Acceptance criteria:
+    [ ] Command exits 0
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 10: Inspect generated source mappings
+────────────────────────────────────────────────────────────────────────────────
+
+  Command:
+    auto-re generated status
+    auto-re generated files
+
+  Expected outcome:
+    - Generated source mapping status and file list
+
+  Acceptance criteria:
+    [ ] Both commands exit 0
+
+================================================================================
+SECTION 5: KNOWN LIMITATIONS (from notepads)
+================================================================================
+
+1. `reconstruct start` registers the binary as an artifact and creates a
+   campaign record. The actual IDA analysis + LLM routing requires the
+   autore-stage1 coordinator runtime, which is NOT in default-members.
+   Build with: `cargo build -p autore-stage1`
+
+2. No `--mock-mode` flag exists on `reconstruct start`. The operator must
+   either run with real providers or test the CLI surface only (steps 1-6
+   will create the campaign record but the coordinator loop requires
+   stage1 runtime).
+
+3. The `samples/` directory does not exist. The operator must supply a
+   binary or use any existing file path.
+
+4. Provider instances (IDA, LLM) must be started separately via
+   `auto-re provider start --installation-id <ID>` before the coordinator
+   can dispatch work.
+
+================================================================================
+END OF CHECKLIST
+================================================================================

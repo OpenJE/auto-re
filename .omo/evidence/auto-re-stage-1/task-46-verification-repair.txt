@@ -1,0 +1,23 @@
+# Task 46: Verification-driven repair + LLM failure analysis
+
+Command: PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction verification::repair:: -- --nocapture
+
+     Finished `test` profile [unoptimized + debuginfo] target(s) in 5.38s
+     Running unittests src/lib.rs (target/debug/deps/autore_reconstruction-e2778b281f454817)
+
+running 8 tests
+test verification::repair::tests::determine_cause_execution_failed_with_env_diagnostic_is_environment ... ok
+test verification::repair::tests::determine_cause_function_level_different_is_implementation ... ok
+test verification::repair::tests::determine_cause_layout_mismatch_is_type ... ok
+test verification::repair::tests::bounded_diff_summarizes_and_limits_observations ... ok
+test verification::repair::tests::repair_candidate_rebuilds ... ok
+test verification::repair::tests::llm_analysis_failure_invoked_with_bounded_diff ... ok
+test verification::repair::tests::mismatch_creates_investigation_work ... ok
+test verification::repair::tests::invocation_re_runs_scenarios_and_regression ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 148 filtered out; finished in 0.00s
+
+Clippy: PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings
+Format: cargo fmt -p autore-reconstruction --check
+
+[OK] verification-driven repair driver implemented and verified

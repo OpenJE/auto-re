@@ -1,0 +1,20 @@
+Task 38: LLM conflict-arbitration flow (llm.analysis.conflict capability)
+
+Verification:
+- cargo test -p autore-reconstruction --lib types::conflict::
+  running 4 tests
+  test types::conflict::tests::llm_arbitration_produces_accept_command ... ok
+  test types::conflict::tests::llm_arbitration_produces_reject_command ... ok
+  test types::conflict::tests::llm_arbitration_produces_supersede_command ... ok
+  test types::conflict::tests::supersede_invalidates_affected_generated_sources ... ok
+  test result: ok. 4 passed; 0 failed; 0 ignored
+- cargo test -p autore-schema -p autore-app -p autore-reconstruction: all passed (autore-schema 279/279)
+- cargo clippy -p autore-reconstruction -p autore-app -p autore-schema --all-targets -- -D warnings: clean
+- cargo fmt --all --check: clean
+
+Implementation notes:
+- Added PolicyDecision enum to autore-schema.
+- Extended AcceptHypothesisPolicyDrivenRequest to carry policy_decision, justification, and superseding_hypothesis_id.
+- Updated mutation and application service handler to apply Accept/Reject/Supersede.
+- Added ConflictArbitrator in autore-reconstruction/src/types/conflict.rs with ConflictLlm trait for mock LLM injection.
+- Supersede decisions invalidate GeneratedSourceMapping records targeting the conflict subject entity.

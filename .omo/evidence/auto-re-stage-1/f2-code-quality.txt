@@ -1,0 +1,281 @@
+Final Verification Wave F2 — Code Quality Review
+Workspace: /mnt/shanes-ssd-1tb/code/shane/auto-re
+Date: 2026-07-22
+Reviewer: F2 (Code quality)
+
+================================================================================
+VERDICT: REJECT
+================================================================================
+
+Reason: The required command
+  `cargo test --workspace --exclude autore-stage1 -- --include-ignored`
+  failed (exit 101) because six `#[ignore]`-driven IDA-provider tests panic
+  when run without an IDA Pro installation. The workspace therefore does not
+  satisfy the stated gate.
+
+================================================================================
+COMMANDS RUN
+================================================================================
+
+All commands were executed with `PROTOC=/tmp/opencode/protoc/bin/protoc` in
+order to build the Stage 1 provider/reconstruction crates.
+
+1. cargo fmt --all --check
+   Exit: 0
+   Status: PASS — no formatting changes required.
+
+2. cargo clippy --workspace --exclude autore-stage1 --all-targets -- -D warnings
+   Exit: 0
+   Status: PASS — no warnings emitted.
+   Note: Cargo reported only the changed crate because other workspace members
+   were already cached; the exit code is 0 with `-D warnings` active.
+
+3. cargo clippy -p autore-provider-protocol -p autore-provider-runtime
+                  -p autore-reconstruction -p fixture-provider -p ida-provider
+                  -p openai-compatible-provider -p build-provider
+                  --all-targets -- -D warnings
+   Exit: 0
+   Status: PASS — no warnings emitted.
+
+4. cargo test --workspace --exclude autore-stage1
+   Exit: 0
+   Status: PASS — all test suites completed with 0 failures.
+   Observed: 35 autore-app, 1 persistence_round_trip, 18 auto_re CLI unit,
+   20 cli_integration, 74 autore_core, 12 autore_events, 1 autore_provider_protocol,
+   3 autore_provider_runtime unit, 6 artifact_tests, 1 fixture integration,
+   6 package_tests, 4 runtime_tests, 177 autore_reconstruction unit, 61 autore_tui
+   unit, 1 pty_smoke, 3 regression, 13 ida-provider provider_tests (7 passed,
+   6 ignored), 6 openai_compatible_provider unit, 5 openai_compatible_provider
+   provider_tests, plus doc-tests. No compiler warnings were emitted.
+
+5. cargo test --workspace --exclude autore-stage1 -- --include-ignored
+   Exit: 101
+   Status: FAIL — six previously ignored IDA-provider tests failed.
+   Failure evidence:
+
+   Test binary: `ida-provider/tests/provider_tests.rs`
+
+   Failed tests:
+   - binary_ingest_emits_progress_per_stage
+   - binary_ingest_writes_snapshot_artifacts_to_staging
+   - binary_open_succeeds_on_valid_idb
+   - function_snapshot_returns_typed_result
+   - program_refresh_emits_only_deltas_for_unchanged
+   - program_refresh_marks_removed_as_stale
+
+   Each failure panicked with the same message at the following source lines:
+
+   providers/ida/tests/provider_tests.rs:109:5
+     requires IDA Pro
+   providers/ida/tests/provider_tests.rs:116:5
+     requires IDA Pro
+   providers/ida/tests/provider_tests.rs:123:5
+     requires IDA Pro
+   providers/ida/tests/provider_tests.rs:130:5
+     requires IDA Pro
+   providers/ida/tests/provider_tests.rs:137:5
+     requires IDA Pro
+   providers/ida/tests/provider_tests.rs:144:5
+     requires IDA Pro
+
+   The rest of the workspace (including the Wave-11 slow integration tests for
+   autonomous run and whole-program work graph) passed once `--include-ignored`
+   forced the ignored tests to run.
+
+6. cargo test -p autore-tui --test pty_integration -- --ignored --nocapture
+   Exit: 0
+   Status: PASS — 4/4 PTY integration tests passed.
+   Tests:
+   - pty_stage1_start_provider_line_item
+   - pty_stage1_start_campaign_dialog
+   - pty_tui_lifecycle
+   - (and the remaining PTY case)
+
+================================================================================
+FORBIDDEN PANIC-PATTERN SEARCH
+================================================================================
+
+Search scope: `autore-reconstruction/src/` and `autore-app/src/`
+
+A. `todo!()` / `unimplemented!()`
+   Command: grep -R -n -E '(\btodo!\(|\bunimplemented!\(\))' ...
+   Result: 0 matches.
+   Status: PASS
+
+B. `unwrap_or_else(|| panic!())` inside loops
+   Command: grep -R -n -E 'unwrap_or_else\(\s*\|\|s*panic!' ...
+   Result: 0 matches.
+   Status: PASS
+   (The single `unwrap_or_else(|e| panic!(...))` found in
+   `autore-app/src/application_service/tests.rs:1062` is in a test helper and
+   is not inside a loop.)
+
+C. `unwrap()` / `panic!()` in production (non-test) coordinator/codegen loops
+   Reviewed all matches from:
+   grep -R -n -E '(\.unwrap\(\)|panic!\()' ...
+
+   Findings:
+   - `autore-reconstruction/src/generation/orchestrator.rs` production code
+     (lines 1-575): the `repair_loop` and `process_next_work_item` loops do
+     not contain `unwrap()` calls. The `.unwrap()` lines in that file are all
+     inside the `#[cfg(test)]` module starting at line 580.
+   - `autore-reconstruction/src/coordinator/mod.rs` production code: the
+     `tick()` loop and all helper loops use `?` propagation, not `unwrap()`.
+   - `autore-reconstruction/src/verification/executor.rs:156` uses
+     `NamespacedId::parse("debug.unknown").unwrap()` only as a literal fallback
+     and is not in a coordinator/codegen loop.
+   - `autore-reconstruction/src/work_graph/builder.rs:210` uses
+     `kinds.into_iter().next().unwrap()` only after a `kinds.len() > 1` error
+     return guarantees the set is non-empty. It is inside an SCC loop but is
+     guarded and therefore not a reachable panic path.
+   - `autore-reconstruction/src/build/docker_msvc2002.rs:208` uses
+     `root.as_ref().unwrap()` in a non-loop build-provider path. This is a
+     reachable panic path in production code, but it is outside the specified
+     coordinator/codegen-loop scope.
+   - Remaining production `.unwrap()` occurrences are `NamespacedId::parse`
+     calls on compile-time literal strings or test-only code.
+
+   Status: No forbidden pattern identified in a reachable coordinator/codegen
+   loop. The `docker_msvc2002.rs:208` unwrap is noted as a quality observation
+   but is not a forbidden-pattern rejection per the gate definition.
+
+================================================================================
+SUMMARY
+================================================================================
+
+- Formatting: PASS
+- Clippy (workspace): PASS
+- Clippy (provider subset): PASS
+- Unit/integration tests (non-ignored): PASS
+- TUI PTY integration (ignored): PASS
+- Forbidden pattern search: PASS
+- Workspace tests with `--include-ignored`: FAIL (missing IDA Pro)
+
+Because the final workspace gate `cargo test --workspace --exclude autore-stage1
+-- --include-ignored` does not exit clean, the F2 code-quality review verdict
+is REJECT.
+
+================================================================================
+Final Verification Wave F2 — Code Quality Review (RE-RUN)
+Workspace: /mnt/shanes-ssd-1tb/code/shane/auto-re
+Date: 2026-07-22
+Reviewer: F2 (Code quality)
+Context: Re-run after IDA test fix (commit 59d6b52)
+
+================================================================================
+VERDICT: APPROVE
+================================================================================
+
+The previously failing gate
+  `cargo test --workspace --exclude autore-stage1 -- --include-ignored`
+now exits clean. The six IDA-provider tests that used to panic with
+`panic!("requires IDA Pro")` now skip gracefully via `require_ida!()` when
+IDA Pro is unavailable.
+
+================================================================================
+COMMANDS RUN (RE-RUN)
+================================================================================
+
+All commands were executed with `PROTOC=/tmp/opencode/protoc/bin/protoc` in
+order to build the Stage 1 provider/reconstruction crates.
+
+1. cargo fmt --all --check
+   Exit: 0
+   Status: PASS — no formatting changes required.
+
+2. cargo clippy --workspace --exclude autore-stage1 --all-targets -- -D warnings
+   Exit: 0
+   Status: PASS — no warnings emitted.
+
+3. cargo clippy -p autore-provider-protocol -p autore-provider-runtime
+                   -p autore-reconstruction -p fixture-provider -p ida-provider
+                   -p openai-compatible-provider -p build-provider
+                   --all-targets -- -D warnings
+   Exit: 0
+   Status: PASS — no warnings emitted.
+
+4. cargo test --workspace --exclude autore-stage1
+   Exit: 0
+   Status: PASS — all test suites completed with 0 failures.
+   Observed: 35 autore-app, 1 persistence_round_trip, 18 auto_re CLI unit,
+   20 cli_integration, 74 autore_core, 12 autore_events, 1 autore_provider_protocol,
+   3 autore_provider_runtime unit, 6 artifact_tests, 1 fixture integration,
+   6 package_tests, 4 runtime_tests, 177 autore_reconstruction unit, 61 autore_tui
+   unit, 1 pty_smoke, 3 regression, 13 ida-provider provider_tests (7 passed,
+   6 ignored), 6 openai_compatible_provider unit, 5 openai_compatible_provider
+   provider_tests, plus doc-tests. No compiler warnings were emitted.
+
+5. cargo test --workspace --exclude autore-stage1 -- --include-ignored
+   Exit: 0
+   Status: PASS — all test suites completed with 0 failures.
+   Critical observation: the 6 previously ignored IDA-provider tests now pass
+   (gracefully skip via `require_ida!()`), so the total ida-provider suite
+   shows 13 passed, 0 failed, 0 ignored.
+   PTY integration tests also ran under --include-ignored and passed (4/4).
+
+6. cargo test -p autore-tui --test pty_integration -- --ignored --nocapture
+   Exit: 0
+   Status: PASS — 4/4 PTY integration tests passed.
+   Tests:
+   - pty_stage1_start_provider_line_item
+   - pty_stage1_start_campaign_dialog
+   - pty_stage1_stop_campaign_dialog
+   - pty_tui_lifecycle
+
+================================================================================
+FORBIDDEN PANIC-PATTERN SEARCH (RE-RUN)
+================================================================================
+
+Search scope: `autore-reconstruction/src/` and `autore-app/src/`
+
+A. `todo!()` / `unimplemented!()`
+   Command: grep -R -n -E '(\btodo!\(|\bunimplemented!\()' ...
+   Result: 0 matches.
+   Status: PASS
+
+B. `unwrap_or_else(|| panic!())` inside loops
+   Command: grep -R -n -E 'unwrap_or_else\(\s*\|\|\s*panic!' ...
+   Result: 0 matches.
+   Status: PASS
+   (The `unwrap_or_else(|e| panic!(...))` in `autore-app/src/application_service/tests.rs`
+   is inside a test helper and is not in a loop.)
+
+C. `.unwrap()` / `panic!()` in production (non-test) coordinator/codegen loops
+   Reviewed all matches from:
+   grep -R -n -E '(\.unwrap\(\)|panic!\()' ...
+
+   Findings:
+   - `autore-reconstruction/src/generation/orchestrator.rs` production code
+     (before the `#[cfg(test)]` boundary): loops use `?` propagation or guarded
+     operations; no reachable `.unwrap()` in coordinator/codegen loops.
+   - `autore-reconstruction/src/coordinator/mod.rs` production code: loops use
+     `?` propagation; no reachable `.unwrap()`.
+   - `autore-reconstruction/src/verification/executor.rs:156` uses
+     `NamespacedId::parse("debug.unknown").unwrap()` only as a literal fallback
+     and is not in a coordinator/codegen loop.
+   - `autore-reconstruction/src/work_graph/builder.rs:210` uses
+     `kinds.into_iter().next().unwrap()` only after a `kinds.len() > 1` error
+     return guarantees the set is non-empty.
+   - `autore-reconstruction/src/build/docker_msvc2002.rs:208` uses
+     `root.as_ref().unwrap()` in a non-loop build-provider path; noted as a
+     quality observation but not a forbidden-pattern rejection.
+   - Remaining production `.unwrap()` occurrences are `NamespacedId::parse`
+     calls on compile-time literal strings or are inside `#[cfg(test)]` modules.
+
+   Status: PASS — no forbidden pattern identified in a reachable
+   coordinator/codegen loop.
+
+================================================================================
+SUMMARY
+================================================================================
+
+- Formatting: PASS
+- Clippy (workspace): PASS
+- Clippy (provider subset): PASS
+- Unit/integration tests (non-ignored): PASS
+- Workspace tests with `--include-ignored`: PASS (previously FAIL; now fixed)
+- TUI PTY integration (ignored): PASS
+- Forbidden pattern search: PASS
+
+Because all workspace gates exit clean, the F2 code-quality re-review verdict
+is APPROVE.

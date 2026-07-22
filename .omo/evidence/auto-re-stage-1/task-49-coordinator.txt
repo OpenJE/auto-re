@@ -1,0 +1,76 @@
+Task 49: Implement durable coordinator loop with no-progress detection + completion-policy gate
+Date: 2026-07-22
+
+## What was done
+- Created `autore-reconstruction/src/coordinator/` module:
+  - `mod.rs` — `Coordinator` struct with async `tick()` implementing spec §14.1 phases in order:
+    reconcile_interrupted_operations → refresh_provider_health → refresh_program_structure_if_requested
+    → update_work_dependencies → invalidate_stale_work → promote_ready_work → select_ready_work.
+  - `state.rs` — `CoordinatorState`, `CoordinatorWorkItem`, `ProviderHealth`, response-hash history.
+  - `policy.rs` — `CompletionPolicy` (terminal = Completed/Blocked/Cancelled; Blocked is not success),
+    `NoProgressDetector` with last-3 identical raw-response-hash tracking.
+  - `handlers.rs` — `WorkKindHandlers` trait with seven dispatch methods, `DispatchKind` classifier
+    mapping the schema-level `WorkItemKind` to StaticInvestigation / DynamicInvestigation /
+    SemanticAnalysis / ConflictResolution / Generation / BuildFailure / Verification.
+  - `tests.rs` — unit tests for dispatch, no-progress blocking, cancellation, reconciliation, and
+    completion policy.
+- Re-exported coordinator types from `autore-reconstruction/src/lib.rs`.
+- All tick outputs route through `ApplicationCommand`, preserving the atomic-import-per-iteration
+  invariant.
+
+## Design decisions
+- `Investigation` work items are disambiguated by description prefix (`static:`, `dynamic:`,
+  `semantic:`) because the schema-level `WorkItemKind` enum does not yet contain the fine-grained
+  sub-kinds referenced in the task description.
+- Completion policy distinguishes `is_complete` (all required terminal) from
+  `is_successfully_complete` (no blocked required items remain).
+- No-progress blocking emits `BlockWorkItem` with reason tag
+  `RepeatedIdenticalModelOutput:<DispatchKind>`.
+
+## Verification commands
+
+```bash
+PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction coordinator::
+```
+
+Result:
+```
+running 12 tests
+test coordinator::handlers::tests::classify_generation_and_failure_kinds ... ok
+test coordinator::handlers::tests::classify_investigation_by_description ... ok
+test coordinator::policy::tests::complete_when_all_required_terminal ... ok
+test coordinator::policy::tests::not_complete_when_required_missing ... ok
+test coordinator::policy::tests::no_progress_detected_after_three_identical_hashes ... ok
+test coordinator::tests::classify_investigation_covers_all_subkinds ... ok
+test coordinator::policy::tests::no_progress_not_detected_with_varied_hashes ... ok
+test coordinator::tests::coordinator_respects_cancellation_token_between_ticks ... ok
+test coordinator::tests::coordinator_completeness_does_not_pass_with_terminal_blocked ... ok
+test coordinator::tests::coordinator_refresh_reconciles_interrupted_operations ... ok
+test coordinator::tests::no_progress_on_repeated_identical_model_output_triggers_blockwork ... ok
+test coordinator::tests::coordinator_tick_executes_expected_handlers_per_work_kind ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured
+[OK] coordinator tests pass
+```
+
+```bash
+PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings
+```
+
+Result: clean, exit 0.
+[OK] clippy clean
+
+```bash
+cargo fmt -p autore-reconstruction --check
+```
+
+Result: clean, exit 0.
+[OK] fmt clean
+
+## Files changed
+- autore-reconstruction/src/coordinator/mod.rs (new)
+- autore-reconstruction/src/coordinator/state.rs (new)
+- autore-reconstruction/src/coordinator/policy.rs (new)
+- autore-reconstruction/src/coordinator/handlers.rs (new)
+- autore-reconstruction/src/coordinator/tests.rs (new)
+- autore-reconstruction/src/lib.rs (coordinator module + re-exports)

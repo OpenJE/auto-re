@@ -1,0 +1,147 @@
+F1. Plan Compliance Audit — auto-re-stage-1
+============================================
+
+Date: 2026-07-22
+Auditor: Sisyphus-Junior (F1 reviewer)
+Plan: .omo/plans/auto-re-stage-1.md
+
+VERDICT: APPROVE
+
+No stop-items found. All checked invariants hold.
+
+---
+
+1. Plan structure / todo completion
+-----------------------------------
+- All 60 implementation todos are marked `- [x]` in the plan.
+- Grep `^- \[x\] \d+\.`: 60 matches.
+- Grep `^- \[ \] \d+\.`: 0 matches (only the final-wave F1-F4 checkboxes remain unchecked, which is expected).
+- Dependency matrix reviewed: every todo's `Blocked by` list is satisfied by earlier completed todos.
+
+2. Spec §1-§23 mapping to todos
+--------------------------------
+Every spec section is covered by at least one todo:
+- §3 architectural invariants → todos 1, 2, 3, 4, 12, 14, 17, 19, 21, 23, 33, 49
+- §4 retain/adapt/replace/remove audit → todo 1
+- §5 provider substrate → todos 6-10
+- §6 IDA whole-program ingestion → todos 11-15
+- §7 whole-program reconstruction graph → todos 16-20
+- §8 LLM semantic analysis → todos 21-25
+- §9 dynamic investigation (IDA/GDB) → todos 31-35
+- §10 shared type/class recovery → todos 36-40
+- §11 C++ project generation → todos 27, 41-44
+- §12 build/compiler feedback → todos 28-30
+- §13 differential verification → todos 45-48
+- §14 autonomous coordinator → todos 49, 53-55
+- §15 CLI → todo 50
+- §16 TUI → todos 51, 56
+- §17 persistence/recovery → todos 11, 12, 16, 26, 52, 53
+- §18 implementation sequence → all 12 waves
+- §19 completion gate → todo 60 / docs/stage1-completion-gate.md
+- §20 Van Buren campaign bar → todo 60 addendum (operator acceptance, not automated)
+- §21 exclusions/deferred work → docs/stage1-report.md §10
+- §22 final implementation report → todo 58 / docs/stage1-report.md
+- §23 architectural test → todo 59 / docs/stage1-architectural-test.md
+
+3. §19 38-row completion gate
+-----------------------------
+- File: docs/stage1-completion-gate.md exists.
+- `grep -c '^| [0-9]'`: 38 rows.
+- `grep -c '^| [0-9]+ |.*| F |'`: 0 matches (no Fail entries).
+- All rows show Pass = Y with mapping todo numbers and evidence file paths.
+
+4. §23 architectural test
+-------------------------
+- File: docs/stage1-architectural-test.md exists.
+- `grep -c '^## Q'`: 10 sections.
+- `grep -c '^YES.'`: 10 answers.
+- `grep -c 'NO'`: 0 (excluding natural-language negatives in questions themselves).
+- Each answer includes a code-path citation to the shipped tree.
+
+5. Required docs existence
+--------------------------
+- docs/stage1-audit.md          → exists
+- docs/stage1-completion-gate.md → exists
+- docs/stage1-architectural-test.md → exists
+- docs/stage1-report.md         → exists
+
+6. Workspace gates (re-run by F1 for independent verification)
+--------------------------------------------------------------
+All commands executed in this audit and exited 0 with zero warnings:
+
+  cargo build
+  cargo fmt --all --check
+  PROTOC=/tmp/opencode/protoc/bin/protoc cargo test --workspace --exclude autore-stage1
+  PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy --workspace --exclude autore-stage1 --all-targets -- -D warnings
+  PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-provider-protocol -p autore-provider-runtime -p autore-reconstruction -p fixture-provider -p ida-provider -p openai-compatible-provider -p build-provider --all-targets -- -D warnings
+
+Test totals observed (non-ignored, workspace --exclude autore-stage1):
+- autore-app: 35 passed
+- autore-cli: 38 passed (18 integration + 20 unit)
+- autore-core: 74 passed
+- autore-events: 12 passed
+- autore-provider-protocol: 1 passed
+- autore-provider-runtime: 3 passed (+ 6 artifact + 6 package + 4 runtime + 1 fixture integration = 20 total in crate evidence)
+- autore-reconstruction: 177 unit + 14 integration passed
+- autore-schema: 279 passed
+- autore-store: 158 passed
+- autore-tui: 61 passed
+- openai-compatible-provider: 11 passed
+- ida-provider: 7 passed (6 ignored IDA-dependent)
+- build-provider: 0 passed (binary crate)
+
+7. Spot-check: 5 Must NOT do rules preserved in code
+-----------------------------------------------------
+
+A. Build-tool failures do NOT escalate to LLM
+   Source: autore-reconstruction/src/build/classification.rs:161-163
+   `BuildEnvironmentDefect => RepairStrategy::BlockWorkItem { reason: ... }`
+   Source: autore-reconstruction/src/generation/orchestrator.rs:303-311
+   BlockWorkItem issued immediately for BlockWorkItem strategy; no model call.
+   Test: autore-reconstruction/tests/faults-coverage.rs:894-982
+   Asserts `ENV_CMAKE` classifies as `BuildEnvironmentDefect`, routes to `BlockWorkItem`, and does NOT issue `RecordRepairAttempt` (no LLM repair).
+
+B. Stale-marking is NOT bypassed; entities are never deleted on refresh
+   Source: autore-reconstruction/src/identity/importer.rs:92-123
+   `import_stale_diagnostics` issues `BlockWorkItem` with reason `ProviderObservedStaleEntity` and `CreateWorkItems` for investigation; no delete path.
+   Test: autore-reconstruction/tests/ida_full_ingest.rs (todo 15) exercises refresh stability.
+
+C. No real LLM in automated tests
+   Source: autore-reconstruction/tests/llm_analysis_e2e.rs:8, 202-213
+   Mock LLM server is the default; `AUTORE_TEST_REAL_LLM_ENDPOINT` is opt-in only.
+   All other LLM tests use `MockGenerationModel` / `MockLlmClient`.
+
+D. No real Van Buren binary in tests
+   Glob `**/van*`: no files found.
+   Grep for `van_buren.exe|vanburen.exe|VanBuren.exe`: only matches in docs and `tools/wine-launch-vanburen-gdb.sh` (operator helper), no committed binary.
+   Source comment: autore-reconstruction/tests/coordinator_autonomous_run.rs:7 confirms no Van Buren binary is committed.
+
+E. Canonical mutations route only through autore-app
+   Source: autore-reconstruction/src/generation/skeleton.rs:237-277
+   `ProjectSkeletonBuilder::issue_commands` calls `ApplicationCommand::RegisterArtifact` and `RegisterGeneratedSourceMapping` via `AutoReClient`; no direct DB/artifact store writes.
+   Source: autore-reconstruction/src/coordinator/handlers.rs:15-26
+   `HandlerOutput.commands: Vec<ApplicationCommand>` — all durable side effects are commands.
+   Source: autore-reconstruction/src/identity/importer.rs:30-37, 43-88
+   `ObservationImporter` holds only `&dyn AutoReClient`; every entity creation/rematch routes through commands/queries.
+   Source: autore-stage1/src/scheduler/scheduler.rs (refactored per todo 19) uses `Arc<dyn AutoReClient>` for all transition commands.
+
+8. Default-members / Stage-0 backward compatibility
+----------------------------------------------------
+- Cargo.toml lists 7 new Stage-1 crates in `members` and excludes them from `default-members`.
+- `cargo build` (no flags) succeeds without requiring `protoc`.
+- This confirms success criterion G/H: Stage-0 default build surface is preserved.
+
+9. Evidence file inventory
+--------------------------
+- 56 evidence files under `.omo/evidence/auto-re-stage-1/*.txt` (including this file).
+- All prior 55 files contain completion markers (`[OK]`, `test result: ok`, `passed`, `clean`, `PASS`, etc.).
+
+10. Deviations / stop-items
+---------------------------
+None. No source files were modified during this audit.
+
+---
+
+Conclusion: The shipped code, evidence files, and required documents satisfy the plan's success criteria A-H and preserve the checked Must NOT do invariants. F1 approves.
+
+[OK] F1 plan compliance audit complete — APPROVE

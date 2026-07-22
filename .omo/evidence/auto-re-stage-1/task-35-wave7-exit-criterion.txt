@@ -1,0 +1,20 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+     Running tests/wave7_exit_criterion.rs (target/debug/deps/wave7_exit_criterion-1099b4e86f7ab0f8)
+
+running 1 test
+[wave7_exit_criterion] constructing fixture scenario
+[wave7_exit_criterion] scenario JSON size: 334 bytes
+[wave7_exit_criterion] scenario verifier: PASS
+[wave7_exit_criterion] mock WineGdbRunner executed: 3 observations
+[wave7_exit_criterion] scenario shape stable across TargetRunner backends
+[wave7_exit_criterion] spawning ida-provider for negotiate check
+[wave7_exit_criterion] IDA provider Negotiate backend: gdb-wine
+[OK] coordinator can schedule + execute structured experiments; backend seams documented
+test wave7_exit_criterion_ida_debugger_uses_gdb ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+---
+    Checking autore-reconstruction v0.1.0 (/mnt/shanes-ssd-1tb/code/shane/auto-re/autore-reconstruction)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.25s
+---

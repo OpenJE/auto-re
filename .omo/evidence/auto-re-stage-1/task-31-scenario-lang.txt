@@ -1,0 +1,71 @@
+Task 31 — Typed Debugger Scenario Language + Scenario Verifier
+================================================================
+
+Date: 2026-07-22
+Wave: 7 (Dynamic Investigation)
+Status: COMPLETE
+
+## Files Created
+
+1. `autore-reconstruction/src/dynamic/mod.rs` — Module root with re-exports
+2. `autore-reconstruction/src/dynamic/scenario.rs` — Typed AST (Scenario, SetupOp, Step, StopOp, AddressRange)
+3. `autore-reconstruction/src/dynamic/verifier.rs` — ScenarioVerifier + ScenarioValidationError
+
+## Files Modified
+
+1. `autore-reconstruction/src/lib.rs` — Added `pub mod dynamic;` and re-exports
+
+## Test Results
+
+```
+$ PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction dynamic:: -- --nocapture
+running 17 tests
+test dynamic::scenario::tests::address_range_contains ... ok
+test dynamic::scenario::tests::address_range_len_and_empty ... ok
+test dynamic::scenario::tests::setup_attach_target_serializes ... ok
+test dynamic::scenario::tests::stop_ops_serialize ... ok
+test dynamic::scenario::tests::scenario_serde_roundtrip ... ok
+test dynamic::scenario::tests::scenario_all_step_variants_serialize ... ok
+test dynamic::verifier::tests::allowed_external_api_passes ... ok
+test dynamic::verifier::tests::scenario_rejects_disallowed_external_api ... ok
+test dynamic::verifier::tests::memory_delta_also_validates_address ... ok
+test dynamic::verifier::tests::memory_delta_at_exact_limit_passes ... ok
+test dynamic::verifier::tests::scenario_rejects_empty_body ... ok
+test dynamic::verifier::tests::scenario_rejects_missing_setup ... ok
+test dynamic::verifier::tests::scenario_rejects_too_large_memory_delta ... ok
+test dynamic::verifier::tests::scenario_rejects_unknown_entity_id ... ok
+test dynamic::verifier::tests::scenario_rejects_unmapped_address ... ok
+test dynamic::verifier::tests::valid_scenario_passes ... ok
+test dynamic::verifier::tests::validation_error_display_messages ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 78 filtered out
+```
+
+## Acceptance Criteria
+
+- [x] `cargo test -p autore-reconstruction dynamic::verifier` runs all 5 required tests:
+  - valid_scenario_passes
+  - scenario_rejects_unknown_entity_id
+  - scenario_rejects_unmapped_address
+  - scenario_rejects_disallowed_external_api
+  - scenario_rejects_too_large_memory_delta
+- [x] `cargo clippy -p autore-reconstruction --all-targets -- -D warnings` clean
+- [x] `cargo fmt --all --check` clean
+- [x] Default workspace build remains green
+
+## AST Summary
+
+- **SetupOp** (2 variants): LaunchTarget, AttachTarget
+- **Step** (14 variants): SetBreakpoint, RemoveBreakpoint, Continue, Step, Finish, CaptureRegisters, CaptureArguments, CaptureReturnValue, CaptureMemoryRegion, CaptureMemoryDelta, CaptureGlobalValue, CaptureCallTarget, CaptureExternalCall, CaptureException
+- **StopOp** (3 variants): StopAfterInvocationCount, StopAfterTimeout, TerminateTarget
+- **AddressRange**: simple struct with start/end u128, contains/len/is_empty methods
+
+## Validation Rules Enforced
+
+1. Setup must be non-empty (MissingSetup)
+2. Body must be non-empty (EmptyScenario)
+3. Every EntityId referenced in steps exists in entities_by_id (UnknownEntity)
+4. Every CaptureMemoryRegion address falls within a mapped segment (UnmappedAddress)
+5. Every CaptureMemoryDelta address falls within a mapped segment (UnmappedAddress)
+6. Every CaptureMemoryDelta size ≤ 64 KiB (MemoryDeltaTooLarge)
+7. Every CaptureExternalCall api is in the allowlist (DisallowedApi)

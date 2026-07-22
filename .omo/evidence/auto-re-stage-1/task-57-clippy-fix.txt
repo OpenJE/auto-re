@@ -1,0 +1,15 @@
+task-57-clippy-fix
+==================
+Status: fixed
+
+Fix: Boxed InternalTuiEvent in TuiEvent::Internal variant to resolve clippy large_enum_variant lint.
+
+Changes in autore-tui/src/tui.rs:
+  - TuiEvent::Internal(InternalTuiEvent) → TuiEvent::Internal(Box<InternalTuiEvent>)
+  - Construction sites wrapped with Box::new(...) (lines 1673, 1754)
+  - Pattern-match sites dereference with *internal (lines 1694, 1778)
+
+Verified:
+  - cargo clippy --workspace --exclude autore-stage1 --all-targets -- -D warnings: clean (no warnings)
+  - cargo test -p autore-tui: 65 passed, 0 failed
+  - cargo fmt --all --check: clean

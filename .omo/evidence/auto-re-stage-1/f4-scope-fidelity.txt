@@ -1,0 +1,105 @@
+F4: Scope Fidelity Review — Final Verification Wave
+=====================================================
+Date: 2026-07-22
+Reviewer: Sisyphus-Junior
+Evidence path: .omo/evidence/auto-re-stage-1/f4-scope-fidelity.txt
+
+VERDICT: APPROVE
+================
+
+Scope fidelity is satisfied. The Stage 1 implementation contains no committed
+implementation of any spec §21 exclusion. All architectural-test citations exist.
+The Van Buren executable criterion is correctly treated as operator-acceptance
+(§20), not implementation scope.
+
+CHECKLIST / SPOT-CHECKS PERFORMED
+==================================
+
+1. Architectural-test file structure
+   - File read: docs/stage1-architectural-test.md
+   - Count of `## Q` headings: 10 (verified via `grep -cE '^## Q[0-9]+'`)
+   - Count of 'NO' answers: 0 (verified via `grep -c 'NO'`)
+   - Result: PASS
+
+2. Cited path existence
+   - Extracted 17 unique cited .rs paths from the architectural test.
+   - Verified all 17 paths exist with shell `test -f`.
+   - Representative spot-check (5+) also confirmed via codegraph_explore:
+     * autore-reconstruction/src/identity/importer.rs:30-88
+     * autore-reconstruction/src/identity/key.rs:20-82
+     * autore-stage1/src/scheduler/scheduler.rs:245-260
+     * autore-provider-runtime/src/artifact.rs:120-149
+     * autore-app/src/application_service/requests.rs:637-682
+   - Result: PASS (all cited paths present)
+
+3. Deferred-work section lists spec §21 exclusions
+   - File read: docs/stage1-report.md, section "10. Deferred work"
+   - Confirmed exclusions explicitly listed:
+     * Analysis backends: Ghidra provider, Binary Ninja provider, multi-backend consensus voting
+     * Package management: public package registry, package dependency solver, network package installation, package signing authority
+     * Remote execution: remote workers, distributed scheduling, general remote providers, remote TLS authorization
+     * Sandboxing: full sandbox enforcement, containers (Docker used only for MSVC 2002 cross-compilation), microVMs
+     * Advanced analysis: symbolic execution, concolic execution, general fuzzing, kernel debugging, multi-process distributed tracing, hardware tracing
+     * Generation: multiple generation languages (only C++ shipped)
+     * Build systems: beyond cmkr+CMake+Docker-MSVC2002
+     * TUI/providers: arbitrary provider TUI plugins, automatic hot reload, Wasm providers, native dynamic-library providers
+     * Learning/knowledge: automatic prompt-training, fine-tuning, cross-project knowledge packages, general autonomous tool use
+     * Verification: formal whole-program equivalence proofs
+   - Result: PASS
+
+4. Forbidden-keyword scan across codebase
+   Searched for: ghidra, binary.ninja/binary_ninja/Binary Ninja, radare2, rizin,
+                 sandbox, symbolic.execution/symbolic execution, remote.worker/remote workers,
+                 package.solver/package dependency solver, multi.language/multiple generation languages,
+                 java, python (in generation context).
+   - No Ghidra provider implementation found.
+     Benign references only:
+     * docs/stage1-architectural-test.md and docs/stage1-report.md (§21 / §23 prose)
+     * autore-schema/src/domain/records.rs — `NATIVE_FORMAT_GHIDRA_PCODE` namespaced kind constant and provider-kind doc comments
+     * autore-schema/src/domain/function.rs — doc comment "IDA/Ghidra/etc."
+     * autore-stage1/src/analysis/backend.rs — doc comment "IDA, Ghidra, or mock backends"
+     * autore-store/src/storage/provider_store.rs — test fixture `Provider::new("Ghidra", ...)`
+   - No Binary Ninja implementation found (only doc mention in deferred-work section).
+   - No package-solver / remote-workers / sandboxing / symbolic-execution / multi-language-generation implementation found.
+     Mentions exist only in docs/stage1-architectural-test.md and docs/stage1-report.md as future-seam discussion.
+   - Result: PASS
+
+5. No scope creep (crates / modules / features)
+   - Workspace members: 8 original Stage 0 crates + 7 new Stage 1 crates.
+   - 7 new crates match plan exactly:
+     * autore-provider-protocol
+     * autore-provider-runtime
+     * autore-reconstruction
+     * providers/fixture
+     * providers/ida
+     * providers/openai-compatible
+     * providers/build
+   - All 7 new crates are excluded from `default-members`, preserving Stage 0 `cargo build` surface.
+   - Feature flags reviewed:
+     * autore-stage1: ida / gdb / llama / tui — pre-existing features referenced in todo 1 plan.
+     * ida-provider: ida feature for optional idax dependency — consistent with plan.
+     * No unexpected new features in other new crates.
+   - Module inventory of autore-reconstruction and autore-provider-runtime aligns with
+     plan waves/cuts (§5 provider substrate, §6 IDA ingestion, §7 work graph, §8 LLM analysis,
+     §9 dynamic investigation, §10 type recovery, §11 generation, §12 build, §13 verification,
+     §14 coordinator). No extra modules detected.
+   - Result: PASS
+
+6. Van Buren exe criterion treated as operator-acceptance (§20)
+   - File read: docs/stage1-completion-gate.md
+   - Section "§20 Van Buren Reconstruction Completion — Operator Acceptance Addendum"
+     explicitly states §20 is a campaign-success bar distinct from implementation-completion scope.
+   - References to Van Buren in code are operator/test-level only:
+     * tools/wine-launch-vanburen-gdb.sh — operator helper script
+     * autore-reconstruction/tests/coordinator_autonomous_run.rs — comment: "no Van Buren binary is committed"
+     * autore-reconstruction/src/dynamic/runner.rs — comment directing operators to helper script or mock runner
+   - No automatic whole-Van-Buren reconstruction is implemented.
+   - Result: PASS
+
+CONCLUSION
+==========
+All F4 scope-fidelity criteria are met. The implementation defers every spec §21
+exclusion behind a stable interface, the architectural test is complete and
+well-cited, and §20 is correctly scoped as operator acceptance.
+
+APPROVE — no scope violations or missing citations found.

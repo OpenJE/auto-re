@@ -1,0 +1,21 @@
+# Task 44: Wave 9 exit slice - progressive stubs->replaced
+Command: PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction --test wave9_stub_replacement -- --nocapture --ignored
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+     Running tests/wave9_stub_replacement.rs (target/debug/deps/wave9_stub_replacement-7ae094825e2d5edc)
+
+running 2 tests
+[wave9_stub_replacement] bootstrapping temp project + fixture binary
+[wave9_stub_replacement] entities: global=019f8aff-5343-7981-9884-6d8211304f45, f_b=019f8aff-5343-7981-9884-6d9b6c0bcb9d, f_a=019f8aff-5343-7981-9884-6dabfa9a845a, f_c=019f8aff-5343-7981-9884-6db58d17bf13
+[wave9_stub_replacement] phase A: f_a blocked while f_b stubbed
+[wave9_stub_replacement] phase B: forced early dispatch fails with MissingDeclaration
+[wave9_stub_replacement] phase C: leaf-first replacement of f_c, f_b, f_a
+[wave9_stub_replacement] completion order: ["f_b", "f_a", "f_c"]
+[wave9_stub_replacement] command audit passed: 36 canonical mutation(s)
+[OK] 3 functions: stubbed→replaced, build green, downstream unblocked
+test wave9_stub_replacement_leaf_first ... ok
+[OK] skeleton builds green before stub replacement
+test wave9_skeleton_builds_green_before_replacement ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

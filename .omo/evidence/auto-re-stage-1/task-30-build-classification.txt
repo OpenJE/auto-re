@@ -1,0 +1,91 @@
+Task 30 — Build-Feedback Classification Taxonomy + Repair Strategy Routing
+==========================================================================
+Date: 2026-07-22
+Status: COMPLETE
+
+Files modified:
+  - autore-reconstruction/src/build/classification.rs (NEW, ~260 LOC)
+  - autore-reconstruction/src/build/mod.rs (added classification module + re-exports)
+
+Summary:
+  Defined BuildFailureKind enum with 13 variants per spec §12.3:
+    Syntax, MissingDeclaration, UnknownType, IncompleteType, LayoutMismatch,
+    CallingConventionMismatch, Linkage, MissingSymbol, DuplicateSymbol, Abi,
+    UnsupportedPlatformApi, GeneratedCodeDefect, BuildEnvironmentDefect
+
+  Defined RepairStrategy enum with 5 variants:
+    CreateWorkItems { kind: WorkItemKind, reason: String },
+    BlockWorkItem { reason: String },
+    RequestLlmAnalysis { capability: String },
+    RequestLayoutInvestigation,
+    NoAction
+
+  Implemented classify(diagnostic: &BuildDiagnostic) -> BuildFailureKind:
+    - Deterministic MSVC code rules:
+      C2065 → MissingDeclaration (or UnsupportedPlatformApi with stdlib context)
+      C2061 → UnknownType
+      C2079 → IncompleteType
+      C2027 → IncompleteType
+      C2440 → Abi (or LayoutMismatch with layout/size/offset context)
+      C2385 → CallingConventionMismatch
+      C3861 → MissingDeclaration
+      C1010 → GeneratedCodeDefect
+      LNK2019 → MissingSymbol
+      LNK2005 → DuplicateSymbol
+      LNK* → Linkage
+      ENV* → BuildEnvironmentDefect
+      (other) → Syntax
+
+  Implemented select_repair_strategy(failure_kind, diagnostic) -> RepairStrategy:
+    GeneratedCodeDefect → RequestLlmAnalysis { capability: "llm.analysis.failure" }
+    BuildEnvironmentDefect → BlockWorkItem
+    LayoutMismatch → RequestLayoutInvestigation
+    MissingDeclaration → CreateWorkItems { kind: Generation }
+    UnknownType → CreateWorkItems { kind: Generation }
+    IncompleteType → CreateWorkItems { kind: Generation }
+    CallingConventionMismatch → CreateWorkItems { kind: Generation }
+    MissingSymbol → CreateWorkItems { kind: Generation }
+    DuplicateSymbol → CreateWorkItems { kind: ConflictResolution }
+    Linkage → CreateWorkItems { kind: LinkFailure }
+    Abi → CreateWorkItems { kind: Generation }
+    UnsupportedPlatformApi → CreateWorkItems { kind: Generation }
+    Syntax → CreateWorkItems { kind: BuildFailure }
+
+Tests: 23/23 passed
+  Classification tests (one per variant):
+    classify_c2065_to_missing_declaration
+    classify_c2061_to_unknown_type
+    classify_c2079_to_incomplete_type
+    classify_c2027_to_incomplete_type
+    classify_c2440_to_abi
+    classify_c2440_with_layout_context_to_layout_mismatch
+    classify_c2385_to_calling_convention_mismatch
+    classify_c3861_to_missing_declaration
+    classify_c1010_to_generated_code_defect
+    classify_lnk2019_to_missing_symbol
+    classify_lnk2005_to_duplicate_symbol
+    classify_generic_lnk_to_linkage
+    classify_unknown_code_to_syntax
+    classify_c2065_with_stdlib_context_to_unsupported_platform_api
+    classify_env_prefix_to_build_environment_defect
+
+  Routing tests:
+    classify_routes_generated_code_defect_to_llm_analysis_failure
+    classify_routes_environment_defect_to_block_work_item
+    classify_routes_layout_mismatch_to_investigation_kind
+
+  Repair strategy tests:
+    repair_missing_declaration_creates_generation_work_item
+    repair_duplicate_symbol_creates_conflict_resolution
+    repair_linkage_creates_link_failure_work_item
+    repair_syntax_creates_build_failure_work_item
+
+  Display coverage:
+    build_failure_kind_display_covers_all_variants (13 variants verified)
+
+Verification:
+  cargo build -p autore-reconstruction: CLEAN
+  cargo test -p autore-reconstruction build::classification:: : 23/23 PASSED
+  cargo clippy -p autore-reconstruction --all-targets -- -D warnings: CLEAN
+  cargo build (default members): CLEAN
+  cargo fmt --all --check: CLEAN

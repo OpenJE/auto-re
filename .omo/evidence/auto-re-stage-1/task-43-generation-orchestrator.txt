@@ -1,0 +1,66 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+     Running unittests src/lib.rs (target/debug/deps/autore_reconstruction-e2778b281f454817)
+
+running 4 tests
+test generation::orchestrator::tests::leaf_first_ordering_priority_max_when_no_stubs_remaining_in_callees ... ok
+test generation::orchestrator::tests::deterministic_repair_paths_covered_before_llm_repair_invoked ... ok
+test generation::orchestrator::tests::llm_repair_invoked_on_generated_code_defect_after_deterministic_exhaustion ... ok
+test generation::orchestrator::tests::bounded_retry_max_3_creates_blocked_work ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 132 filtered out; finished in 0.01s
+
+     Running tests/dynamic_llm_proposed_scenario.rs (target/debug/deps/dynamic_llm_proposed_scenario-1d064d82d4b7b363)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/ida_full_ingest.rs (target/debug/deps/ida_full_ingest-a673460bb72d68bb)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/llm_analysis_e2e.rs (target/debug/deps/llm_analysis_e2e-4118251c600ef8d4)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/llm_capability_imports.rs (target/debug/deps/llm_capability_imports-d8ca1bd0ba7f0a30)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 0.00s
+
+     Running tests/skeleton_first_build.rs (target/debug/deps/skeleton_first_build-11c47adb8049f571)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+     Running tests/wave7_exit_criterion.rs (target/debug/deps/wave7_exit_criterion-1099b4e86f7ab0f8)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/wave8_shared_model.rs (target/debug/deps/wave8_shared_model-32e3cbc16ddfe3ca)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/whole_program_work_graph.rs (target/debug/deps/whole_program_work_graph-9a6736dae5a139d3)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+
+=== cargo clippy -p autore-reconstruction --all-targets -- -D warnings ===
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.15s
+
+=== cargo fmt -p autore-reconstruction --check ===
+
+[OK] Wave 9 Todo 43 generation orchestrator implemented and verified
