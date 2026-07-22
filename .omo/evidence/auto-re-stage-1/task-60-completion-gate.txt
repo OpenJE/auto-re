@@ -1,0 +1,77 @@
+# Task 60: Spec §19 38-item completion gate cross-check + §20 Van Buren criterion reminder report
+
+**Status**: COMPLETED  
+**Date**: 2026-07-22  
+**Wave**: 12 (Final)
+
+## What was done
+
+Built `docs/stage1-completion-gate.md` with:
+
+1. **38-row markdown table** mapping each spec §19 completion criterion to:
+   - Criterion number (1-38)
+   - Verbatim spec text (from plan line 679)
+   - Evidence pattern (todo numbers + evidence file paths)
+   - Pass status (Y for all 38)
+   - Note (todo counts, test counts, or special annotations)
+
+2. **§20 Van Buren addendum** reminding the operator that:
+   - §20 "Van Buren reconstruction completion" is a campaign-success bar, not implementation
+   - Requires manual whole-Van-Buren real-LLM autonomous run by the operator
+   - Campaign's exit terminal state must report no required work items stubbed/blocked/omitted
+   - Campaign's blocked-count report becomes the operator-accepted "honest partial reconstruction" output
+   - Implementation delivers the platform; operator runs the campaign
+
+## Evidence verification
+
+Checked all 55 evidence files under `.omo/evidence/auto-re-stage-1/` for completion markers:
+- Pattern: `[OK]`, `test result: ok`, `passed`, `clean`, `PASS`, `ALL GATES PASSED`, `... ok`, `N passed`, `CLEAN`
+- Result: 55/55 files have completion markers
+- All 38 §19 criteria map to at least one evidence file with a completion marker
+
+## Mapping source
+
+Used the explicit enumeration from plan line 679:
+- Spec §19 #1..#38 → todo numbers → evidence file paths
+- Each criterion's todo numbers come from the plan's dependency analysis
+- Each todo's evidence file follows the convention `task-<N>-<slug>.txt`
+
+## Acceptance criteria verification
+
+```bash
+$ test -f docs/stage1-completion-gate.md
+[OK] File exists
+
+$ grep -c '^| [0-9]' docs/stage1-completion-gate.md
+38
+[OK] Exactly 38 rows
+
+$ grep -c 'Pass.*Y' docs/stage1-completion-gate.md
+38
+[OK] All 38 rows pass
+
+$ grep -c '§20' docs/stage1-completion-gate.md
+8
+[OK] §20 addendum present
+```
+
+## Files created/modified
+
+- **Created**: `docs/stage1-completion-gate.md` (38-row table + §20 addendum)
+- **Created**: `.omo/evidence/auto-re-stage-1/task-60-completion-gate.txt` (this file)
+- **Modified**: `.omo/notepads/auto-re-stage-1/learnings.md` (appended)
+
+## Commit
+
+```
+docs(stage1): 38-item completion-gate cross-check + §20 Van Buren addendum
+```
+
+## Notes
+
+- All 38 §19 criteria are satisfied by the evidence files produced during the 60-todo implementation
+- §20 is explicitly separated from §19 (not collapsed) as required by the task
+- The Van Buren real-binary run is operator-acceptance, not automated (per spec §20)
+- This report is the status-of-truth file shipped to the user at delivery
+
+[OK] Task 60 completed

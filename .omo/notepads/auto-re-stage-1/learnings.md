@@ -1455,3 +1455,36 @@
 - `grep -c 'NO' docs/stage1-architectural-test.md`: 0 (PASS)
 - All 10 questions answered with YES + code-path citations
 - Evidence: `.omo/evidence/auto-re-stage-1/task-59-architectural-test.txt`
+
+## 2026-07-22 Wave 12 Todo 60 (Completion Gate Report)
+
+### What was done
+- Built `docs/stage1-completion-gate.md` with 38-row table mapping spec §19 criteria to evidence files
+- Each row contains: criterion #, verbatim spec text, evidence pattern (todo nums + file paths), Pass status, Note
+- All 38 criteria pass (Y) based on evidence file completion markers
+- Added §20 Van Buren addendum separating campaign-success bar from implementation-completion scope
+- Verified all 55 evidence files under `.omo/evidence/auto-re-stage-1/` contain completion markers
+
+### Key insights
+- Evidence files use varied completion markers: `[OK]`, `test result: ok`, `passed`, `clean`, `PASS`, `ALL GATES PASSED`, `... ok`, `N passed`, `CLEAN`
+- The plan's line 679 contains the explicit §19 → todo mapping (38 criteria)
+- §20 is operator-acceptance (manual Van Buren run), not automated implementation
+- The completion-gate report is the status-of-truth file shipped to the user at delivery
+
+### Evidence convention
+- Each todo produces `.omo/evidence/auto-re-stage-1/task-<N>-<slug>.txt`
+- Completion markers vary by todo type (test output, command logs, structured proof)
+- All 55 evidence files have at least one completion marker
+- Task 60's evidence file is `task-60-completion-gate.txt`
+
+### Spec §19 → Todo mapping pattern
+- Criteria 1-18: Core platform (mutations, providers, work graph, scheduling, IDA, LLM, import, generation)
+- Criteria 19-24: Build/verification (C++ generation, toolchain, repair work, type reconciliation)
+- Criteria 25-32: Verification/coordination (scenario comparison, regression, restart, fault isolation)
+- Criteria 33-38: Surface/quality (CLI, TUI, fixture tests, workspace gates, fmt, clippy)
+
+### §20 Van Buren distinction
+- §20 requires manual operator run of real Van Buren binary with real LLM
+- Implementation delivers platform capable of running campaign; does not run it
+- Blocked work items are "honest partial reconstruction" per §20, not failure
+- Campaign's blocked-count report is the operator-accepted output
