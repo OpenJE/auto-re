@@ -1,0 +1,11 @@
+{
+  "resolution_kind": "accept_stronger_evidence",
+  "accepted_hypothesis_id": "{{ACCEPTED_HYPOTHESIS}}",
+  "rejected_hypothesis_ids": [],
+  "rationale": "decompilation alignment matches the vtable layout; the alternative assumed a packed struct with no evidence",
+  "evidence_references": [
+    "{{ENTITY_REF_1}}",
+    "{{ACCEPTED_HYPOTHESIS}}"
+  ],
+  "confidence": 0.93
+}

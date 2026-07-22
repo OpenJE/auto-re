@@ -1,0 +1,15 @@
+{
+  "hypothesis_statement": "setting a breakpoint at 0x4012a0 will reveal whether the error branch is reachable",
+  "test_plan": [
+    "attach debugger",
+    "set breakpoint at 0x4012a0"
+  ],
+  "expected_observations": [
+    "breakpoint hit count"
+  ],
+  "required_capabilities": [
+    "debug.runtime.breakpoints",
+    "llm.analysis.function"
+  ],
+  "risk_factors": []
+}

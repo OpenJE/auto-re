@@ -1,0 +1,19 @@
+{
+  "proposed_name": "parse_input",
+  "behavior_claims": [
+    "reads a length-prefixed buffer",
+    "returns a validated request struct"
+  ],
+  "side_effects": [
+    "updates the global request counter"
+  ],
+  "signature": "ParsedRequest parse_input(const uint8_t* buf, size_t len)",
+  "evidence_references": [
+    "{{ENTITY_REF_1}}",
+    "{{CALLER_WORK_ITEM}}"
+  ],
+  "confidence": 0.87,
+  "recommended_follow_up_work": [
+    "inspect the error branch at 0x4012a0"
+  ]
+}

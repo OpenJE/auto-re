@@ -1,0 +1,19 @@
+{
+  "hypothesis_statement": "setting a breakpoint at 0x4012a0 will reveal whether the error branch is reachable from parse_input",
+  "test_plan": [
+    "attach debugger to the running process",
+    "set breakpoint at 0x4012a0",
+    "resume execution with the crafted input"
+  ],
+  "expected_observations": [
+    "breakpoint hit count is zero or non-zero",
+    "register state at the breakpoint reveals the branch condition"
+  ],
+  "required_capabilities": [
+    "debug.runtime.breakpoints",
+    "debug.runtime.step"
+  ],
+  "risk_factors": [
+    "the error branch may only trigger under specific allocator states"
+  ]
+}

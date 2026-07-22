@@ -1,0 +1,12 @@
+{
+  "subsystem_name": "input-parsing",
+  "responsibility": "validates and parses inbound network requests into domain types",
+  "member_entity_ids": [
+    "{{SUBJECT_ENTITY_ID}}",
+    "{{ENTITY_REF_1}}"
+  ],
+  "evidence_references": [
+    "{{CALLER_WORK_ITEM}}"
+  ],
+  "confidence": 0.75
+}

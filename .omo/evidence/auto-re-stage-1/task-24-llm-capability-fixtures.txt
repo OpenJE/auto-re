@@ -1,0 +1,80 @@
+Task 24: per-capability parser happy + malformed fixtures (Wave 5 Todo 24)
+==========================================================================
+
+Date: 2026-07-21
+
+## Gates passed
+
+1. PROTOC=... cargo build -p autore-reconstruction: PASS (clean, 0 warnings)
+2. PROTOC=... cargo test -p autore-reconstruction --test llm_capability_imports -- --nocapture: PASS (14/14)
+3. PROTOC=... cargo clippy -p autore-reconstruction --all-targets -- -D warnings: PASS
+4. cargo build (default members): PASS
+5. cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction --exclude openai-compatible-provider --all-targets -- -D warnings: PASS
+6. cargo fmt --all --check: PASS
+
+## Test results (14/14)
+
+Happy-path (attempt_count=0 → Success + canonical AddHypothesis commands):
+  function_analysis_happy           ... ok (behavior-claim, function-name)
+  type_analysis_happy               ... ok (type-proposal)
+  class_analysis_happy              ... ok
+  subsystem_analysis_happy          ... ok
+  conflict_analysis_happy           ... ok
+  failure_analysis_happy            ... ok
+  experiment_design_happy           ... ok (experiment-hypothesis)
+
+Malformed-path (attempt_count=1 → InvalidOutput + 1 FailWorkItem + 1 BlockWorkWithReason + 0 AddHypothesis):
+  function_ref_entities_exist       ... ok  (evidence_reference not in bundle)
+  type_offsets_within_range         ... ok  (field offset 5000 outside 0..4096)
+  class_vtable_id_well_formed       ... ok  (evidence_reference not in bundle)
+  subsystem_confidence_within_range ... ok  (confidence 1.5 outside [0.0, 1.0])
+  conflict_evidence_in_bundle       ... ok  (evidence_reference not in bundle)
+  failure_experiment_proposal_debug_only ... ok (confidence 2.0 outside [0.0, 1.0])
+  experiment_design_debug_capability_only ... ok (non-debug.* capability name)
+
+## Files created
+
+NEW:
+  - autore-reconstruction/tests/llm_capability_imports.rs (integration test, 14 tests)
+  - autore-reconstruction/tests/fixtures/llm/function-analysis.raw-response.json
+  - autore-reconstruction/tests/fixtures/llm/function-analysis.parsed.json
+  - autore-reconstruction/tests/fixtures/llm/function-analysis.malformed.json
+  - autore-reconstruction/tests/fixtures/llm/type-analysis.raw-response.json
+  - autore-reconstruction/tests/fixtures/llm/type-analysis.parsed.json
+  - autore-reconstruction/tests/fixtures/llm/type-analysis.malformed.json
+  - autore-reconstruction/tests/fixtures/llm/class-analysis.raw-response.json
+  - autore-reconstruction/tests/fixtures/llm/class-analysis.parsed.json
+  - autore-reconstruction/tests/fixtures/llm/class-analysis.malformed.json
+  - autore-reconstruction/tests/fixtures/llm/subsystem-analysis.raw-response.json
+  - autore-reconstruction/tests/fixtures/llm/subsystem-analysis.parsed.json
+  - autore-reconstruction/tests/fixtures/llm/subsystem-analysis.malformed.json
+  - autore-reconstruction/tests/fixtures/llm/conflict-analysis.raw-response.json
+  - autore-reconstruction/tests/fixtures/llm/conflict-analysis.parsed.json
+  - autore-reconstruction/tests/fixtures/llm/conflict-analysis.malformed.json
+  - autore-reconstruction/tests/fixtures/llm/failure-analysis.raw-response.json
+  - autore-reconstruction/tests/fixtures/llm/failure-analysis.parsed.json
+  - autore-reconstruction/tests/fixtures/llm/failure-analysis.malformed.json
+  - autore-reconstruction/tests/fixtures/llm/experiment-design.raw-response.json
+  - autore-reconstruction/tests/fixtures/llm/experiment-design.parsed.json
+  - autore-reconstruction/tests/fixtures/llm/experiment-design.malformed.json
+
+NOT MODIFIED (per the task brief):
+  - No changes to autore-reconstruction/src/analysis/import/* (Todo 23)
+  - No changes to autore-reconstruction/schemas/analysis/*.schema.json (Todo 22/23)
+  - No changes to autore-reconstruction/Cargo.toml
+  - autore-reconstruction remains excluded from default-members
+
+## Design notes
+
+- Integration test uses `#[path = "../src/tests_support.rs"]` to pull in
+  `RecordingAutoReClient` without duplicating ~80 lines of infrastructure.
+- Fixture JSON uses `{{PLACEHOLDER}}` tokens (e.g. `{{ENTITY_REF_1}}`,
+  `{{CALLER_WORK_ITEM}}`, `{{ACCEPTED_HYPOTHESIS}}`) that are substituted at
+  runtime with fresh IDs from a per-test `InvestigationBundle`, so fixtures
+  stay stable even when the ID generator changes shape.
+- Two shared helpers — `run_happy_case` and `run_malformed_case` — factor out
+  the bundle/client/importer plumbing so the 14 `#[test]` functions each read
+  as a 3-line assertion. Pure LOC: 239 (under the 250-line ceiling).
+- Malformed fixtures violate exactly one spec §8.6 invariant each, and the
+  validator's error message mentions the violated rule so the test name is a
+  self-describing label of the failure mode.

@@ -1,0 +1,11 @@
+{
+  "subsystem_name": "input-parsing",
+  "responsibility": "validates inbound network requests",
+  "member_entity_ids": [
+    "{{SUBJECT_ENTITY_ID}}"
+  ],
+  "evidence_references": [
+    "{{CALLER_WORK_ITEM}}"
+  ],
+  "confidence": 1.5
+}

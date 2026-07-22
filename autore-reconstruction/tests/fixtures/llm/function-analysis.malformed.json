@@ -1,0 +1,12 @@
+{
+  "proposed_name": "parse_input",
+  "behavior_claims": [
+    "reads a length-prefixed buffer"
+  ],
+  "evidence_references": [
+    "{{ENTITY_REF_1}}",
+    "01900000-0000-7aaa-8000-000000000bad"
+  ],
+  "confidence": 0.7,
+  "recommended_follow_up_work": []
+}

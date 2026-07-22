@@ -595,3 +595,13 @@
 - `RecordingAutoReClient` must be extended for each new command variant the import module issues. Added handlers for `AddEvidence`, `AddHypothesis`, `FailWorkItem`, and `BlockWorkWithReason`.
 - Handlebars v6 workspace dependency already present (from openai-compatible provider); added to autore-reconstruction without workspace version bump.
 - The `let` chain syntax (`if let Some(x) = ... && condition`) is stable in edition 2024 — clippy `collapsible_if` suggests it.
+
+## 2026-07-21 Wave 5 Todo 24 (Per-capability LLM parser fixtures)
+
+- Integration tests under `autore-reconstruction/tests/` are their own crate, so `use autore_reconstruction::...` imports work naturally; `#[path = "../src/tests_support.rs"]` pulls in `RecordingAutoReClient` without duplicating ~80 lines of test infrastructure.
+- `include_str!` is evaluated at compile time and paths are resolved relative to the test source file, not the workspace root. Fixture files must be under the integration test's directory (here `tests/fixtures/llm/`) for `include_str!("fixtures/llm/foo.json")` to resolve.
+- Fixture placeholders like `{{ENTITY_REF_1}}` are a lightweight templating pattern that keeps fixture JSON stable across ID-generator changes. The substitution helper pulls real IDs from a per-test `InvestigationBundle`.
+- Table-driven factoring (`run_happy_case`, `run_malformed_case`) keeps the 14 `#[test]` functions readable while pulling shared plumbing into two helpers — this kept the file at 239 pure LOC vs. ~289 with each test fully inlined.
+- The capability ID strings (`llm.analysis.function`, `llm.experiment.design`, etc.) are the canonical keys used by both `response_schema_for` and the `AddHypothesis.predicate` prefix. The importer builds predicates as `{capability_id}.{suffix}`, so happy-path assertions key off the suffix (e.g. `behavior-claim`, `type-proposal`, `experiment-hypothesis`).
+- `LlmImportResult` discriminants map cleanly to `attempt_count`: `RepairRequested` at 0, `InvalidOutput` at ≥1. The malformed tests pin the second-attempt branch by passing `attempt_count=1`.
+- For malformed tests, the fixture must still conform to the JSON Schema itself — only the §8.6 invariant may be violated. Otherwise the schema validator catches the defect first and the §8.6 rule isn't exercised. This is why the malformed `type_offsets_within_range` fixture uses an offset of 5000 (outside `0..4096`, but the schema's `minimum: 0` is still satisfied).

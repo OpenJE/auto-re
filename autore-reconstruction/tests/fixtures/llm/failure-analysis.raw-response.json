@@ -1,0 +1,12 @@
+{
+  "root_cause": "build failure caused by a missing symbol import in the candidate generated at 0x403fa0",
+  "affected_entity_ids": [
+    "{{ENTITY_REF_1}}",
+    "{{SUBJECT_ENTITY_ID}}"
+  ],
+  "recommended_action": "regenerate the candidate with the imported symbol added to the dependency set",
+  "evidence_references": [
+    "{{ENTITY_REF_1}}"
+  ],
+  "confidence": 0.8
+}

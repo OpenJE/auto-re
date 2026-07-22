@@ -1,0 +1,29 @@
+{
+  "proposed_name": "ParsedRequest",
+  "proposed_layout": [
+    {
+      "field_name": "length",
+      "offset": 0,
+      "size": 4,
+      "type_hint": "uint32_t"
+    },
+    {
+      "field_name": "flags",
+      "offset": 4,
+      "size": 2,
+      "type_hint": "uint16_t"
+    },
+    {
+      "field_name": "payload",
+      "offset": 8,
+      "size": 64,
+      "type_hint": "uint8_t[64]"
+    }
+  ],
+  "size_bytes": 72,
+  "alignment": 8,
+  "evidence_references": [
+    "{{ENTITY_REF_1}}"
+  ],
+  "confidence": 0.91
+}

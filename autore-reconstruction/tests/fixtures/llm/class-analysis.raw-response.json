@@ -1,0 +1,12 @@
+{
+  "proposed_name": "NetworkDispatcher",
+  "base_class_ids": [],
+  "vtable_address": 4202640,
+  "method_ids": [
+    "{{CALLER_WORK_ITEM}}"
+  ],
+  "evidence_references": [
+    "{{ENTITY_REF_1}}"
+  ],
+  "confidence": 0.82
+}
