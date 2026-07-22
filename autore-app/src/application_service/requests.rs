@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use autore_schema::domain::records::{
-    Artifact, Contradiction, EvidenceRecord, Hypothesis, Operation, Project, Provider, ProviderRun,
-    SemanticEntity, VerificationRecord,
+    Artifact, Contradiction, EvidenceRecord, Hypothesis, Operation, PolicyDecision, Project,
+    Provider, ProviderRun, SemanticEntity, VerificationRecord,
 };
 use autore_schema::domain::{
     ContentHash, EnvironmentIdentity, EvidenceValue, NamespacedId, StableEntityKey,
@@ -481,6 +481,7 @@ pub struct ImportGeneratedSourceCandidatesResponse {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ScheduleVerificationRegressionRequest {
     pub project: ProjectId,
+    pub entity_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -507,11 +508,15 @@ pub struct RecordRepairAttemptResponse {
 pub struct AcceptHypothesisPolicyDrivenRequest {
     pub project: ProjectId,
     pub hypothesis_id: HypothesisId,
+    pub policy_decision: PolicyDecision,
+    pub justification: String,
+    pub superseding_hypothesis_id: Option<HypothesisId>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct AcceptHypothesisPolicyDrivenResponse {
     pub hypothesis_id: HypothesisId,
+    pub policy_decision: PolicyDecision,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

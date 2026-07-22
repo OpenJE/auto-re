@@ -3,7 +3,8 @@ use std::path::Path;
 use autore_core::{Error, Result};
 use autore_schema::domain::records::{
     Artifact, ArtifactStorage, CancellationRequest, Contradiction, EvidenceRecord, Hypothesis,
-    HypothesisStatus, Operation, OperationFailure, SemanticEntity, VerificationRecord,
+    HypothesisStatus, Operation, OperationFailure, PolicyDecision, SemanticEntity,
+    VerificationRecord,
 };
 use autore_schema::domain::{ContentHash, MetadataMap, NamespacedId, Timestamp};
 use autore_schema::ids::{
@@ -802,15 +803,19 @@ pub fn update_provider_instance_status(
 pub fn accept_hypothesis_policy_driven(
     txn: &Transaction<'_>,
     hypothesis_id: HypothesisId,
+    policy_decision: PolicyDecision,
+    superseding_hypothesis_id: Option<HypothesisId>,
 ) -> Result<()> {
     let id_bytes = hypothesis_id.as_uuid().as_bytes().to_vec();
     let updated_at = Timestamp::now().to_string();
+    let status = policy_decision.target_status(superseding_hypothesis_id);
+    let status_str = status.kind();
 
     let updated: usize = txn
         .conn()
         .execute(
-            "UPDATE hypotheses SET status = 'Accepted', updated_at = ?1 WHERE id = ?2",
-            rusqlite::params![updated_at, id_bytes],
+            "UPDATE hypotheses SET status = ?1, updated_at = ?2 WHERE id = ?3",
+            rusqlite::params![status_str, updated_at, id_bytes],
         )
         .map_err(|e| Error::Database(e.to_string()))?;
     if updated == 0 {

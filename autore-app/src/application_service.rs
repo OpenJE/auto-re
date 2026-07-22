@@ -1137,11 +1137,19 @@ impl ApplicationService {
             EventSource::Hypothesis,
             Some(EventSubject::Hypothesis(req.hypothesis_id)),
             None,
-            |txn| muts::accept_hypothesis_policy_driven(txn, req.hypothesis_id),
+            |txn| {
+                muts::accept_hypothesis_policy_driven(
+                    txn,
+                    req.hypothesis_id,
+                    req.policy_decision,
+                    req.superseding_hypothesis_id,
+                )
+            },
         )?;
         Ok(CommandResult::HypothesisAcceptedPolicyDriven(
             AcceptHypothesisPolicyDrivenResponse {
                 hypothesis_id: req.hypothesis_id,
+                policy_decision: req.policy_decision,
             },
         ))
     }
