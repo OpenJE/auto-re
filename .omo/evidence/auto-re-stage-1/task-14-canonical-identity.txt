@@ -1,0 +1,65 @@
+Task 14 — canonical entity identity + observation importer
+===========================================================
+Date: 2026-07-21
+
+Crate created: autore-reconstruction/
+
+Files:
+  autore-reconstruction/Cargo.toml
+  autore-reconstruction/src/lib.rs
+  autore-reconstruction/src/identity.rs            (root of the `identity::` module)
+  autore-reconstruction/src/identity/key.rs        (CanonicalEntityKey)
+  autore-reconstruction/src/identity/payload.rs    (parse_observation_payload)
+  autore-reconstruction/src/identity/routing.rs    (entity_kind ↔ work_item_kind)
+  autore-reconstruction/src/identity/importer.rs   (ObservationImporter)
+  autore-reconstruction/src/tests_support.rs       (RecordingAutoReClient, test-only)
+
+Root Cargo.toml: autore-reconstruction added to `members` but NOT to
+`default-members` (transitively pulls protoc via autore-provider-runtime →
+autore-provider-protocol → tonic-build).
+
+Dependencies (Cargo.toml):
+  autore-app, autore-core, autore-events,
+  autore-schema, autore-provider-protocol, autore-provider-runtime,
+  serde, serde_json, uuid, blake3, thiserror, tracing
+
+Tests (9 total, all passing):
+  identity::tests::canonical_key_is_stable_across_refresh
+  identity::tests::canonical_key_excludes_ida_row_id
+  identity::tests::import_observations_creates_entities_with_stable_keys
+  identity::tests::import_observations_rematches_by_key_on_refresh
+  identity::tests::import_observations_does_not_delete_on_stale
+  identity::tests::import_observations_creates_investigation_for_stale
+  identity::tests::observation_payload_with_entities_array_is_supported
+  identity::tests::parse_observation_payload_handles_all_shapes
+  identity::tests::entity_kind_routing_covers_ida_stages
+
+Design notes:
+  * CanonicalEntityKey carries (binary_revision_id, address_space,
+    entry_address, entity_kind) as the stable identity; the provider-native
+    extension (IDA `ea`, `ida_function_row_uuid`) is a sidecar HashMap and
+    is excluded from `stable_key()` and `identity_hash()`.
+  * `stable_key()` returns `StableEntityKey::ExternalIdentity{
+      namespace = "autore.recon.canonical",
+      value = canonical_json,
+    }` — `BTreeMap`-backed for deterministic ordering.
+  * ObservationImporter.import() issues `RegisterEntity` for unseen
+    entities and `ImportProviderRunResult` for rematch. Match detection
+    goes through `ApplicationQuery::ListEntities` (no direct SQL).
+  * ObservationImporter.import_stale_diagnostics() issues
+    `BlockWorkItem(reason="ProviderObservedStaleEntity")` + `CreateWorkItems`
+    (one Investigation per stale diagnostic). Entities are NEVER deleted.
+  * Tests use `RecordingAutoReClient` — in-memory `AutoReClient` that
+    records every ApplicationCommand and answers ListEntities from the
+    registered set. Proves that every canonical mutation goes through a
+    command, no direct SQL is issued.
+  * Observation payload parser accepts: JSON array, object with single
+    array value (e.g. `{"entities":[..]}`), or single object.
+
+Build / test / lint evidence:
+  $ PROTOC=/tmp/opencode/protoc/bin/protoc cargo build -p autore-reconstruction  → clean
+  $ PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction identity:: -- --nocapture  → 9 passed
+  $ PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings  → clean
+  $ cargo build  (default members)  → clean
+  $ cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction --all-targets -- -D warnings  → clean
+  $ cargo test --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction  → 583 passed (Stage 0 regression)
