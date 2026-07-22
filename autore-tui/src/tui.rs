@@ -58,7 +58,7 @@ pub enum TuiEvent {
     /// Durable project event from the subscription.
     Project(ProjectEvent),
     /// Internal event from a background task.
-    Internal(InternalTuiEvent),
+    Internal(Box<InternalTuiEvent>),
 }
 
 /// Terminal-level events from crossterm.
@@ -1670,7 +1670,7 @@ pub async fn run_tui_with(mut app: Tui) -> crate::Result<()> {
 
         let event = tokio::select! {
             Some(term) = term_rx.recv() => TuiEvent::Terminal(term),
-            Some(internal) = app.internal_rx.recv() => TuiEvent::Internal(internal),
+            Some(internal) = app.internal_rx.recv() => TuiEvent::Internal(Box::new(internal)),
             event = poll_subscription(app.subscription.as_mut()) => {
                 match event {
                     Some(Ok(pe)) => TuiEvent::Project(pe),
@@ -1692,7 +1692,7 @@ pub async fn run_tui_with(mut app: Tui) -> crate::Result<()> {
                 false
             }
             TuiEvent::Internal(internal) => {
-                app.handle_internal_event(internal);
+                app.handle_internal_event(*internal);
                 false
             }
         };
@@ -1751,7 +1751,7 @@ impl<'a> TuiEventLoop<'a> {
     ) -> crate::Result<LoopAction> {
         let event = tokio::select! {
             Some(term) = terminal_rx.recv() => TuiEvent::Terminal(term),
-            Some(internal) = self.tui.internal_rx.recv() => TuiEvent::Internal(internal),
+            Some(internal) = self.tui.internal_rx.recv() => TuiEvent::Internal(Box::new(internal)),
             event = poll_subscription(self.tui.subscription.as_mut()) => {
                 match event {
                     Some(Ok(pe)) => TuiEvent::Project(pe),
@@ -1776,7 +1776,7 @@ impl<'a> TuiEventLoop<'a> {
                 self.tui.handle_project_event(pe);
             }
             TuiEvent::Internal(internal) => {
-                self.tui.handle_internal_event(internal);
+                self.tui.handle_internal_event(*internal);
             }
         }
 
