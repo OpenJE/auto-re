@@ -1,0 +1,57 @@
+Task 18 — Work-Item Input Fingerprint + Bounded Downstream Invalidation
+=====================================================================
+
+## Module Structure
+- `autore-reconstruction/src/fingerprint/mod.rs` (7 pure LOC)
+- `autore-reconstruction/src/fingerprint/compute.rs` (82 pure LOC)
+- `autore-reconstruction/src/fingerprint/invalidate.rs` (118 pure LOC)
+- `autore-reconstruction/src/fingerprint/tests.rs` (184 pure LOC)
+
+## Files Modified
+- `autore-reconstruction/src/lib.rs` — added `pub mod fingerprint` + re-exports
+- `autore-reconstruction/src/tests_support.rs` — added `InvalidateWorkItem` arm to `RecordingAutoReClient`
+
+## Verification
+
+### cargo build
+```
+PROTOC=/tmp/opencode/protoc/bin/protoc cargo build -p autore-reconstruction
+   Compiling autore-reconstruction v0.1.0
+    Finished `dev` profile
+```
+
+### cargo test
+```
+PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction fingerprint:: -- --nocapture
+running 6 tests
+test fingerprint::tests::fingerprint_is_deterministic_for_same_inputs ... ok
+test fingerprint::tests::fingerprint_changes_when_upstream_declaration_changes ... ok
+test fingerprint::tests::fingerprint_does_not_change_on_only_hypothesis_status_transition ... ok
+test fingerprint::tests::invalidation_issues_invalidate_work_item_command ... ok
+test fingerprint::tests::invalidation_propagates_through_generated_decl_edges_only ... ok
+test fingerprint::tests::invalidation_stops_at_matching_fingerprint ... ok
+test result: ok. 6 passed; 0 failed; 0 ignored
+```
+
+### cargo clippy
+```
+PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings
+    Finished `dev` profile
+```
+
+### cargo build (default members)
+```
+cargo build
+    Finished `dev` profile
+```
+
+### cargo clippy (workspace excluding Stage 1 crates)
+```
+cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction --all-targets -- -D warnings
+    Finished `dev` profile
+```
+
+### cargo fmt
+```
+cargo fmt --all --check: clean
+```

@@ -442,3 +442,37 @@
 - `cargo build` (default members): clean
 - `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction --all-targets -- -D warnings`: clean
 - Evidence: `.omo/evidence/auto-re-stage-1/task-17-work-graph.txt`
+
+## 2026-07-21 Wave 4 Todo 18 (Work-Item Fingerprint + Invalidation)
+
+### What was done
+- Created `autore-reconstruction::fingerprint` module with 3 sub-modules (mod.rs, compute.rs, invalidate.rs, tests.rs)
+- Implemented `FingerprintInput` struct with 8 input categories (static artifacts, hypotheses, upstream declarations, dynamic observations, prompt version, model config, build config, verification policy)
+- Implemented `compute_fingerprint()` using BLAKE3 over canonical JSON (BTreeMap for deterministic key ordering, sorted hex strings for array fields)
+- Implemented `FingerprintComparison` enum (Changed/Unchanged/FirstTime) and `compare_fingerprint()` helper
+- Implemented `InvalidationPropagator` that walks downstream dependents through `GeneratedDeclRequirement` and `BuildDependency` edges only (NOT DirectCall or other edge kinds)
+- Implemented `FingerprintSnapshot` trait with `InMemorySnapshot` (HashMap-backed) as the first concrete implementation
+- Propagation stops when a downstream item's recomputed fingerprint matches the stored one (bounded invalidation)
+- All mutations route through `ApplicationCommand::InvalidateWorkItem` via `AutoReClient` — no direct storage access
+- Updated `RecordingAutoReClient` to handle `InvalidateWorkItem` commands for test verification
+- 6 tests covering determinism, sensitivity, hypothesis stability, edge filtering, propagation stopping, and command issuance
+
+### Key decisions
+- **Canonical JSON via BTreeMap**: Fingerprint inputs are serialized to a BTreeMap-backed JSON structure where keys are alphabetically sorted and array elements are sorted by hex string. This ensures determinism regardless of insertion order.
+- **ContentHash values stored as hex strings in canonical JSON**: Rather than serializing the full `{algorithm, digest}` structure, single ContentHash values are reduced to their hex digest string. Array ContentHash values are sorted hex strings. This keeps the canonical form simple and deterministic.
+- **`FingerprintSnapshot` as trait**: The trait abstraction allows future implementations backed by SQLite or a remote store, while the `InMemorySnapshot` serves tests and initial use.
+- **`InvalidationPropagator` borrows `&dyn AutoReClient`**: Rather than owning or Arc-wrapping the client, the propagator borrows it for the duration of a single propagation call. This keeps the API composable.
+- **Edge direction for downstream traversal**: In the WorkGraph, edges go from dependent to dependency (source depends on target). Downstream dependents of a changed node are reached via `Direction::Incoming` edges (edges pointing TO the changed node).
+
+### Patterns established
+- Fingerprint modules stay under 120 pure LOC each (compute: 82, invalidate: 118)
+- Test graph construction uses a `build_test_graph` helper that takes label-based edge triples and returns both the graph and a label→WorkItemId map
+- Invalidation tests set up stale stored fingerprints to simulate "input changed since last computation" scenarios
+
+### Verification
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo build -p autore-reconstruction`: clean
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction fingerprint:: -- --nocapture`: 6/6 passed
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean
+- `cargo build` (default members): clean
+- `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction --all-targets -- -D warnings`: clean
+- Evidence: `.omo/evidence/auto-re-stage-1/task-18-fingerprint.txt`
