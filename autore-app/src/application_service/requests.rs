@@ -213,6 +213,7 @@ pub struct RebuildIndexesResponse {
 pub struct CreateReconstructionCampaignRequest {
     pub project: ProjectId,
     pub name: String,
+    pub binary_artifact_id: ArtifactId,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

@@ -296,3 +296,31 @@
 - `cargo test -p autore-store`: 168/168 passed
 - `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --all-targets -- -D warnings`: clean
 - Evidence: `.omo/evidence/auto-re-stage-1/task-11-migrations-v14-v23.txt`
+
+## 2026-07-21 Wave 3 Todo 12 (App Handlers)
+
+### What was done
+- Replaced 21 Stage 1 stub handler arms with real implementations in `application_service.rs`.
+- Added 13 Stage 1 SQL mutation functions to `mutations.rs` covering V14-V23 tables.
+- Modified `CreateReconstructionCampaignRequest` to add `binary_artifact_id: ArtifactId` (required by V14 FK constraint).
+- Added 6 new tests covering campaign creation, work item batch insert, lease lifecycle, completion with lease removal, block with reason, and atomic event emission.
+- Total: 35 tests in autore-app (29 existing + 6 new), all passing.
+
+### Decisions
+- **Event-only handlers for tableless commands**: 8 commands (RecordBuildAttempt, RecordVerificationComparison, RecordRepairAttempt, RegisterGeneratedSourceMapping, InvalidateGeneratedSource, ImportProviderRunResult, ImportDynamicObservation, StopProviderInstance) either lack corresponding tables or have insufficient FK data in their request structs. These are implemented as validate + event-emit only. They still use `with_event` for atomicity.
+- **Stage 1 event kinds use inline `NamespacedId::parse`**: No Stage 1 event kind constants exist in `autore-schema` yet. Handler methods use `Self::stage1_kind("recon.campaign-created")` helper which calls `NamespacedId::parse().unwrap()` on literal strings (safe).
+- **`EventSource::Project` for campaigns, `EventSource::Operation` for work items, `EventSource::Provider` for provider commands**: The existing `EventSource` enum doesn't have Stage 1 variants. Closest existing sources used.
+- **`EventSubject::None` for all Stage 1 events**: The existing `EventSubject` enum doesn't have `WorkItem`, `Campaign`, etc. variants. Adding them would require modifying the enum in `autore-schema`. Deferred to a future todo.
+
+### Patterns established
+- **MutexGuard scoping in tests**: All `service.db.connection()` calls in tests must be scoped in blocks `{ let conn = ...; ... }` to release the mutex before calling any service method (especially `events_after`). This prevents deadlocks with the single-mutex `Database` design.
+- **Thin handlers**: Stage 1 handlers validate inputs, call `with_event` with SQL mutations, and return typed results. No business logic, no provider-runtime code, no cross-service calls.
+- **`parse_work_item_id` helper**: Free function at module level that parses a string UUID into a typed `WorkItemId`, used by all work item lifecycle handlers.
+
+### Verification
+- `cargo test -p autore-app`: 35/35 passed (29 existing + 6 new)
+- `cargo clippy -p autore-app --all-targets -- -D warnings`: clean
+- `cargo build` (default members): clean
+- `cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --all-targets -- -D warnings`: clean
+- `cargo test --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider`: 648+ tests passed
+- Evidence: `.omo/evidence/auto-re-stage-1/task-12-app-handlers.txt`

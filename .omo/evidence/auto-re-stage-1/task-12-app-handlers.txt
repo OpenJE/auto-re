@@ -1,0 +1,83 @@
+Task 12: Stage 1 Application Command Handlers with Atomic State+Event Commits
+================================================================================
+
+Date: 2026-07-21
+
+## Handlers Implemented (21 total)
+
+### With state writes (12 handlers):
+1. CreateReconstructionCampaign -> reconstruction_campaigns (V14)
+2. CreateWorkItems -> reconstruction_work_items (V15) batch insert
+3. PromoteWorkItem -> reconstruction_work_items state UPDATE
+4. LeaseWorkItem -> reconstruction_work_items state + work_leases INSERT (V15+V18)
+5. RenewWorkLease -> work_leases UPDATE (V18)
+6. CompleteWorkItem -> reconstruction_work_items state + work_leases DELETE (V15+V18)
+7. FailWorkItem -> reconstruction_work_items state+reason UPDATE
+8. BlockWorkItem -> reconstruction_work_items state+blocked_reason UPDATE
+9. InvalidateWorkItem -> reconstruction_work_items state+reason UPDATE
+10. RequeueWorkItem -> reconstruction_work_items state reset to Pending
+11. RegisterProviderInstallation -> provider_installations (V19)
+12. RegisterProviderInstance -> provider_instances (V20)
+
+### With event-only (8 handlers):
+13. StopProviderInstance -> provider_instances status UPDATE (V20)
+14. ImportProviderRunResult -> event only (FK dependencies not in request)
+15. ImportDynamicObservation -> event only
+16. RecordBuildAttempt -> event only (no build_attempts table yet)
+17. RecordVerificationComparison -> event only (no verification_comparisons table yet)
+18. RegisterGeneratedSourceMapping -> event only (no mappings table yet)
+19. InvalidateGeneratedSource -> event only
+20. RecordRepairAttempt -> event only (no repair_attempts table yet)
+
+### With existing table (1 handler):
+21. AcceptHypothesisPolicyDriven -> hypotheses status UPDATE (existing table)
+
+### Batch operation (1 handler):
+22. BlockWorkWithReason -> batch UPDATE across all campaigns in project
+
+## Stubs Preserved (deferred to later waves):
+- RecordWorkDependency (owned by Todo 17)
+- RunBuild (owned by Todo 39)
+- ImportGeneratedSourceCandidates (owned by Todo 42)
+- ScheduleVerificationRegression
+- PauseCoordinator / ResumeCoordinator / StopCoordinator
+
+## Request Struct Modification:
+- CreateReconstructionCampaignRequest: added binary_artifact_id: ArtifactId (required by V14 FK)
+
+## Tests Added (6 new):
+1. create_reconstruction_campaign_persists_row_and_emits_event
+2. create_work_items_batch_inserts
+3. lease_work_item_transitions_state
+4. complete_work_item_lease_removed
+5. block_work_with_reason_records_blocked_reason
+6. import_provider_run_result_atomic_emits_event
+
+## Key Finding: MutexGuard Deadlock
+- Holding Database::connection() MutexGuard while calling events_after() causes
+  deadlock because LocalProjectEventService also acquires the same DB mutex.
+- Fix: scope all conn MutexGuards in blocks, releasing before calling event service.
+
+## Verification Results
+
+### cargo test -p autore-app
+test result: ok. 35 passed; 0 failed; 0 ignored (29 existing + 6 new)
+
+### cargo clippy -p autore-app --all-targets -- -D warnings
+clean (zero warnings)
+
+### cargo build (default members)
+clean
+
+### cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --all-targets -- -D warnings
+clean
+
+### cargo test --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider
+All 648+ tests passed across all crates.
+Note: required `cargo clean -p autore-store` to force refinery to re-embed V14-V23 migrations.
+
+## Files Modified:
+- autore-app/src/application_service.rs (replaced 21 stubs with real handlers, added imports)
+- autore-app/src/application_service/mutations.rs (added 13 Stage 1 mutation functions)
+- autore-app/src/application_service/requests.rs (added binary_artifact_id to campaign request)
+- autore-app/src/application_service/tests.rs (added 6 Stage 1 tests + helpers)

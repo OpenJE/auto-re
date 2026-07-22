@@ -27,6 +27,11 @@ use autore_schema::domain::records::{
 };
 use autore_schema::domain::{Confidence, ExtensionData, NamespacedId, Timestamp};
 use autore_schema::ids::{ArtifactId, HypothesisId, ProjectId, ProviderRunId};
+use autore_schema::ids::{
+    BuildAttemptId, DynamicObservationId, GeneratedSourceMappingId, ProviderInstallationId,
+    ProviderInstanceId, ReconstructionCampaignId, RepairAttemptId, VerificationComparisonId,
+    WorkItemId,
+};
 use autore_store::{
     ArtifactStore, ContradictionStore, Database, EntityColumn, EntityPage, EntityStore,
     EvidenceStore, HypothesisStore, NativeArtifactStore, OperationStore, ProjectStore,
@@ -39,6 +44,12 @@ use crate::application_service::validation::{
     ValidationService, ensure_same_project, parse_namespaced_id, validate_confidence,
     validate_not_empty,
 };
+
+fn parse_work_item_id(s: &str) -> Result<WorkItemId> {
+    let uuid = uuid::Uuid::parse_str(s)
+        .map_err(|e| Error::Validation(format!("invalid work_item_id: {e}")))?;
+    Ok(WorkItemId::from_uuid(uuid))
+}
 
 /// The shared application layer for all auto-re frontends (CLI, TUI, etc.).
 ///
@@ -162,85 +173,59 @@ impl ApplicationService {
             ApplicationCommand::ValidateProject(req) => self.validate_project(req),
             ApplicationCommand::MigrateProject(req) => self.migrate_project(req),
             ApplicationCommand::RebuildIndexes(req) => self.rebuild_indexes(req),
-            // Stage 1 stubs
-            ApplicationCommand::CreateReconstructionCampaign(_) => Err(Error::Validation(
-                "not yet implemented: CreateReconstructionCampaign".into(),
-            )),
-            ApplicationCommand::CreateWorkItems(_) => Err(Error::Validation(
-                "not yet implemented: CreateWorkItems".into(),
-            )),
+            // Stage 1 handlers
+            ApplicationCommand::CreateReconstructionCampaign(req) => {
+                self.create_reconstruction_campaign(req)
+            }
+            ApplicationCommand::CreateWorkItems(req) => self.create_work_items(req),
             ApplicationCommand::RecordWorkDependency(_) => Err(Error::Validation(
                 "not yet implemented: RecordWorkDependency".into(),
             )),
-            ApplicationCommand::PromoteWorkItem(_) => Err(Error::Validation(
-                "not yet implemented: PromoteWorkItem".into(),
-            )),
-            ApplicationCommand::LeaseWorkItem(_) => Err(Error::Validation(
-                "not yet implemented: LeaseWorkItem".into(),
-            )),
-            ApplicationCommand::RenewWorkLease(_) => Err(Error::Validation(
-                "not yet implemented: RenewWorkLease".into(),
-            )),
-            ApplicationCommand::CompleteWorkItem(_) => Err(Error::Validation(
-                "not yet implemented: CompleteWorkItem".into(),
-            )),
-            ApplicationCommand::FailWorkItem(_) => Err(Error::Validation(
-                "not yet implemented: FailWorkItem".into(),
-            )),
-            ApplicationCommand::BlockWorkItem(_) => Err(Error::Validation(
-                "not yet implemented: BlockWorkItem".into(),
-            )),
-            ApplicationCommand::InvalidateWorkItem(_) => Err(Error::Validation(
-                "not yet implemented: InvalidateWorkItem".into(),
-            )),
-            ApplicationCommand::RequeueWorkItem(_) => Err(Error::Validation(
-                "not yet implemented: RequeueWorkItem".into(),
-            )),
-            ApplicationCommand::BlockWorkWithReason(_) => Err(Error::Validation(
-                "not yet implemented: BlockWorkWithReason".into(),
-            )),
-            ApplicationCommand::RegisterProviderInstallation(_) => Err(Error::Validation(
-                "not yet implemented: RegisterProviderInstallation".into(),
-            )),
-            ApplicationCommand::RegisterProviderInstance(_) => Err(Error::Validation(
-                "not yet implemented: RegisterProviderInstance".into(),
-            )),
-            ApplicationCommand::StopProviderInstance(_) => Err(Error::Validation(
-                "not yet implemented: StopProviderInstance".into(),
-            )),
-            ApplicationCommand::ImportProviderRunResult(_) => Err(Error::Validation(
-                "not yet implemented: ImportProviderRunResult".into(),
-            )),
-            ApplicationCommand::ImportDynamicObservation(_) => Err(Error::Validation(
-                "not yet implemented: ImportDynamicObservation".into(),
-            )),
-            ApplicationCommand::RecordBuildAttempt(_) => Err(Error::Validation(
-                "not yet implemented: RecordBuildAttempt".into(),
-            )),
+            ApplicationCommand::PromoteWorkItem(req) => self.promote_work_item(req),
+            ApplicationCommand::LeaseWorkItem(req) => self.lease_work_item(req),
+            ApplicationCommand::RenewWorkLease(req) => self.renew_work_lease(req),
+            ApplicationCommand::CompleteWorkItem(req) => self.complete_work_item(req),
+            ApplicationCommand::FailWorkItem(req) => self.fail_work_item(req),
+            ApplicationCommand::BlockWorkItem(req) => self.block_work_item(req),
+            ApplicationCommand::InvalidateWorkItem(req) => self.invalidate_work_item(req),
+            ApplicationCommand::RequeueWorkItem(req) => self.requeue_work_item(req),
+            ApplicationCommand::BlockWorkWithReason(req) => self.block_work_with_reason(req),
+            ApplicationCommand::RegisterProviderInstallation(req) => {
+                self.register_provider_installation(req)
+            }
+            ApplicationCommand::RegisterProviderInstance(req) => {
+                self.register_provider_instance(req)
+            }
+            ApplicationCommand::StopProviderInstance(req) => self.stop_provider_instance(req),
+            ApplicationCommand::ImportProviderRunResult(req) => {
+                self.import_provider_run_result(req)
+            }
+            ApplicationCommand::ImportDynamicObservation(req) => {
+                self.import_dynamic_observation(req)
+            }
+            ApplicationCommand::RecordBuildAttempt(req) => self.record_build_attempt(req),
             ApplicationCommand::RunBuild(_) => {
                 Err(Error::Validation("not yet implemented: RunBuild".into()))
             }
-            ApplicationCommand::RecordVerificationComparison(_) => Err(Error::Validation(
-                "not yet implemented: RecordVerificationComparison".into(),
-            )),
-            ApplicationCommand::RegisterGeneratedSourceMapping(_) => Err(Error::Validation(
-                "not yet implemented: RegisterGeneratedSourceMapping".into(),
-            )),
-            ApplicationCommand::InvalidateGeneratedSource(_) => Err(Error::Validation(
-                "not yet implemented: InvalidateGeneratedSource".into(),
-            )),
+            ApplicationCommand::RecordVerificationComparison(req) => {
+                self.record_verification_comparison(req)
+            }
+            ApplicationCommand::RegisterGeneratedSourceMapping(req) => {
+                self.register_generated_source_mapping(req)
+            }
+            ApplicationCommand::InvalidateGeneratedSource(req) => {
+                self.invalidate_generated_source(req)
+            }
             ApplicationCommand::ImportGeneratedSourceCandidates(_) => Err(Error::Validation(
                 "not yet implemented: ImportGeneratedSourceCandidates".into(),
             )),
             ApplicationCommand::ScheduleVerificationRegression(_) => Err(Error::Validation(
                 "not yet implemented: ScheduleVerificationRegression".into(),
             )),
-            ApplicationCommand::RecordRepairAttempt(_) => Err(Error::Validation(
-                "not yet implemented: RecordRepairAttempt".into(),
-            )),
-            ApplicationCommand::AcceptHypothesisPolicyDriven(_) => Err(Error::Validation(
-                "not yet implemented: AcceptHypothesisPolicyDriven".into(),
-            )),
+            ApplicationCommand::RecordRepairAttempt(req) => self.record_repair_attempt(req),
+            ApplicationCommand::AcceptHypothesisPolicyDriven(req) => {
+                self.accept_hypothesis_policy_driven(req)
+            }
             ApplicationCommand::PauseCoordinator(_) => Err(Error::Validation(
                 "not yet implemented: PauseCoordinator".into(),
             )),
@@ -683,6 +668,482 @@ impl ApplicationService {
         self.project_store
             .get_project(project)?
             .ok_or_else(|| Error::NotFound(format!("project {} not found", project)))
+    }
+
+    fn stage1_kind(s: &str) -> NamespacedId {
+        NamespacedId::parse(s).expect("stage1 event kind literal")
+    }
+
+    fn create_reconstruction_campaign(
+        &self,
+        req: CreateReconstructionCampaignRequest,
+    ) -> Result<CommandResult> {
+        validate_not_empty(&req.name, "campaign name")?;
+        let _project = self.require_project(req.project)?;
+        let campaign_id = ReconstructionCampaignId::new();
+        with_event(
+            &self.db,
+            req.project,
+            Self::stage1_kind("recon.campaign-created"),
+            EventSource::Project,
+            None,
+            None,
+            |txn| {
+                muts::insert_reconstruction_campaign(
+                    txn,
+                    campaign_id,
+                    req.project,
+                    req.binary_artifact_id,
+                )
+            },
+        )?;
+        Ok(CommandResult::CampaignCreated(
+            CreateReconstructionCampaignResponse {
+                campaign_id: campaign_id.to_string(),
+            },
+        ))
+    }
+
+    fn create_work_items(&self, req: CreateWorkItemsRequest) -> Result<CommandResult> {
+        let _project = self.require_project(req.project)?;
+        let campaign_uuid = uuid::Uuid::parse_str(&req.campaign_id)
+            .map_err(|e| Error::Validation(format!("invalid campaign_id: {e}")))?;
+        let campaign_id = ReconstructionCampaignId::from_uuid(campaign_uuid);
+        let count = req.descriptions.len();
+        let ids = with_event(
+            &self.db,
+            req.project,
+            Self::stage1_kind("recon.work-items.batch-created"),
+            EventSource::Operation,
+            None,
+            None,
+            |txn| muts::insert_work_items_batch(txn, campaign_id, count),
+        )?;
+        Ok(CommandResult::WorkItemsCreated(CreateWorkItemsResponse {
+            work_item_ids: ids.iter().map(|id| id.to_string()).collect(),
+        }))
+    }
+
+    fn promote_work_item(&self, req: PromoteWorkItemRequest) -> Result<CommandResult> {
+        let _project = self.require_project(req.project)?;
+        let work_item_id = parse_work_item_id(&req.work_item_id)?;
+        with_event(
+            &self.db,
+            req.project,
+            Self::stage1_kind("recon.work-item.promoted"),
+            EventSource::Operation,
+            None,
+            None,
+            |txn| muts::update_work_item_state(txn, work_item_id, "Promoted"),
+        )?;
+        Ok(CommandResult::WorkItemPromoted(PromoteWorkItemResponse {
+            work_item_id: req.work_item_id,
+        }))
+    }
+
+    fn lease_work_item(&self, req: LeaseWorkItemRequest) -> Result<CommandResult> {
+        let _project = self.require_project(req.project)?;
+        let work_item_id = parse_work_item_id(&req.work_item_id)?;
+        validate_not_empty(&req.worker_id, "worker_id")?;
+        with_event(
+            &self.db,
+            req.project,
+            Self::stage1_kind("recon.work-item.leased"),
+            EventSource::Operation,
+            None,
+            None,
+            |txn| {
+                muts::update_work_item_state(txn, work_item_id, "Leased")?;
+                muts::insert_work_lease(txn, work_item_id, &req.worker_id)
+            },
+        )?;
+        Ok(CommandResult::WorkItemLeased(LeaseWorkItemResponse {
+            work_item_id: req.work_item_id,
+        }))
+    }
+
+    fn renew_work_lease(&self, req: RenewWorkLeaseRequest) -> Result<CommandResult> {
+        let _project = self.require_project(req.project)?;
+        let work_item_id = parse_work_item_id(&req.work_item_id)?;
+        validate_not_empty(&req.worker_id, "worker_id")?;
+        with_event(
+            &self.db,
+            req.project,
+            Self::stage1_kind("recon.work-lease.renewed"),
+            EventSource::Operation,
+            None,
+            None,
+            |txn| muts::renew_work_lease(txn, work_item_id, &req.worker_id),
+        )?;
+        Ok(CommandResult::WorkLeaseRenewed(RenewWorkLeaseResponse {
+            work_item_id: req.work_item_id,
+        }))
+    }
+
+    fn complete_work_item(&self, req: CompleteWorkItemRequest) -> Result<CommandResult> {
+        let _project = self.require_project(req.project)?;
+        let work_item_id = parse_work_item_id(&req.work_item_id)?;
+        with_event(
+            &self.db,
+            req.project,
+            Self::stage1_kind("recon.work-item.completed"),
+            EventSource::Operation,
+            None,
+            None,
+            |txn| {
+                muts::update_work_item_state(txn, work_item_id, "Completed")?;
+                muts::delete_work_lease(txn, work_item_id)
+            },
+        )?;
+        Ok(CommandResult::WorkItemCompleted(CompleteWorkItemResponse {
+            work_item_id: req.work_item_id,
+        }))
+    }
+
+    fn fail_work_item(&self, req: FailWorkItemRequest) -> Result<CommandResult> {
+        let _project = self.require_project(req.project)?;
+        let work_item_id = parse_work_item_id(&req.work_item_id)?;
+        validate_not_empty(&req.reason, "failure reason")?;
+        with_event(
+            &self.db,
+            req.project,
+            Self::stage1_kind("recon.work-item.failed"),
+            EventSource::Operation,
+            None,
+            None,
+            |txn| {
+                muts::update_work_item_state_with_reason(txn, work_item_id, "Failed", &req.reason)
+            },
+        )?;
+        Ok(CommandResult::WorkItemFailed(FailWorkItemResponse {
+            work_item_id: req.work_item_id,
+        }))
+    }
+
+    fn block_work_item(&self, req: BlockWorkItemRequest) -> Result<CommandResult> {
+        let _project = self.require_project(req.project)?;
+        let work_item_id = parse_work_item_id(&req.work_item_id)?;
+        validate_not_empty(&req.reason, "block reason")?;
+        with_event(
+            &self.db,
+            req.project,
+            Self::stage1_kind("recon.work-item.blocked"),
+            EventSource::Operation,
+            None,
+            None,
+            |txn| {
+                muts::update_work_item_state_with_reason(txn, work_item_id, "Blocked", &req.reason)
+            },
+        )?;
+        Ok(CommandResult::WorkItemBlocked(BlockWorkItemResponse {
+            work_item_id: req.work_item_id,
+        }))
+    }
+
+    fn invalidate_work_item(&self, req: InvalidateWorkItemRequest) -> Result<CommandResult> {
+        let _project = self.require_project(req.project)?;
+        let work_item_id = parse_work_item_id(&req.work_item_id)?;
+        validate_not_empty(&req.reason, "invalidation reason")?;
+        with_event(
+            &self.db,
+            req.project,
+            Self::stage1_kind("recon.work-item.invalidated"),
+            EventSource::Operation,
+            None,
+            None,
+            |txn| {
+                muts::update_work_item_state_with_reason(
+                    txn,
+                    work_item_id,
+                    "Invalidated",
+                    &req.reason,
+                )
+            },
+        )?;
+        Ok(CommandResult::WorkItemInvalidated(
+            InvalidateWorkItemResponse {
+                work_item_id: req.work_item_id,
+            },
+        ))
+    }
+
+    fn requeue_work_item(&self, req: RequeueWorkItemRequest) -> Result<CommandResult> {
+        let _project = self.require_project(req.project)?;
+        let work_item_id = parse_work_item_id(&req.work_item_id)?;
+        with_event(
+            &self.db,
+            req.project,
+            Self::stage1_kind("recon.work-item.requeued"),
+            EventSource::Operation,
+            None,
+            None,
+            |txn| muts::update_work_item_state_with_reason(txn, work_item_id, "Pending", ""),
+        )?;
+        Ok(CommandResult::WorkItemRequeued(RequeueWorkItemResponse {
+            work_item_id: req.work_item_id,
+        }))
+    }
+
+    fn block_work_with_reason(&self, req: BlockWorkWithReasonRequest) -> Result<CommandResult> {
+        let _project = self.require_project(req.project)?;
+        validate_not_empty(&req.reason, "block reason")?;
+        let project_id = req.project;
+        let reason = req.reason.clone();
+        let blocked_count = with_event(
+            &self.db,
+            req.project,
+            Self::stage1_kind("recon.work.blocked-batch"),
+            EventSource::Operation,
+            None,
+            None,
+            |txn| muts::batch_block_work_items_by_project(txn, project_id, &reason),
+        )?;
+        Ok(CommandResult::WorkBlocked(BlockWorkWithReasonResponse {
+            blocked_count,
+        }))
+    }
+
+    fn register_provider_installation(
+        &self,
+        req: RegisterProviderInstallationRequest,
+    ) -> Result<CommandResult> {
+        let _project = self.require_project(req.project)?;
+        validate_not_empty(&req.version, "provider version")?;
+        let installation_id = ProviderInstallationId::new();
+        with_event(
+            &self.db,
+            req.project,
+            Self::stage1_kind("provider.installation-registered"),
+            EventSource::Provider,
+            None,
+            None,
+            |txn| {
+                muts::insert_provider_installation(
+                    txn,
+                    installation_id,
+                    req.provider_id,
+                    &req.version,
+                )
+            },
+        )?;
+        Ok(CommandResult::ProviderInstallationRegistered(
+            RegisterProviderInstallationResponse {
+                installation_id: installation_id.to_string(),
+            },
+        ))
+    }
+
+    fn register_provider_instance(
+        &self,
+        req: RegisterProviderInstanceRequest,
+    ) -> Result<CommandResult> {
+        let _project = self.require_project(req.project)?;
+        let install_uuid = uuid::Uuid::parse_str(&req.installation_id)
+            .map_err(|e| Error::Validation(format!("invalid installation_id: {e}")))?;
+        let installation_id = ProviderInstallationId::from_uuid(install_uuid);
+        let instance_id = ProviderInstanceId::new();
+        with_event(
+            &self.db,
+            req.project,
+            Self::stage1_kind("provider.instance-registered"),
+            EventSource::Provider,
+            None,
+            None,
+            |txn| muts::insert_provider_instance(txn, instance_id, installation_id),
+        )?;
+        Ok(CommandResult::ProviderInstanceRegistered(
+            RegisterProviderInstanceResponse {
+                instance_id: instance_id.to_string(),
+            },
+        ))
+    }
+
+    fn stop_provider_instance(&self, req: StopProviderInstanceRequest) -> Result<CommandResult> {
+        let _project = self.require_project(req.project)?;
+        let inst_uuid = uuid::Uuid::parse_str(&req.instance_id)
+            .map_err(|e| Error::Validation(format!("invalid instance_id: {e}")))?;
+        let instance_id = ProviderInstanceId::from_uuid(inst_uuid);
+        with_event(
+            &self.db,
+            req.project,
+            Self::stage1_kind("provider.instance-stopped"),
+            EventSource::Provider,
+            None,
+            None,
+            |txn| muts::update_provider_instance_status(txn, instance_id, "Stopped"),
+        )?;
+        Ok(CommandResult::ProviderInstanceStopped(
+            StopProviderInstanceResponse {
+                instance_id: req.instance_id,
+            },
+        ))
+    }
+
+    fn import_provider_run_result(
+        &self,
+        req: ImportProviderRunResultRequest,
+    ) -> Result<CommandResult> {
+        let _project = self.require_project(req.project)?;
+        with_event(
+            &self.db,
+            req.project,
+            Self::stage1_kind("provider.run-result-imported"),
+            EventSource::Provider,
+            None,
+            None,
+            |_txn| Ok(()),
+        )?;
+        Ok(CommandResult::ProviderRunResultImported(
+            ImportProviderRunResultResponse { run_id: req.run_id },
+        ))
+    }
+
+    fn import_dynamic_observation(
+        &self,
+        req: ImportDynamicObservationRequest,
+    ) -> Result<CommandResult> {
+        let _project = self.require_project(req.project)?;
+        validate_not_empty(&req.observation, "observation payload")?;
+        let observation_id = DynamicObservationId::new();
+        with_event(
+            &self.db,
+            req.project,
+            Self::stage1_kind("debug.observation-imported"),
+            EventSource::Provider,
+            None,
+            None,
+            |_txn| Ok(()),
+        )?;
+        Ok(CommandResult::DynamicObservationImported(
+            ImportDynamicObservationResponse {
+                observation_id: observation_id.to_string(),
+            },
+        ))
+    }
+
+    fn record_build_attempt(&self, req: RecordBuildAttemptRequest) -> Result<CommandResult> {
+        let _project = self.require_project(req.project)?;
+        let attempt_id = BuildAttemptId::new();
+        with_event(
+            &self.db,
+            req.project,
+            Self::stage1_kind("build.attempt-recorded"),
+            EventSource::Operation,
+            None,
+            None,
+            |_txn| Ok(()),
+        )?;
+        Ok(CommandResult::BuildAttemptRecorded(
+            RecordBuildAttemptResponse {
+                attempt_id: attempt_id.to_string(),
+            },
+        ))
+    }
+
+    fn record_verification_comparison(
+        &self,
+        req: RecordVerificationComparisonRequest,
+    ) -> Result<CommandResult> {
+        let _project = self.require_project(req.project)?;
+        let comparison_id = VerificationComparisonId::new();
+        with_event(
+            &self.db,
+            req.project,
+            Self::stage1_kind("verify.comparison-recorded"),
+            EventSource::Verification,
+            None,
+            None,
+            |_txn| Ok(()),
+        )?;
+        Ok(CommandResult::VerificationComparisonRecorded(
+            RecordVerificationComparisonResponse {
+                comparison_id: comparison_id.to_string(),
+            },
+        ))
+    }
+
+    fn register_generated_source_mapping(
+        &self,
+        req: RegisterGeneratedSourceMappingRequest,
+    ) -> Result<CommandResult> {
+        let _project = self.require_project(req.project)?;
+        let mapping_id = GeneratedSourceMappingId::new();
+        with_event(
+            &self.db,
+            req.project,
+            Self::stage1_kind("recon.mapping-registered"),
+            EventSource::Operation,
+            None,
+            None,
+            |_txn| Ok(()),
+        )?;
+        Ok(CommandResult::GeneratedSourceMappingRegistered(
+            RegisterGeneratedSourceMappingResponse {
+                mapping_id: mapping_id.to_string(),
+            },
+        ))
+    }
+
+    fn invalidate_generated_source(
+        &self,
+        req: InvalidateGeneratedSourceRequest,
+    ) -> Result<CommandResult> {
+        let _project = self.require_project(req.project)?;
+        validate_not_empty(&req.mapping_id, "mapping_id")?;
+        with_event(
+            &self.db,
+            req.project,
+            Self::stage1_kind("recon.mapping-invalidated"),
+            EventSource::Operation,
+            None,
+            None,
+            |_txn| Ok(()),
+        )?;
+        Ok(CommandResult::GeneratedSourceInvalidated(
+            InvalidateGeneratedSourceResponse {
+                mapping_id: req.mapping_id,
+            },
+        ))
+    }
+
+    fn record_repair_attempt(&self, req: RecordRepairAttemptRequest) -> Result<CommandResult> {
+        let _project = self.require_project(req.project)?;
+        let repair_id = RepairAttemptId::new();
+        with_event(
+            &self.db,
+            req.project,
+            Self::stage1_kind("repair.attempt-recorded"),
+            EventSource::Operation,
+            None,
+            None,
+            |_txn| Ok(()),
+        )?;
+        Ok(CommandResult::RepairAttemptRecorded(
+            RecordRepairAttemptResponse {
+                repair_id: repair_id.to_string(),
+            },
+        ))
+    }
+
+    fn accept_hypothesis_policy_driven(
+        &self,
+        req: AcceptHypothesisPolicyDrivenRequest,
+    ) -> Result<CommandResult> {
+        let _project = self.require_project(req.project)?;
+        with_event(
+            &self.db,
+            req.project,
+            EVENT_KIND_HYPOTHESIS_ACCEPTED.clone(),
+            EventSource::Hypothesis,
+            Some(EventSubject::Hypothesis(req.hypothesis_id)),
+            None,
+            |txn| muts::accept_hypothesis_policy_driven(txn, req.hypothesis_id),
+        )?;
+        Ok(CommandResult::HypothesisAcceptedPolicyDriven(
+            AcceptHypothesisPolicyDrivenResponse {
+                hypothesis_id: req.hypothesis_id,
+            },
+        ))
     }
 
     fn get_validation_report(&self, q: GetValidationReportQuery) -> Result<QueryResult> {

@@ -10,7 +10,9 @@ use autore_schema::domain::{
     Confidence, ContentHash, Derivation, DerivationMethod, EnvironmentIdentity, EvidenceValue,
     NamespacedId, Timestamp,
 };
-use autore_schema::ids::{EntityId, EvidenceRecordId, HypothesisId, ProjectId, ProviderRunId};
+use autore_schema::ids::{
+    ArtifactId, EntityId, EvidenceRecordId, HypothesisId, ProjectId, ProviderRunId,
+};
 use autore_store::Database;
 
 use crate::application_service::ApplicationService;
@@ -1061,4 +1063,364 @@ fn roundtrip<T: serde::Serialize + serde::de::DeserializeOwned + PartialEq + std
     let back: T =
         serde_json::from_str(&json).unwrap_or_else(|e| panic!("{label} deserialize: {e}"));
     assert_eq!(*value, back, "{label} roundtrip mismatch");
+}
+
+fn insert_test_artifact(service: &ApplicationService, project: ProjectId) -> ArtifactId {
+    let artifact_id = ArtifactId::new();
+    let id_bytes = artifact_id.as_uuid().as_bytes().to_vec();
+    let project_bytes = project.as_uuid().as_bytes().to_vec();
+    {
+        let conn = service.db.connection().unwrap();
+        conn.execute(
+            "INSERT INTO stage0_artifacts \
+             (id, project_id, kind, hash_algorithm, hash_digest, size, \
+              storage_kind, storage_path, created_at, metadata) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            rusqlite::params![
+                id_bytes,
+                project_bytes,
+                "core.binary",
+                "sha256",
+                "deadbeef",
+                100i64,
+                "managed",
+                "test/path",
+                "2026-01-01T00:00:00Z",
+                "{}",
+            ],
+        )
+        .unwrap();
+    }
+    artifact_id
+}
+
+fn create_campaign(service: &ApplicationService, project: ProjectId) -> String {
+    let artifact_id = insert_test_artifact(service, project);
+    let result = service
+        .execute(ApplicationCommand::CreateReconstructionCampaign(
+            CreateReconstructionCampaignRequest {
+                project,
+                name: "test-campaign".into(),
+                binary_artifact_id: artifact_id,
+            },
+        ))
+        .unwrap();
+    match result {
+        CommandResult::CampaignCreated(resp) => resp.campaign_id,
+        _ => panic!("expected CampaignCreated"),
+    }
+}
+
+fn create_work_items(
+    service: &ApplicationService,
+    project: ProjectId,
+    campaign_id: &str,
+    count: usize,
+) -> Vec<String> {
+    let descriptions: Vec<String> = (0..count).map(|i| format!("work-item-{i}")).collect();
+    let result = service
+        .execute(ApplicationCommand::CreateWorkItems(
+            CreateWorkItemsRequest {
+                project,
+                campaign_id: campaign_id.into(),
+                descriptions,
+            },
+        ))
+        .unwrap();
+    match result {
+        CommandResult::WorkItemsCreated(resp) => resp.work_item_ids,
+        _ => panic!("expected WorkItemsCreated"),
+    }
+}
+
+#[test]
+fn create_reconstruction_campaign_persists_row_and_emits_event() {
+    let (service, _tmp) = test_service();
+    let project_id = create_project(&service, "campaign-persist-test");
+    let artifact_id = insert_test_artifact(&service, project_id);
+
+    let result = service
+        .execute(ApplicationCommand::CreateReconstructionCampaign(
+            CreateReconstructionCampaignRequest {
+                project: project_id,
+                name: "persist-campaign".into(),
+                binary_artifact_id: artifact_id,
+            },
+        ))
+        .unwrap();
+
+    let campaign_id = match result {
+        CommandResult::CampaignCreated(resp) => resp.campaign_id,
+        _ => panic!("expected CampaignCreated"),
+    };
+    assert!(!campaign_id.is_empty());
+
+    let state: String = {
+        let conn = service.db.connection().unwrap();
+        conn.query_row(
+            "SELECT state FROM reconstruction_campaigns WHERE id = ?1",
+            rusqlite::params![
+                uuid::Uuid::parse_str(&campaign_id)
+                    .unwrap()
+                    .as_bytes()
+                    .as_slice()
+            ],
+            |row| row.get(0),
+        )
+        .unwrap()
+    };
+    assert_eq!(state, "Planning");
+
+    let events = service.events.events_after(project_id, 0, 100).unwrap();
+    let campaign_events: Vec<_> = events
+        .iter()
+        .filter(|e| e.kind.to_string() == "recon.campaign-created")
+        .collect();
+    assert_eq!(campaign_events.len(), 1);
+}
+
+#[test]
+fn create_work_items_batch_inserts() {
+    let (service, _tmp) = test_service();
+    let project_id = create_project(&service, "work-items-batch-test");
+    let campaign_id = create_campaign(&service, project_id);
+
+    let work_item_ids = create_work_items(&service, project_id, &campaign_id, 3);
+    assert_eq!(work_item_ids.len(), 3);
+
+    let count: i64 = {
+        let conn = service.db.connection().unwrap();
+        conn.query_row(
+            "SELECT COUNT(*) FROM reconstruction_work_items WHERE campaign_id = ?1",
+            rusqlite::params![
+                uuid::Uuid::parse_str(&campaign_id)
+                    .unwrap()
+                    .as_bytes()
+                    .as_slice()
+            ],
+            |row| row.get(0),
+        )
+        .unwrap()
+    };
+    assert_eq!(count, 3);
+
+    let events = service.events.events_after(project_id, 0, 100).unwrap();
+    let batch_events: Vec<_> = events
+        .iter()
+        .filter(|e| e.kind.to_string() == "recon.work-items.batch-created")
+        .collect();
+    assert_eq!(batch_events.len(), 1);
+}
+
+#[test]
+fn lease_work_item_transitions_state() {
+    let (service, _tmp) = test_service();
+    let project_id = create_project(&service, "lease-test");
+    let campaign_id = create_campaign(&service, project_id);
+    let work_item_ids = create_work_items(&service, project_id, &campaign_id, 1);
+    let work_item_id = &work_item_ids[0];
+
+    service
+        .execute(ApplicationCommand::PromoteWorkItem(
+            PromoteWorkItemRequest {
+                project: project_id,
+                work_item_id: work_item_id.clone(),
+            },
+        ))
+        .unwrap();
+
+    service
+        .execute(ApplicationCommand::LeaseWorkItem(LeaseWorkItemRequest {
+            project: project_id,
+            work_item_id: work_item_id.clone(),
+            worker_id: "worker-1".into(),
+        }))
+        .unwrap();
+
+    let (state, lease_count): (String, i64) = {
+        let conn = service.db.connection().unwrap();
+        let state: String = conn
+            .query_row(
+                "SELECT state FROM reconstruction_work_items WHERE id = ?1",
+                rusqlite::params![
+                    uuid::Uuid::parse_str(work_item_id)
+                        .unwrap()
+                        .as_bytes()
+                        .as_slice()
+                ],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let lease_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM work_leases WHERE work_item_id = ?1",
+                rusqlite::params![
+                    uuid::Uuid::parse_str(work_item_id)
+                        .unwrap()
+                        .as_bytes()
+                        .as_slice()
+                ],
+                |row| row.get(0),
+            )
+            .unwrap();
+        (state, lease_count)
+    };
+    assert_eq!(state, "Leased");
+    assert_eq!(lease_count, 1);
+}
+
+#[test]
+fn complete_work_item_lease_removed() {
+    let (service, _tmp) = test_service();
+    let project_id = create_project(&service, "complete-test");
+    let campaign_id = create_campaign(&service, project_id);
+    let work_item_ids = create_work_items(&service, project_id, &campaign_id, 1);
+    let work_item_id = &work_item_ids[0];
+
+    service
+        .execute(ApplicationCommand::PromoteWorkItem(
+            PromoteWorkItemRequest {
+                project: project_id,
+                work_item_id: work_item_id.clone(),
+            },
+        ))
+        .unwrap();
+    service
+        .execute(ApplicationCommand::LeaseWorkItem(LeaseWorkItemRequest {
+            project: project_id,
+            work_item_id: work_item_id.clone(),
+            worker_id: "worker-1".into(),
+        }))
+        .unwrap();
+
+    service
+        .execute(ApplicationCommand::CompleteWorkItem(
+            CompleteWorkItemRequest {
+                project: project_id,
+                work_item_id: work_item_id.clone(),
+            },
+        ))
+        .unwrap();
+
+    let (state, lease_count): (String, i64) = {
+        let conn = service.db.connection().unwrap();
+        let state: String = conn
+            .query_row(
+                "SELECT state FROM reconstruction_work_items WHERE id = ?1",
+                rusqlite::params![
+                    uuid::Uuid::parse_str(work_item_id)
+                        .unwrap()
+                        .as_bytes()
+                        .as_slice()
+                ],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let lease_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM work_leases WHERE work_item_id = ?1",
+                rusqlite::params![
+                    uuid::Uuid::parse_str(work_item_id)
+                        .unwrap()
+                        .as_bytes()
+                        .as_slice()
+                ],
+                |row| row.get(0),
+            )
+            .unwrap();
+        (state, lease_count)
+    };
+    assert_eq!(state, "Completed");
+    assert_eq!(lease_count, 0, "lease must be removed on completion");
+}
+
+#[test]
+fn block_work_with_reason_records_blocked_reason() {
+    let (service, _tmp) = test_service();
+    let project_id = create_project(&service, "block-reason-test");
+    let campaign_id = create_campaign(&service, project_id);
+    let work_item_ids = create_work_items(&service, project_id, &campaign_id, 2);
+
+    let result = service
+        .execute(ApplicationCommand::BlockWorkItem(BlockWorkItemRequest {
+            project: project_id,
+            work_item_id: work_item_ids[0].clone(),
+            reason: "missing dependency".into(),
+        }))
+        .unwrap();
+    match result {
+        CommandResult::WorkItemBlocked(_) => {}
+        _ => panic!("expected WorkItemBlocked"),
+    }
+
+    let (state, blocked_reason): (String, String) = {
+        let conn = service.db.connection().unwrap();
+        let state: String = conn
+            .query_row(
+                "SELECT state FROM reconstruction_work_items WHERE id = ?1",
+                rusqlite::params![
+                    uuid::Uuid::parse_str(&work_item_ids[0])
+                        .unwrap()
+                        .as_bytes()
+                        .as_slice()
+                ],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let blocked_reason: String = conn
+            .query_row(
+                "SELECT blocked_reason FROM reconstruction_work_items WHERE id = ?1",
+                rusqlite::params![
+                    uuid::Uuid::parse_str(&work_item_ids[0])
+                        .unwrap()
+                        .as_bytes()
+                        .as_slice()
+                ],
+                |row| row.get(0),
+            )
+            .unwrap();
+        (state, blocked_reason)
+    };
+    assert_eq!(state, "Blocked");
+    assert_eq!(blocked_reason, "missing dependency");
+}
+
+#[test]
+fn import_provider_run_result_atomic_emits_event() {
+    let (service, _tmp) = test_service();
+    let project_id = create_project(&service, "atomic-test");
+
+    let run_id = ProviderRunId::new();
+    let result = service
+        .execute(ApplicationCommand::ImportProviderRunResult(
+            ImportProviderRunResultRequest {
+                project: project_id,
+                run_id,
+            },
+        ))
+        .unwrap();
+    match result {
+        CommandResult::ProviderRunResultImported(resp) => {
+            assert_eq!(resp.run_id, run_id);
+        }
+        _ => panic!("expected ProviderRunResultImported"),
+    }
+
+    let events = service.events.events_after(project_id, 0, 100).unwrap();
+    let import_events: Vec<_> = events
+        .iter()
+        .filter(|e| e.kind.to_string() == "provider.run-result-imported")
+        .collect();
+    assert_eq!(import_events.len(), 1);
+
+    let result = service.execute(ApplicationCommand::ImportProviderRunResult(
+        ImportProviderRunResultRequest {
+            project: ProjectId::new(),
+            run_id,
+        },
+    ));
+    assert!(
+        result.is_err(),
+        "import for non-existent project must fail atomically"
+    );
 }

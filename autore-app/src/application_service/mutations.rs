@@ -6,7 +6,10 @@ use autore_schema::domain::records::{
     HypothesisStatus, Operation, OperationFailure, SemanticEntity, VerificationRecord,
 };
 use autore_schema::domain::{ContentHash, MetadataMap, NamespacedId, Timestamp};
-use autore_schema::ids::{ArtifactId, HypothesisId, OperationId, ProjectId};
+use autore_schema::ids::{
+    ArtifactId, HypothesisId, OperationId, ProjectId, ProviderId, ProviderInstallationId,
+    ProviderInstanceId, ReconstructionCampaignId, WorkItemId,
+};
 use autore_store::Transaction;
 
 pub fn insert_project(
@@ -528,5 +531,292 @@ pub fn transition_operation(
             rusqlite::params![target.kind(), failure_json, updated_at, id_bytes],
         )
         .map_err(|e| Error::Database(e.to_string()))?;
+    Ok(())
+}
+
+// ===========================================================================
+// Stage 1 mutations — V14..V23 tables
+// ===========================================================================
+
+pub fn insert_reconstruction_campaign(
+    txn: &Transaction<'_>,
+    campaign_id: ReconstructionCampaignId,
+    project_id: ProjectId,
+    binary_artifact_id: ArtifactId,
+) -> Result<()> {
+    let id_bytes = campaign_id.as_uuid().as_bytes().to_vec();
+    let project_bytes = project_id.as_uuid().as_bytes().to_vec();
+    let artifact_bytes = binary_artifact_id.as_uuid().as_bytes().to_vec();
+    let now = Timestamp::now().to_string();
+
+    txn.conn()
+        .execute(
+            "INSERT INTO reconstruction_campaigns \
+             (id, project_id, binary_artifact_id, state, created_at, updated_at, \
+              provider_policy, model_policy, build_policy, verification_policy, completion_policy) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            rusqlite::params![
+                id_bytes,
+                project_bytes,
+                artifact_bytes,
+                "Planning",
+                now,
+                now,
+                "{}",
+                "{}",
+                "{}",
+                "{}",
+                "{}",
+            ],
+        )
+        .map_err(|e| Error::Database(e.to_string()))?;
+    Ok(())
+}
+
+pub fn insert_work_items_batch(
+    txn: &Transaction<'_>,
+    campaign_id: ReconstructionCampaignId,
+    count: usize,
+) -> Result<Vec<WorkItemId>> {
+    let campaign_bytes = campaign_id.as_uuid().as_bytes().to_vec();
+    let mut ids = Vec::with_capacity(count);
+
+    for _ in 0..count {
+        let work_item_id = WorkItemId::new();
+        let id_bytes = work_item_id.as_uuid().as_bytes().to_vec();
+        txn.conn()
+            .execute(
+                "INSERT INTO reconstruction_work_items \
+                 (id, campaign_id, kind, state, priority, required_capabilities, \
+                  maximum_attempts, attempt_count, input_revision) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                rusqlite::params![
+                    id_bytes,
+                    campaign_bytes,
+                    "recon.work.investigation",
+                    "Pending",
+                    0i64,
+                    "{}",
+                    3i64,
+                    0i64,
+                    0i64,
+                ],
+            )
+            .map_err(|e| Error::Database(e.to_string()))?;
+        ids.push(work_item_id);
+    }
+    Ok(ids)
+}
+
+pub fn update_work_item_state(
+    txn: &Transaction<'_>,
+    work_item_id: WorkItemId,
+    new_state: &str,
+) -> Result<()> {
+    let id_bytes = work_item_id.as_uuid().as_bytes().to_vec();
+    let updated: usize = txn
+        .conn()
+        .execute(
+            "UPDATE reconstruction_work_items SET state = ?1 WHERE id = ?2",
+            rusqlite::params![new_state, id_bytes],
+        )
+        .map_err(|e| Error::Database(e.to_string()))?;
+    if updated == 0 {
+        return Err(Error::NotFound(format!(
+            "work item {work_item_id} not found"
+        )));
+    }
+    Ok(())
+}
+
+pub fn update_work_item_state_with_reason(
+    txn: &Transaction<'_>,
+    work_item_id: WorkItemId,
+    new_state: &str,
+    reason: &str,
+) -> Result<()> {
+    let id_bytes = work_item_id.as_uuid().as_bytes().to_vec();
+    let updated: usize = txn
+        .conn()
+        .execute(
+            "UPDATE reconstruction_work_items \
+             SET state = ?1, blocked_reason = ?2 WHERE id = ?3",
+            rusqlite::params![new_state, reason, id_bytes],
+        )
+        .map_err(|e| Error::Database(e.to_string()))?;
+    if updated == 0 {
+        return Err(Error::NotFound(format!(
+            "work item {work_item_id} not found"
+        )));
+    }
+    Ok(())
+}
+
+pub fn batch_block_work_items_by_project(
+    txn: &Transaction<'_>,
+    project_id: ProjectId,
+    reason: &str,
+) -> Result<u32> {
+    let project_bytes = project_id.as_uuid().as_bytes().to_vec();
+    let updated: usize = txn
+        .conn()
+        .execute(
+            "UPDATE reconstruction_work_items \
+             SET state = 'Blocked', blocked_reason = ?1 \
+             WHERE campaign_id IN ( \
+                 SELECT id FROM reconstruction_campaigns WHERE project_id = ?2 \
+             ) AND state IN ('Pending', 'Promoted')",
+            rusqlite::params![reason, project_bytes],
+        )
+        .map_err(|e| Error::Database(e.to_string()))?;
+    Ok(updated as u32)
+}
+
+pub fn insert_work_lease(
+    txn: &Transaction<'_>,
+    work_item_id: WorkItemId,
+    worker_id: &str,
+) -> Result<()> {
+    let lease_id = WorkItemId::new();
+    let id_bytes = lease_id.as_uuid().as_bytes().to_vec();
+    let item_bytes = work_item_id.as_uuid().as_bytes().to_vec();
+    let now = Timestamp::now();
+    let expires_at = now.to_string();
+
+    txn.conn()
+        .execute(
+            "INSERT INTO work_leases \
+             (id, work_item_id, owner, expires_at, version, created_at) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                id_bytes, item_bytes, worker_id, expires_at, 1i64, expires_at
+            ],
+        )
+        .map_err(|e| Error::Database(e.to_string()))?;
+    Ok(())
+}
+
+pub fn renew_work_lease(
+    txn: &Transaction<'_>,
+    work_item_id: WorkItemId,
+    worker_id: &str,
+) -> Result<()> {
+    let item_bytes = work_item_id.as_uuid().as_bytes().to_vec();
+    let now = Timestamp::now().to_string();
+    let updated: usize = txn
+        .conn()
+        .execute(
+            "UPDATE work_leases \
+             SET expires_at = ?1, version = version + 1 \
+             WHERE work_item_id = ?2 AND owner = ?3",
+            rusqlite::params![now, item_bytes, worker_id],
+        )
+        .map_err(|e| Error::Database(e.to_string()))?;
+    if updated == 0 {
+        return Err(Error::NotFound(format!(
+            "lease for work item {work_item_id} owned by {worker_id} not found"
+        )));
+    }
+    Ok(())
+}
+
+pub fn delete_work_lease(txn: &Transaction<'_>, work_item_id: WorkItemId) -> Result<()> {
+    let item_bytes = work_item_id.as_uuid().as_bytes().to_vec();
+    txn.conn()
+        .execute(
+            "DELETE FROM work_leases WHERE work_item_id = ?1",
+            rusqlite::params![item_bytes],
+        )
+        .map_err(|e| Error::Database(e.to_string()))?;
+    Ok(())
+}
+
+pub fn insert_provider_installation(
+    txn: &Transaction<'_>,
+    installation_id: ProviderInstallationId,
+    provider_id: ProviderId,
+    version: &str,
+) -> Result<()> {
+    let id_bytes = installation_id.as_uuid().as_bytes().to_vec();
+    let package_id = provider_id.to_string();
+    let zero_hash = vec![0u8; 32];
+
+    txn.conn()
+        .execute(
+            "INSERT INTO provider_installations \
+             (id, package_id, version, content_hash, capabilities, \
+              max_concurrency_per_cap, configuration_schema, root_path) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            rusqlite::params![
+                id_bytes, package_id, version, zero_hash, "[]", "{}", "{}", "",
+            ],
+        )
+        .map_err(|e| Error::Database(e.to_string()))?;
+    Ok(())
+}
+
+pub fn insert_provider_instance(
+    txn: &Transaction<'_>,
+    instance_id: ProviderInstanceId,
+    installation_id: ProviderInstallationId,
+) -> Result<()> {
+    let id_bytes = instance_id.as_uuid().as_bytes().to_vec();
+    let install_bytes = installation_id.as_uuid().as_bytes().to_vec();
+    let instance_uuid = instance_id.as_uuid().as_bytes().to_vec();
+    let now = Timestamp::now().to_string();
+
+    txn.conn()
+        .execute(
+            "INSERT INTO provider_instances \
+             (id, installation_id, instance_id, status, started_at) \
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![id_bytes, install_bytes, instance_uuid, "Running", now],
+        )
+        .map_err(|e| Error::Database(e.to_string()))?;
+    Ok(())
+}
+
+pub fn update_provider_instance_status(
+    txn: &Transaction<'_>,
+    instance_id: ProviderInstanceId,
+    status: &str,
+) -> Result<()> {
+    let instance_uuid = instance_id.as_uuid().as_bytes().to_vec();
+    let now = Timestamp::now().to_string();
+    let updated: usize = txn
+        .conn()
+        .execute(
+            "UPDATE provider_instances \
+             SET status = ?1, ended_at = ?2 WHERE instance_id = ?3",
+            rusqlite::params![status, now, instance_uuid],
+        )
+        .map_err(|e| Error::Database(e.to_string()))?;
+    if updated == 0 {
+        return Err(Error::NotFound(format!(
+            "provider instance {instance_id} not found"
+        )));
+    }
+    Ok(())
+}
+
+pub fn accept_hypothesis_policy_driven(
+    txn: &Transaction<'_>,
+    hypothesis_id: HypothesisId,
+) -> Result<()> {
+    let id_bytes = hypothesis_id.as_uuid().as_bytes().to_vec();
+    let updated_at = Timestamp::now().to_string();
+
+    let updated: usize = txn
+        .conn()
+        .execute(
+            "UPDATE hypotheses SET status = 'Accepted', updated_at = ?1 WHERE id = ?2",
+            rusqlite::params![updated_at, id_bytes],
+        )
+        .map_err(|e| Error::Database(e.to_string()))?;
+    if updated == 0 {
+        return Err(Error::NotFound(format!(
+            "hypothesis {hypothesis_id} not found"
+        )));
+    }
     Ok(())
 }
