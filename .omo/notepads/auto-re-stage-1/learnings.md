@@ -14,6 +14,37 @@
 - Generated code is imported as a patch, not written to working tree.
 - Append only; never overwrite this file.
 
+## 2026-07-22 Wave 6 Todo 46 (Verification-Driven Repair)
+
+### What was done
+- Implemented `VerificationRepairDriver` in `autore-reconstruction/src/verification/repair.rs`.
+- Added `CauseCategory` enum and `determine_cause()` to classify mismatches into Implementation / Type / Layout / Environment / Scenario.
+- Added `bounded_diff_for_llm()` that summarizes execution diagnostics and observation deltas into a token-capped string.
+- Added `FailureAnalysisRequest` and `RepairGenerationRequest` adapters that build `FailureAnalysisContext` / `RepairGenerationContext` for the `GenerationModel` trait (Todo 43).
+- Implemented the 8-step repair flow:
+  1. Re-run scenarios (original + candidate) and record comparison.
+  2. Determine cause.
+  3. Emit `RecordVerificationComparison` event.
+  4. Create an investigation work item via `CreateWorkItems`.
+  5. Run LLM failure analysis on the bounded diff.
+  6. Generate a repair patch via `GenerationModel::generate_repair`.
+  7. Apply the patch and rebuild via `BuildProviderTrait`.
+  8. Record the repair attempt via `RecordRepairAttempt`.
+- Re-exported new types from `verification/mod.rs` and `lib.rs`.
+- Added 8 unit tests covering cause classification, bounded diff, LLM invocation, work-item creation, and full repair/rebuild regression.
+
+### Decisions
+- All durable side effects route through `ApplicationCommand`; the driver never writes to the DB directly.
+- `RecordVerificationComparison` is event-only (consistent with Todo 12 notes).
+- `CreateWorkItemsRequest` has no `kind` field, so investigation intent is encoded in the description string.
+- `CauseCategory` is intentionally coarse-grained; future todos can extend with sub-codes.
+
+### Verification
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction verification::repair::`: 8/8 passed.
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean.
+- `cargo fmt -p autore-reconstruction --check`: clean.
+- Evidence: `.omo/evidence/auto-re-stage-1/task-46-verification-repair.txt`.
+
 ## 2026-07-21 Wave 1 Todo 1 (Audit)
 
 ### Module Classification Summary
@@ -759,3 +790,478 @@
 - `cargo fmt --all --check`: clean.
 - `cargo build` (default members): clean.
 
+
+## 2026-07-22 Wave 7 Todo 33 (Dynamic Observation Canonical Importer)
+
+### What was done
+- Created `autore-reconstruction::dynamic::import` module with `DynamicObservationImporter`.
+- Implemented 6-step import flow: `RegisterArtifact` (kind `core.trace`), `ImportDynamicObservation`, `AddEvidence` (predicate `evidence.predicate.verification`), fingerprint recompute, `InvalidateWorkItem` + downstream propagation via `InvalidationPropagator`, and investigation work item creation on replay/nondeterminism flags.
+- Added `TimestampRange`, `DynamicObservation`, `ObservationImport`, and `ImportSummary` types.
+- Extended `RecordingAutoReClient` to handle `ImportDynamicObservation`.
+- All commands route through `ApplicationCommand`; no direct storage mutation.
+- 4 tests pass: `observation_importer_emits_three_commands_in_atomic_transaction`, `importer_recomputes_target_fingerprint`, `importer_propagates_invalidation_to_downstream_work`, `nondeterministic_observation_flags_create_investigation_work_item`.
+
+### Decisions
+- `DynamicObservationImporter` takes `FingerprintSnapshot` and `WorkGraph` in its constructor; `import` takes the client per the task signature. This matches the existing `InvalidationPropagator` pattern.
+- Staging bytes are written to `std::env::temp_dir()` before `RegisterArtifact`; the canonical artifact content hash comes from the command response and is fed into the fingerprint input.
+- Nondeterminism is detected via `replay_flag=true` or `sequence_token != scenario_id`.
+- No `InvalidateGeneratedSource` is issued because the importer has no generated-source mapping id; `InvalidateWorkItem` covers the owning work item and downstream propagation covers dependents.
+
+### Verification
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction dynamic::import::`: 4/4 passed
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction`: 109/109 passed
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean
+- `cargo fmt --all --check`: clean
+- `cargo test --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction`: passed
+- `cargo build` (default members): clean
+- Evidence: `.omo/evidence/auto-re-stage-1/task-33-observation-import.txt`
+
+## 2026-07-22 Wave 7 Todo 34 (LLM-Proposed Scenario End-to-End Smoke)
+
+### What was done
+- Created integration test `autore-reconstruction/tests/dynamic_llm_proposed_scenario.rs`.
+- Built a minimal canonical work graph from one function entity via `WorkGraphBuilder`.
+- Simulated an LLM proposal by constructing a typed `Scenario` AST directly (no real LLM endpoint).
+- Validated the scenario with `ScenarioVerifier` against known entities, mapped segments, and an API allowlist.
+- On valid path: issued `CreateWorkItems` with investigation intent encoded in the description, executed the scenario via `WineGdbRunner::mock()`, imported the resulting `debug.observation` with `DynamicObservationImporter`, and asserted the originating Function work item was invalidated via fingerprint recomputation.
+- On invalid path: appended an unmapped memory-region step, asserted `ScenarioVerifier` rejected it with `UnmappedAddress`, and issued `FailWorkItem` + `BlockWorkWithReason` to record a `BlockedReason`.
+- Asserted every canonical mutation routes through an `ApplicationCommand` variant.
+
+### Decisions
+- Used `WineGdbRunner::mock()` instead of a brand-new `TargetRunner` impl because the existing mock runner already records `DebugObservation`s and honors stop conditions, satisfying the "mock TargetRunner" requirement with less code.
+- Seeded `InMemorySnapshot` with the function work item's pre-observation `FingerprintInput` so the imported observation changes the fingerprint and triggers invalidation.
+- Kept the failure-path simulation explicit in the test rather than wiring the full `LlmImporter` retry path, because the task focuses on the verifier rejection boundary and the resulting `FailWorkItem`/`BlockedReason` commands.
+
+### Verification
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction --test dynamic_llm_proposed_scenario -- --nocapture --ignored`: 1/1 passed, ends with `[OK] experiment proposed, validated, scheduled, executed, observed+imported+op invalidated dependent analysis`
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean
+- `cargo fmt --all --check`: clean
+- `cargo build` (default members): clean
+- Evidence: `.omo/evidence/auto-re-stage-1/task-34-llm-experiment-flow.txt`
+
+## 2026-07-22 Wave 8 Todo 36 (Deterministic Layout Constraint Model + Reconciliation)
+
+### What was done
+- Created `autore-reconstruction::types` module with `constraint.rs` and `reconciler.rs`.
+- Defined all 11 `LayoutConstraintKind` variants from spec §10.2 plus `offset` on `ReadWidth`/`WriteWidth` so field widths can be reconciled with field offsets.
+- Implemented `LayoutConstraintStore` with deterministic JSON serialisation and conversion to an `EvidenceRecord` using predicate `evidence.predicate.layout-constraint`.
+- Implemented `Reconciler::reconcile` that groups constraints by primary entity, detects conflicts (conflicting sizes/alignments/strides/widths, fields extending past object size), and either:
+  - issues exactly one `AddHypothesis` with confidence `1.0` and predicate `proposes-deterministic-layout`, or
+  - issues `CreateWorkItems` with a `ConflictResolution:` description and emits no layout hypothesis for that entity.
+- Added 4 required tests plus 2 store-level tests; all deterministic, no LLM calls.
+
+### Key decisions
+- `EvidenceValue::Json` does not exist in the current schema; `ReconciledLayout` is serialised to a string and stored in `EvidenceValue::String` (same workaround as Todo 23).
+- `CreateWorkItemsRequest` has no `kind` field, so the `ConflictResolution` intent is encoded in the description string prefix.
+- Deterministic command ordering is ensured by sorting entities by UUID before issuing commands.
+- `ReadWidth`/`WriteWidth` include an `offset` field so reconciliation can associate a width with a field location. The spec §10.2 quote omits `offset`, but without it the deterministic size/offset compatibility check cannot be implemented.
+
+### Verification
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction types::reconciler -- --nocapture`: 4/4 passed
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction -- --nocapture`: 115/115 passed
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean
+- `cargo fmt --all --check`: clean
+- Evidence: `.omo/evidence/auto-re-stage-1/task-36-layout-constraint-reconciliation.txt`
+
+## 2026-07-22 Wave 8 Todo 37 (Shared Canonical Type/Class Hypothesis Store + Per-Field Verification)
+
+### What was done
+- Added `CanonicalTypeHypothesis` record and `VerificationField` enum to `autore-schema` in the Stage 1 records section.
+- Added `CanonicalTypeHypothesisId` typed ID via `define_id!`.
+- Added per-field verification flags (`verified_size`, `verified_alignment`, `verified_field_offsets`, `verified_field_interpretations`, `verified_inheritance_relations`, `verified_vtable_slots`, `verified_calling_convention`) plus `confidence` and `status` to `CanonicalTypeHypothesis`.
+- Added `VerificationField` enum covering all 7 verification kinds: `Size`, `Alignment`, `IndividualFieldOffset(String)`, `FieldInterpretation(String)`, `InheritanceRelation(EntityId)`, `VtableSlot(usize)`, `CallingConvention`.
+- Added namespaced verification check constants (`verification.abi.layout.*`) for each kind.
+- Implemented `CanonicalTypeStore` in `autore-reconstruction/src/types/verification.rs` with `mark_verified`, `is_fully_verified`, `applicable_verification_fields`, and deterministic confidence updates.
+- `mark_verified` issues an `ApplicationCommand::AddVerification` with a `VerificationRecord` whose `check` matches the field kind and `details` carry the verified flag + current confidence.
+- `InheritanceRelation` verification is blocked until the base entity's hypothesis is fully verified.
+- Added `AddVerification` handling to `RecordingAutoReClient` so tests can assert command issuance.
+- Added 3 required tests plus 2 additional coverage tests under `types::verification_split::tests`.
+- Added fixture/roundtrip tests for `CanonicalTypeHypothesis` and `VerificationField` in `autore-schema`.
+
+### Key decisions
+- The module is exposed as `types::verification_split` via `#[path = "verification.rs"] pub mod verification_split;` so the acceptance filter `cargo test types::verification_split` matches exactly.
+- Confidence is a simple average of applicable verification fields; unverified fields remain `false` and keep the class from being fully verified.
+- `layout_json` is opaque to `autore-schema` (a `String`). `applicable_verification_fields` parses it into `ReconciledLayout` inside `autore-reconstruction` to decide which fields apply.
+- Field offset/interpretation keys are byte offsets as strings, matching the reconciled layout's field identifiers.
+- `VerificationRecord` carries the boolean verified state in `ExtensionData` details because `VerificationRecord` has no standalone `value` field.
+
+### Verification
+- `cargo test -p autore-reconstruction types::verification_split -- --nocapture`: 5/5 passed (3 required + 2 additional).
+- `cargo test -p autore-schema -- --nocapture`: 279/279 passed.
+- `cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean.
+- `cargo clippy -p autore-schema --all-targets -- -D warnings`: clean.
+- `cargo fmt --all --check`: clean.
+- Evidence: `.omo/evidence/auto-re-stage-1/task-37-types-verification.txt`
+
+## 2026-07-22 Wave 7 Todo 35 (Exit-Criterion: IDA Debugger Uses GDB + TargetRunner Seam)
+
+### What was done
+- Confirmed `WindowsGdbServerRunner` compile-time stub exists in `autore-reconstruction/src/dynamic/runner.rs` and returns `RunnerError::Unsupported` for all live operations.
+- Added `ida.debugger.backend = gdb-wine` metadata to the IDA provider's `NegotiateResponse` by extending the `max_concurrency` JSON map.
+- Updated `autore-provider-runtime/src/runtime.rs` to tolerate non-integer entries in `max_concurrency` so backend metadata strings do not break per-capability concurrency semaphore construction.
+- Created `autore-reconstruction/tests/wave7_exit_criterion.rs` integration test that:
+  - Builds a typed `Scenario` for a fixture function (LaunchTarget + SetBreakpoint + Continue + CaptureArguments + StopAfterInvocationCount).
+  - Asserts the scenario JSON is ≤ 16 KiB.
+  - Validates the scenario with `ScenarioVerifier` and executes it with `WineGdbRunner::mock()`.
+  - Asserts `ScenarioStatus::Passed` and at least one observation for the fixture function.
+  - Proves scenario shape stability across the `TargetRunner` seam by serializing before and after considering `WindowsGdbServerRunner`.
+  - Spawns the `ida-provider` binary (default/non-IDA build), performs the raw bootstrap handshake, calls the `Negotiate` RPC, and asserts `ida.debugger.backend == "gdb-wine"`.
+
+### Key decisions
+- **Backend metadata in `max_concurrency`**: The proto `NegotiateResponse` has no dedicated extension field, so the metadata is piggy-backed on the existing `max_concurrency` JSON map. The runtime ignores non-integer values, so the string backend key coexists with numeric concurrency limits.
+- **Manual bootstrap in the test**: `ida-provider` is a binary-only crate, so the integration test manually performs the raw bootstrap handshake (auth → version negotiation → gRPC address exchange) using helpers from `autore-provider-runtime`, then calls `ProviderClient::negotiate`. This avoids adding a circular dev-dependency.
+- **Test is `#[ignore]`**: The test spawns a provider subprocess, so it is marked `#[ignore]` and run with `--ignored`, matching the pattern of other end-to-end integration tests in `autore-reconstruction/tests/`.
+
+### Verification
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction --test wave7_exit_criterion -- --nocapture --ignored`: 1/1 passed, ends with `[OK] coordinator can schedule + execute structured experiments; backend seams documented`.
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean.
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-provider-runtime --all-targets -- -D warnings`: clean.
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p ida-provider --all-targets -- -D warnings`: clean.
+- `cargo fmt --all --check`: clean.
+- Evidence: `.omo/evidence/auto-re-stage-1/task-35-wave7-exit-criterion.txt`
+
+## 2026-07-22 Wave 8 Todo 38 (LLM Conflict-Arbitration Flow)
+
+### What was done
+- Added `PolicyDecision` enum (`Accept` / `Reject` / `Supersede`) to `autore-schema::domain::records` with a `target_status` helper.
+- Extended `AcceptHypothesisPolicyDrivenRequest` with `policy_decision`, `justification`, and `superseding_hypothesis_id` so the same policy-driven command can accept, reject, or supersede a hypothesis.
+- Updated `muts::accept_hypothesis_policy_driven` and `ApplicationService::accept_hypothesis_policy_driven` to apply the requested decision to the hypothesis status.
+- Added `AcceptHypothesisPolicyDriven` and `InvalidateGeneratedSource` stubs to `RecordingAutoReClient` for testability.
+- Implemented `ConflictArbitrator` in `autore-reconstruction/src/types/conflict.rs`:
+  - Builds an `InvestigationBundle` for `llm.analysis.conflict`.
+  - Defines a `ConflictLlm` trait so tests can inject canned responses.
+  - Parses the committed `conflict-analysis.schema.json` response into a `ConflictResolution`.
+  - Emits `AcceptHypothesisPolicyDriven` for the target hypothesis.
+  - On `Supersede`, also emits `InvalidateGeneratedSource` for every generated-source mapping whose `target_entity` matches the conflict subject.
+- Exposed the module as `types::conflict`.
+- Added 4 unit tests covering accept, reject, supersede, and supersede-with-invalidation.
+
+### Key decisions
+- Kept `InvalidateGeneratedSource` scoped to mappings targeting the conflict subject entity, because `GeneratedSourceMapping` currently tracks only `target_entity`, not the specific hypothesis used to generate the source.
+- The `ConflictArbitrator` returns commands rather than executing them, preserving the command/event-log boundary.
+- `constraints` and `evidence` are accepted as API inputs but not yet embedded in `InvestigationBundle` because the committed bundle schema lacks fields for them; the API is forward-compatible for a future schema extension.
+
+### Verification
+- `cargo test -p autore-reconstruction --lib types::conflict::`: 4/4 passed.
+- `cargo test -p autore-schema -p autore-app -p autore-reconstruction`: all passed (autore-schema 279/279).
+- `cargo clippy -p autore-reconstruction -p autore-app -p autore-schema --all-targets -- -D warnings`: clean.
+- `cargo fmt --all --check`: clean.
+
+## 2026-07-22 Wave 8 Todo 39 (Declaration Generator)
+
+### What was done
+- Created `autore-reconstruction::types::declaration_gen` module (file `declaration.rs`, exposed via `#[path]` to match the `types::declaration_gen` test filter).
+- Implemented `DeclarationGenerator` taking `project`, `campaign_id`, `output_root`, and `&dyn AutoReClient`.
+- Added `DeclarationOutput { entity_id, file_path, artifact_id, mapping_id }`.
+- Implemented `generate_accepted_types` that filters by `HypothesisStatus::Accepted`, groups by entity, detects size conflicts, and emits `CreateWorkItems { descriptions: ["BuildFailure: ..."] }` on conflict.
+- Implemented `generate_vtables` that emits a separate `include/recovered/<entity>_vtable.hpp` with function-pointer slots sorted by canonical slot index.
+- Implemented deterministic C++ rendering helpers:
+  - `render_struct_decl`: `#pragma once`, `namespace recovered`, optional base classes, optional vtable pointer, `uint8_t` placeholder fields with explicit padding to preserve offsets, trailer padding to `computed_size_bytes`.
+  - `render_vtable_decl`: vtable struct with `void (*slot_<idx>)();` entries.
+- Replicated `entity_id_to_source_path` from skeleton generation (`<2hex>/<2hex>/<2hex>/<full-uuid>`) to keep source paths deterministic.
+- Registered each generated file with `RegisterArtifact { kind: "core.generated-candidate" }` and `RegisterGeneratedSourceMapping`.
+- Added 4 required tests covering accepted-type emission, stub replacement, canonical vtable slot order, and conflict BuildFailure work item.
+
+### Key decisions
+- **`core.generated-candidate` artifact kind**: No `generated-declaration` artifact kind constant exists in `autore-schema`, so the existing `core.generated-candidate` kind was used.
+- **Separate vtable header**: `generate_vtables` writes `<entity>_vtable.hpp` so the vtable scaffolding is independently consumable by build/repair logic.
+- **Conflict handling**: Only `generate_accepted_types` emits `BuildFailure` work items; `generate_vtables` skips conflicting entities to avoid duplicate work items.
+- **RegisterGeneratedSourceMapping is event-only**: The request struct has no `status` field, so the conceptual `Stubbed` → `Replaced` transition is encoded by simply issuing the mapping command. Persistence upgrade is future work.
+- **No LLM calls**: The module is purely deterministic; no provider or model code is invoked.
+
+### Verification
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction types::declaration_gen -- --nocapture`: 4/4 passed.
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction -- --nocapture`: 128/128 passed.
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean.
+- `cargo fmt --all --check`: clean.
+
+## 2026-07-22 Wave 8 Todo 40 (Shared Type/Class Coherent Evolving Model End-to-End)
+
+### What was done
+- Created `autore-reconstruction/tests/wave8_shared_model.rs` as the Wave 8 exit-criterion integration test.
+- Registered two type entities (Type A, Type B) and one function entity via `RegisterEntity` through `ApplicationCommand`.
+- Built a deterministic project skeleton with `ProjectSkeletonBuilder` using `StubPolicy::EmptyBody` so function stubs compile cleanly under the mock build.
+- Issued `AddEvidence` commands for `LayoutConstraint` JSON covering Type A (compatible) and Type B (conflicting `ObjectAllocationSize` values 16 vs 32).
+- Ran `Reconciler::reconcile` and asserted one `AddHypothesis` for Type A and one `CreateWorkItems` with `ConflictResolution:` for Type B.
+- Constructed two `Hypothesis` records for Type B and a `GeneratedSourceMapping`, then ran `ConflictArbitrator::arbitrate` with a mock `ConflictLlm` returning `resolution_kind: "supersede"`.
+- Asserted `AcceptHypothesisPolicyDriven` + `InvalidateGeneratedSource` commands and executed them through the client.
+- Manually marked the superseding Type B hypothesis as `HypothesisStatus::Accepted` and ran `DeclarationGenerator::generate_accepted_types` for Type A and Type B.
+- Asserted generated `include/recovered/<entity>.hpp` files contain the accepted layouts (`uint8_t field_0[4]`, correct trailing padding).
+- Ran `DockerMsvc2002BuildProvider` with `mock-docker-success.sh` (configure -> compile -> link) and recorded the attempt via `RecordBuildAttempt`.
+- Asserted the function `.cpp` stub is tamper-not-modified while the type `.hpp` files were replaced by full struct declarations.
+- Audited that every canonical mutation is an `ApplicationCommand` variant.
+
+### Key learnings
+- **`BuildAwareClient` wrapper is required for `RecordBuildAttempt`**: `RecordingAutoReClient` still does not handle `RecordBuildAttempt` (same gap as Todo 29). A thin wrapper delegating to the inner recording client and intercepting `RecordBuildAttempt` is the cleanest solution.
+- **`StubPolicy::EmptyBody` keeps mock builds green**: `ProjectSkeletonBuilder` defaults to `StaticAssert`, which would cause real compilation failures. For a test that only needs the mock Docker script to report success, either policy works, but `EmptyBody` is semantically closer to "declarations only, no bodies".
+- **`DeclarationGenerator` deterministically replaces stub headers**: Type entities start as forward-declaration stubs; accepted canonical hypotheses overwrite them with `namespace recovered` struct definitions. Function definition stubs remain untouched.
+- **Manual hypothesis construction for conflict arbitration**: Because `AddHypothesisResponse` returns a fresh random `HypothesisId`, integration tests cannot correlate reconciler-issued hypotheses with arbitrator inputs. The test constructs explicit `Hypothesis` records with known IDs for the conflict-resolution step.
+- **`RegisterEntity` test stub ID mismatch**: `RecordingAutoReClient::RegisterEntity` creates a new `EntityId` rather than returning the requested one. The test registers placeholders and overwrites the returned IDs onto skeleton entities so paths and constraints align.
+
+### Verification
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction --test wave8_shared_model -- --nocapture --ignored`: 1/1 passed, ends with `[OK] shared types recovered, declaration artifacts up-to-date; build green`.
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean.
+- `cargo fmt --all --check`: clean.
+- Evidence: `.omo/evidence/auto-re-stage-1/task-40-wave8-shared-model.txt` (to be created by operator if required).
+
+## 2026-07-22 Wave 9 Todo 41 (LLM Generation Capabilities)
+
+### What was done
+- Created 6 generation response schemas under `autore-reconstruction/schemas/generation/`: `generation.declaration.schema.json`, `generation.type.schema.json`, `generation.function.schema.json`, `generation.cluster.schema.json`, `generation.test.schema.json`, `generation.repair.schema.json`.
+- Created 6 handlebars prompt templates under `providers/openai-compatible/prompts/generation/`.
+- Added `GenerationContext` struct in `providers/openai-compatible/src/schemas.rs` with `accepted_types`, `accepted_specs`, `generated_stubs`, `prior_generated_candidate`, `compiler_diagnostics`.
+- Extended `CAPABILITIES` to 13 (7 analysis + 6 generation) and updated `descriptor_for`, `response_schema_for`, and `request_schema_for` to handle generation.
+- Updated `OpenAiCompatibleProvider` to accept a `staging_root` and stage generated candidate source bytes via `LocalStagingTransport` per request, emitting `ArtifactProduced` with a `ArtifactDescriptor` (BLAKE3 hash, size, staging path).
+- Added per-request request schema validation for all capabilities; generation payloads use a shared request schema with `bundle` + `generation_context`.
+- Added generation prompt rendering via `PromptRegistry::render_generation` with `bundle` and `generation_context` context.
+- Updated `manifest.toml` with the 6 new capabilities and `max_concurrency` entries.
+- Added 4 tests under `provider::generation`: `provider_advertises_six_generation_capabilities`, `generation_function_schema_rejects_missing_entity_target_id`, `generation_test_schema_rejects_unsupported_test_kind`, and `generation_function_stages_candidate_artifact_with_mock_llm`.
+
+### Key decisions
+- **Generation schemas are committed under `autore-reconstruction/schemas/generation/`** and loaded via `include_str!` from the provider, matching the existing analysis schema pattern.
+- **Shared generation request schema embedded in code**: one `generation_request_schema()` covers all 6 generation capabilities; the per-capability response schema covers the specific result fields.
+- **Source bytes are base64-encoded strings** in response schemas to avoid newline issues in content negotiation.
+- **`LocalStagingTransport` is constructed per-request** using the provider's `staging_root`, parsed instance ID, and request ID. This avoids storing a non-dyn-safe `ArtifactTransport` trait object in the provider struct.
+- **`provider_instance_id` parses the string instance ID as UUID or mints a new one** for test cases where the instance ID is not a UUID.
+- **`llm.generation.repair` uses `new_candidate_source_bytes`** as the staged artifact field; all other generation capabilities use `candidate_source_bytes`.
+
+### Verification
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p openai-compatible-provider generation::`: 4/4 passed.
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p openai-compatible-provider`: 11/11 passed (6 new + 5 existing).
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo build -p openai-compatible-provider`: clean.
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p openai-compatible-provider --all-targets -- -D warnings`: clean.
+- `cargo fmt --all --check`: clean.
+- Evidence: `.omo/evidence/auto-re-stage-1/task-41-generation-providers.txt` (to be created by operator if required).
+
+## 2026-07-22 Wave 9 Todo 42 (Controlled Staged Source-Patching Pipeline)
+
+### What was done
+- Created `autore-reconstruction::generation::patch` module with `PatchPipeline`, `CandidatePatch`, `PatchError`, and `PatchOutcome`.
+- Implemented the full spec §11.5 pipeline: `validate_file_targets` → `stage_candidate_artifacts` → `parse_or_syntax_check` → `construct_controlled_patch` → `apply_through_generated_project_manager` → `build` → `accept_or_roll_back`.
+- Validation rejects blank paths, paths outside the generated source tree (`src/generated/`, `include/recovered/`, `generated/openvb/`), undeclared file deletions, content > 16 MiB, paths containing `auto-re/` segments, and paths unrelated to the work item's entity source directory.
+- Staging writes candidates to `<output_root>/.staging/patch-<uuid>/` and is cleaned up on both accept and rollback.
+- Syntax check uses a deterministic brace/paren/quote balance validator (no `clang` or `tree-sitter-cpp` dependency) and documents the limitation.
+- Unified diff is built line-by-line against prior content.
+- `apply_through_generated_project_manager` writes candidates to the project tree and issues `ApplicationCommand::ImportGeneratedSourceCandidates`.
+- `accept_or_roll_back` registers artifacts + generated-source mapping on build success; on failure it restores prior content, discards staging, and issues `FailWorkItem`.
+- Extended `RecordingAutoReClient` to handle `ImportGeneratedSourceCandidates` so the new unit tests can run against it.
+- Re-exported patch types from `generation/mod.rs` and `lib.rs`.
+
+### Key decisions
+- **Lightweight syntactic validator instead of tree-sitter-cpp**: `tree-sitter-cpp` is not in the workspace; adding it would pull a C library build into a crate that is already off `default-members`. A deterministic brace/paren/quote balance check catches obviously malformed C++ and satisfies the "parsing must catch malformed output" requirement without new dependencies.
+- **Transactional write-before-build with rollback**: The pipeline writes candidates to the project tree before building so the `BuildProviderTrait` sees the new source. On failure it restores `CandidatePatch.prior_content_bytes`. This keeps the build step real while respecting "do not commit before build success".
+- **Entity source directory for related-path check**: The "related to work item" rule checks that the candidate path starts with the entity's `src/generated/<2>/<2>/<2>/` or `include/recovered/<2>/<2>/<2>/` directory.
+- **One `RegisterGeneratedSourceMapping` per accept**: The command currently carries only `project` + `work_item_id`; the mapping is registered once for the whole accept batch, consistent with skeleton generation.
+
+### Verification
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction patch::`: 4/4 passed.
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction`: 132/132 passed.
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean.
+- `cargo fmt --all --check`: clean.
+- `cargo build` (default members): clean (protoc-free).
+- Evidence: `.omo/evidence/auto-re-stage-1/task-42-patch-control.txt` (to be created by operator if required).
+
+## 2026-07-22 Wave 9 Todo 43 (Generation Orchestrator)
+
+### What was done
+- Added `autore-reconstruction/src/generation/orchestrator.rs` implementing `GenerationOrchestrator` with:
+  - Leaf-first priority selection (Function before FunctionCluster; fewer stubbed callees first).
+  - `GenerationModel` async trait boundary (`generate_function`, `generate_cluster`, `analyze_failure`, `generate_repair`) for testability without a real LLM provider.
+  - Deterministic repair routing via existing `BuildFailureClassifier::classify` + `select_repair_strategy` (`CreateWorkItems` for declaration/unknown-type/etc.) before any LLM repair.
+  - Bounded LLM repair loop with per-work-item attempt counting and repeated-equivalent-failure detection (same diagnostic code + line + column).
+  - `BlockWorkItem{RepeatedEquivalentFailure}` or `BlockWorkItem{MaxRepairAttempts}` when thresholds are exceeded.
+- Extended `PatchOutcome` and `PatchPipeline::build()` in `patch.rs` to collect and return typed `BuildDiagnostic`s so the orchestrator can classify failures.
+- Re-exported `GenerationOrchestrator`, `GenerationModel`, `OrchestratorConfig`, `WorkItemContext`, and `WorkItemOutcome` from `generation/mod.rs`.
+
+### Decisions
+- Injected work-item state (list + stubbed set) as parameters rather than querying `AutoReClient`, keeping the orchestrator deterministic and unit-testable.
+- Implemented a `TestClient` wrapper around `RecordingAutoReClient` in the test module to supply the additional command handlers the shared recording client does not yet implement (`RecordBuildAttempt`, `RecordRepairAttempt`, `CompleteWorkItem`, `BlockWorkItem`). This avoids modifying `tests_support.rs` while still routing canonical commands through an `AutoReClient` implementation.
+- Used `WorkItemKind::Generation` for deterministic `MissingDeclaration`/`UnknownType`/`IncompleteType` repairs, matching the existing `select_repair_strategy` output.
+
+### Verification
+- `cargo test -p autore-reconstruction generation::orchestrator`: 4/4 passed.
+- `cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean.
+- `cargo fmt -p autore-reconstruction --check`: clean.
+
+
+## 2026-07-22 Wave 9 Todo 44 (Progressive Stub→Replaced for Small Fixture)
+
+### What was done
+- Created `autore-reconstruction/tests/wave9_stub_replacement.rs` integration test with two `#[ignore]` tests:
+  - `wave9_stub_replacement_leaf_first`: end-to-end leaf-first replacement of 3 functions.
+  - `wave9_skeleton_builds_green_before_replacement`: sanity check that the skeleton builds green before replacement.
+- Registered the small fixture binary (`tests/fixtures/hello`) as a `core.binary` artifact.
+- Registered 4 canonical entities: 1 global (`RUNTIME_DATA`) and 3 functions (`f_a`, `f_b`, `f_c`).
+- Built a project skeleton with `ProjectSkeletonBuilder` and `StubPolicy::EmptyBody`.
+- "Settled" the global by overwriting its stub header/definition with `extern int RUNTIME_DATA[1];` and `int RUNTIME_DATA[1] = { 42 };`.
+- Constructed `WorkItemContext` items with dependencies:
+  - `f_c`: no dependencies.
+  - `f_b`: depends on `global-runtime-data`.
+  - `f_a`: depends on `f_b`.
+- Used a local `TestClient` wrapper around `RecordingAutoReClient` to handle Stage-1 lifecycle commands (`RecordBuildAttempt`, `RecordRepairAttempt`, `CompleteWorkItem`, `BlockWorkItem`, `FailWorkItem`, `CreateWorkItems`).
+- Used a local `MockGenerationModel` returning deterministic candidates for `f_a`, `f_b`, and `f_c`.
+- Used a custom `FixtureBuildProvider` that fails compilation with `C2065 MissingDeclaration` if any source references `f_b()` while `f_b`'s `.cpp` still contains the stub marker.
+- Demonstrated three phases:
+  1. `f_a` is not dispatched while `f_b` is stubbed (returns `NoWork`).
+  2. Forced early dispatch of `f_a` (with dependency bypassed) fails build with `MissingDeclaration` and creates a `CreateWorkItems` command.
+  3. Leaf-first happy path: `f_b` (and `f_c`) complete before `f_a`, then `f_a` is unblocked and completes.
+- Asserted post-conditions: 3 `CompleteWorkItem`, 7 `RegisterGeneratedSourceMapping` (4 skeleton + 3 replaced), 12 `RegisterArtifact` (8 skeleton + 1 fixture + 3 replaced), 4 `RecordBuildAttempt` (1 forced early + 3 happy path).
+- Audited that every canonical mutation is an `ApplicationCommand` variant.
+
+### Key decisions
+- **Custom `FixtureBuildProvider` instead of `DockerMsvc2002BuildProvider`**: gives deterministic control over the failure path (C2065 when `f_b` is still stubbed) while still invoking the full `BuildProviderTrait` pipeline.
+- **Two-phase failure demonstration before happy path**: the forced early dispatch patches `f_a` and rolls back on build failure, leaving `f_a` stubbed so the subsequent happy path can proceed cleanly.
+- **`remaining_items` shrinks as work completes**: the orchestrator's `process_next_work_item` does not track completed work items internally; the test removes completed items from the work-item list to avoid infinite re-dispatch.
+- **Stable sort means leaf-first order is input-dependent**: `f_b` and `f_c` both have 0 stubbed dependencies and priority `(0, 0)`; the test asserts `f_a` completes after `f_b` and is not first, rather than enforcing a strict total order.
+- **Work item dependency strings are symbolic**: `f_b` depends on `"global-runtime-data"` which is simply not in the `stubbed` set, representing the settled global from Wave 8.
+
+### Verification
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction --test wave9_stub_replacement -- --nocapture --ignored`: 2/2 passed, ends with `[OK] 3 functions: stubbed→replaced, build green, downstream unblocked`.
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean.
+- `cargo fmt -p autore-reconstruction --check`: clean.
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction`: 136/136 unit tests + 0 ignored integration failures.
+- Evidence: `.omo/evidence/auto-re-stage-1/task-44-wave9-exit.txt`
+
+## 2026-07-22 Wave 10 Todo 45 (Scenario capture/replay/comparison model)
+
+### What was done
+- Created `autore-reconstruction::verification` module with submodules `types`, `scenario`, `comparator`, and `executor`.
+- Defined `Scenario` per spec §13.2: `initial_state { env, argv, working_dir, seed }`, `inputs`, `executable_artifact_id`, `candidate_artifact_id`, `execution_steps`, `comparison_policy`, `normalization_rules`, and `comparison_level`.
+- Implemented `ObservationSet` containing typed observations (registers, memory, stdout, stderr, exit code, diagnostics) with stable JSON serialization.
+- Added `NormalizationRule` enum with the four required kinds: `RelocatedAddress`, `Timestamp`, `RandomSeed`, and `EnvSpecificHandle`.
+- Added `ComparisonLevel` enum (`Function`, `Cluster`, `WholeProgram`) and `ComparisonPolicy` enum.
+- Implemented `ComparisonResult` enum with the six spec §13.3 variants.
+- Implemented `VerificationComparison` record with per-observation results and counts.
+- Implemented `ObservationBackend` trait and `ScenarioExecutor` with async `execute_original`, `execute_candidate`, and `compare_and_record` methods.
+- Added `Wave7ObservationBackend` that drives the existing `WineGdbRunner` through the Wave 7 scenario executor, converting `DebugObservation` values into typed `Observation`s.
+- All durable side effects route through `ApplicationCommand::ImportDynamicObservation` and `ApplicationCommand::RecordVerificationComparison`.
+- Tests use a local `TestClient` wrapper around `RecordingAutoReClient` to handle `RecordVerificationComparison`.
+
+### Key decisions
+- **Avoided `VerificationComparisonId::parse`**: typed IDs do not expose a string parser; the executor parses the command response ID with `uuid::Uuid::parse_str` and wraps it via `VerificationComparisonId::from_uuid`.
+- **Renamed top-level re-export to `VerificationScenario`**: `Scenario` is already re-exported from `dynamic` at the crate root, so the verification scenario is exposed as `VerificationScenario` while remaining `verification::Scenario` in its own module.
+- **RelocatedAddress normalization uses per-side bases**: the rule carries `original_base_address` and `candidate_base_address` so the comparator can subtract each binary's image base before comparing addresses.
+- **Exit code is imported as a synthetic `debug.exit` observation**: in addition to typed observations, the executor issues an `ImportDynamicObservation` for `exit_code` if present.
+
+### Verification
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction verification:: -- --nocapture`: 12/12 passed, including the six required acceptance tests.
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean.
+- `cargo fmt -p autore-reconstruction --check`: clean.
+- Evidence: `.omo/evidence/auto-re-stage-1/task-45-scenario.txt`
+
+## 2026-07-22 Wave 10 Todo 47 (Regression selection on dependency change)
+
+### What was done
+- Created `autore-reconstruction::verification::regression` module in `autore-reconstruction/src/verification/regression.rs`.
+- Implemented `RegressionSet` struct with `scenarios`, `dependency_fingerprints`, `affected_types`, and `build_profiles`.
+- Implemented `RegressionTracker` storing `HashMap<EntityId, RegressionSet>`.
+- Added `register_verification(entity_id, scenario_ids, dependency_fingerprints, affected_types, build_profile)` to record a bounded regression set when an entity is verified.
+- Added `compute_affected_entities(changed_entity_id, dependency_graph)` that walks `work_dependencies` edges of kind `BuildDependency` or `VerificationDependency` from the changed entity to its dependents, returning only tracked entities with regression sets.
+- Added `schedule_regressions(affected_entities)` that issues `ApplicationCommand::ScheduleVerificationRegression` for each affected entity.
+- Added `is_regression_edge_kind` and `is_regression_fingerprint_edge_kind` helpers covering `BuildDependency`, `VerificationDependency`, and `GeneratedDeclRequirement`.
+- Enforced configurable max regression scenarios per entity (default 100).
+- Re-exported regression types from `verification/mod.rs` and `lib.rs`.
+- Added `entity_id` field to `ScheduleVerificationRegressionRequest` in `autore-app` and updated `RecordingAutoReClient` to handle the command.
+- Added 9 unit tests covering the four required acceptance tests plus edge-kind filtering, scheduling, cost-bound enforcement, and default value.
+
+### Key decisions
+- `compute_affected_entities` filters by tracked regression sets: only dependents that were previously verified (and thus have a regression set) are returned, because only those have scenarios that can be re-run.
+- Edge traversal uses `Direction::Incoming` because the `WorkGraph` stores edges from dependent to dependency.
+- `RegressionTracker` stores at most one regression set per entity; re-verification replaces the prior set.
+- Added `entity_id` to `ScheduleVerificationRegressionRequest` because the existing request only had `project`; targeting a specific regression requires the entity identifier.
+
+### Verification
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction verification::regression:: -- --nocapture`: 9/9 passed.
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean.
+- `cargo fmt -p autore-reconstruction --check`: clean.
+- `cargo test -p autore-app`: 36/36 passed (no regression from the request field addition).
+- Evidence: `.omo/evidence/auto-re-stage-1/task-47-regression.txt`
+
+## 2026-07-22 Wave 10 Todo 48 (Function-level + cluster-level differential test success)
+
+### What was done
+- Created `autore-reconstruction/tests/wave10_differential.rs` integration test verifying:
+  1. Fixture binary registration + two function entities (`f_a`, `f_b`) with `f_a → f_b` call dependency.
+  2. `ProjectSkeletonBuilder` with `StubPolicy::EmptyBody` produces explicit stubs.
+  3. `GenerationOrchestrator` + mock `GenerationModel` replaces stubs leaf-first (`f_b` then `f_a`).
+  4. `ScenarioExecutor` with mock `ObservationBackend` captures original and candidate observations.
+  5. Function-level scenario (`ComparisonLevel::Function`) for `f_a` passes.
+  6. Cluster-level scenario (`ComparisonLevel::Cluster`) for `f_a+f_b` passes.
+  7. Simulated callee change: `f_b` source is rewritten to different bytes.
+  8. `RegressionTracker::compute_affected_entities` finds `f_a` as a dependent via `BuildDependency` edge.
+  9. `RegressionTracker::schedule_regressions` issues `ScheduleVerificationRegression`.
+  10. Re-verification of `f_a` with the consistent mock backend still passes.
+
+### Patterns
+- Re-use the `TestClient` wrapper pattern from Todo 44 (`wave9_stub_replacement.rs`) to supply Stage-1 command handlers (`RecordBuildAttempt`, `CompleteWorkItem`, `RecordVerificationComparison`) and delegate the rest to `RecordingAutoReClient`.
+- `Arc<TestClient>` can be used for `Arc<dyn AutoReClient>` coercion (`let client_arc: Arc<dyn AutoReClient> = client.clone();`), while `&*client` produces `&TestClient` for calls expecting `&dyn AutoReClient`.
+- `RegressionTracker` graph reachability is exercised by building a small `WorkGraph` inline with `petgraph::DiGraph` (same helper pattern as `verification::regression` unit tests).
+- The mock observation backend distinguishes original vs candidate by comparing `target_artifact_id == scenario.executable_artifact_id`, identical to the executor unit tests.
+
+### Verification
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction --test wave10_differential -- --nocapture --ignored`: 1/1 passed, stdout ended with `[OK] function-verified + cluster-verified + regression-passed`.
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean.
+- `cargo fmt -p autore-reconstruction --check`: clean.
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction -- --nocapture`: 165 unit + 14 analysis tests passed; integration tests compile and ignored by default.
+- Evidence: `.omo/evidence/auto-re-stage-1/task-48-wave10-exit.txt`.
+
+## 2026-07-22 Wave 11 Todo 49 (Durable coordinator loop)
+
+### What was done
+- Created `autore-reconstruction/src/coordinator/` module implementing spec §14.1:
+  - `Coordinator::tick()` async method runs phases in order:
+    `reconcile_interrupted_operations` → `refresh_provider_health` →
+    `refresh_program_structure_if_requested` → `update_work_dependencies` →
+    `invalidate_stale_work` → `promote_ready_work` → `select_ready_work`.
+  - Work-kind dispatch to seven conceptual handlers (StaticInvestigation, DynamicInvestigation,
+    SemanticAnalysis, ConflictResolution, Generation, BuildFailure, Verification).
+  - `NoProgressDetector` tracks last-3 raw-response hashes per entity; on 3 identical hashes
+    emits `BlockWorkItem` with a `RepeatedIdenticalModelOutput:<kind>` reason tag.
+  - `CompletionPolicy::is_complete` returns true when all required items are terminal
+    (Completed/Blocked/Cancelled); `is_successfully_complete` additionally requires no blocked
+    items, satisfying the "do not exit complete-with-blocked as success" guardrail.
+  - `CancellationToken::is_cancelled` is checked at the start of every tick.
+- Re-exported coordinator types from `autore-reconstruction/src/lib.rs`.
+
+### Decisions
+- The schema-level `WorkItemKind` enum has `Investigation` but not the fine-grained
+  `StaticInvestigation`/`DynamicInvestigation`/`SemanticAnalysis` variants mentioned in the task
+  brief. The coordinator classifies `Investigation` items by description prefix (`static:`,
+  `dynamic:`, `semantic:`) to route them to the correct handler without modifying the schema.
+- All tick outputs route through `ApplicationCommand`, preserving atomic-import-per-iteration.
+- Handlers return a `HandlerOutput` containing commands and an optional raw-response hash; the
+  coordinator executes commands only after no-progress checks pass.
+
+### Verification
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction coordinator::`: 12/12 passed.
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean.
+- `cargo fmt -p autore-reconstruction --check`: clean.
+- Evidence: `.omo/evidence/auto-re-stage-1/task-49-coordinator.txt`.
+
+## 2026-07-22 Wave 11 Todo 50 (Stage 1 CLI Surface)
+
+### What was done
+- Added 5 new top-level commands to `autore-cli`: `reconstruct`, `provider`, `work`, `generated`, `build`.
+- Extended existing `verification` command with `coverage` subcommand.
+- Added 6 nested subcommand enums following the existing clap derive pattern.
+- Implemented handler dispatch functions routing through `ApplicationCommand` / `ApplicationQuery`.
+- Added 18 unit tests in `cli.rs` `#[cfg(test)]` module covering parser, help output, and JSON roundtrip.
+
+### Decisions
+- **Import strategy**: Stage 1 request/query types imported directly from `autore_app::application_service::requests::{...}` rather than adding re-exports to `autore_app` root. This avoids modifying `autore-app/src/lib.rs` and keeps the import surface explicit.
+- **`reconstruct start` dual-command**: The handler first registers the binary as an artifact via `RegisterArtifact`, then creates the campaign via `CreateReconstructionCampaign`. The extra CLI flags (`--output`, `--analysis-provider`, `--model-provider`, `--build-profile`) are printed after the JSON command result but not included in the request struct (no fields for them yet).
+- **`provider restart`**: Implemented as stop + start sequence. Uses `GetProviderInstance` to resolve the installation ID for the restart.
+- **`generated entity`**: Filters `ListGeneratedSourceMappings` results by matching entity ID. A dedicated `GetGeneratedSourceMapping` query could replace this when the service layer supports it.
+- **Tests in `cli.rs`**: Used `#[cfg(test)]` module within `cli.rs` rather than a separate integration test file, since `AutoReCli` and subcommand types are private to the binary crate (no lib target).
+
+### Patterns established
+- Stage 1 CLI subcommands follow the exact same `*Args` → `*Command` enum pattern as Stage 0.
+- Read commands accept `OutputFormat` with `--output` flag (default `human`).
+- Write commands use `print_command_result` for JSON output.
+- Human output is simple scaffold text; JSON output uses `print_json_with_schema` / `print_list_json_with_schema`.
+
+### Verification
+- `cargo fmt --all --check`: clean.
+- `cargo clippy -p autore-cli --all-targets -- -D warnings`: clean.
+- `cargo test -p autore-cli`: 38/38 passed (18 new unit + 20 existing integration).
+- Evidence: `.omo/evidence/auto-re-stage-1/task-50-cli.txt`.

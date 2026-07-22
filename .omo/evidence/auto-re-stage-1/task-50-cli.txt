@@ -1,0 +1,72 @@
+Task 50 — Stage 1 CLI Surface (Wave 11)
+=========================================
+
+Date: 2026-07-22
+Scope: autore-cli/src/cli.rs, autore-cli/src/handlers.rs, autore-cli/src/main.rs
+
+New Top-Level Commands Added
+-----------------------------
+1. reconstruct {start, status, pause, resume, stop, validate}
+2. provider {refresh, list, show, start, stop, restart, health}
+3. work {list, show, blockers, retry, dependencies}
+4. generated {status, files, entity}
+5. build {latest}
+6. verification coverage (added to existing Stage 0 verification command)
+
+CLI Type Structure
+------------------
+- Reconstruct(ReconstructArgs) → ReconstructCommand enum (6 variants)
+- Provider(ProviderArgs) → ProviderCommand enum (7 variants)
+- Work(WorkArgs) → WorkCommand enum (5 variants)
+- Generated(GeneratedArgs) → GeneratedCommand enum (3 variants)
+- Build(BuildArgs) → BuildCommand enum (1 variant)
+- VerificationCommand::Coverage (1 new variant on existing enum)
+
+Handler Routing
+---------------
+- handle_reconstruct: start→RegisterArtifact+CreateReconstructionCampaign,
+  status→GetCampaign, pause→PauseCoordinator, resume→ResumeCoordinator,
+  stop→StopCoordinator, validate→ValidateProject
+- handle_provider: refresh→ListProviderInstallations, list→ListProviderInstances,
+  show→GetProviderInstance, start→RegisterProviderInstance,
+  stop→StopProviderInstance, restart→stop+start, health→GetProviderInstance
+- handle_work: list→ListWorkItems, show→GetWorkItem,
+  blockers→ListWorkItemBlockers, retry→RequeueWorkItem,
+  dependencies→ListWorkItemDependencies
+- handle_generated: status→ListGeneratedSourceMappings, files→ListGeneratedSourceMappings,
+  entity→ListGeneratedSourceMappings (filtered by id)
+- handle_build: latest→GetBuildStatus
+- handle_verification::Coverage→GetVerificationCoverage
+
+Import Strategy
+---------------
+Stage 1 request/query types imported via:
+  use autore_app::application_service::requests::{...};
+(Not re-exported from autore_app root — kept as direct submodule imports.)
+
+Tests Added (18 unit tests in cli.rs #[cfg(test)])
+---------------------------------------------------
+- reconstruct_start_parses_all_flags
+- reconstruct_start_help_contains_flags (--binary, --output, --analysis-provider, --model-provider, --build-profile)
+- provider_show_help_contains_id (--id)
+- provider_show_parses_id
+- work_retry_help_contains_id (--id)
+- work_retry_parses_id
+- generated_files_output_json_parses (--output json)
+- build_latest_parses
+- verification_coverage_parses
+- top_level_help_lists_stage1_commands (reconstruct, provider, work, generated, build)
+- reconstruct_status_default_human
+- reconstruct_pause_resume_stop_parse
+- provider_start_parses_installation_id
+- provider_stop_restart_health_parse
+- work_show_blockers_dependencies_parse
+- generated_entity_parses_id
+- json_output_roundtrip_via_print_helper (serde_json roundtrip with $schema)
+- all_subcommands_have_help
+
+Verification
+------------
+cargo fmt --all --check: PASS (no output)
+cargo clippy -p autore-cli --all-targets -- -D warnings: PASS (clean)
+cargo test -p autore-cli: 38/38 passed (18 new unit + 20 existing integration)

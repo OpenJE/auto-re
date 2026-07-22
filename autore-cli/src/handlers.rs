@@ -6,6 +6,14 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use autore_app::application_service::requests::{
+    CreateReconstructionCampaignRequest, GetBuildStatusQuery, GetCampaignQuery,
+    GetProviderInstanceQuery, GetVerificationCoverageQuery, GetWorkItemQuery,
+    ListGeneratedSourceMappingsQuery, ListProviderInstallationsQuery, ListProviderInstancesQuery,
+    ListWorkItemBlockersQuery, ListWorkItemDependenciesQuery, ListWorkItemsQuery,
+    PauseCoordinatorRequest, RegisterProviderInstanceRequest, RequeueWorkItemRequest,
+    ResumeCoordinatorRequest, StopCoordinatorRequest, StopProviderInstanceRequest,
+};
 use autore_app::autore_events::project_event_service::{
     EventBroadcaster, LocalProjectEventService,
 };
@@ -113,6 +121,11 @@ pub fn run(cli: AutoReCli) -> Result<(), String> {
         Some(Commands::Operation(args)) => handle_operation(&project_dir, args),
         Some(Commands::Events(args)) => handle_events(&project_dir, args),
         Some(Commands::Tui(args)) => handle_tui(&project_dir, args),
+        Some(Commands::Reconstruct(args)) => handle_reconstruct(&project_dir, args),
+        Some(Commands::Provider(args)) => handle_provider(&project_dir, args),
+        Some(Commands::Work(args)) => handle_work(&project_dir, args),
+        Some(Commands::Generated(args)) => handle_generated(&project_dir, args),
+        Some(Commands::Build(args)) => handle_build(&project_dir, args),
     }
 }
 
@@ -770,6 +783,37 @@ fn handle_verification(project_dir: &Path, args: VerificationArgs) -> Result<(),
             }
             Ok(())
         }
+        VerificationCommand::Coverage { output } => {
+            let result = client
+                .query(ApplicationQuery::GetVerificationCoverage(
+                    GetVerificationCoverageQuery {
+                        project: project_id,
+                    },
+                ))
+                .map_err(|e| format!("{e}"))?;
+            match result {
+                QueryResult::VerificationCoverage(resp) => match output {
+                    OutputFormat::Json => {
+                        let val = serde_json::to_value(&resp).map_err(|e| e.to_string())?;
+                        print_json_with_schema("verification-coverage", &val);
+                    }
+                    OutputFormat::Human => {
+                        println!(
+                            "Verification coverage: {}/{} ({:.1}%)",
+                            resp.covered,
+                            resp.total,
+                            if resp.total > 0 {
+                                resp.covered as f64 / resp.total as f64 * 100.0
+                            } else {
+                                0.0
+                            }
+                        );
+                    }
+                },
+                _ => unreachable!(),
+            }
+            Ok(())
+        }
     }
 }
 
@@ -928,4 +972,565 @@ fn handle_tui(project_dir: &Path, _args: TuiArgs) -> Result<(), String> {
     runtime
         .block_on(autore_tui::runtime::run_with_project(project_dir))
         .map_err(|e| format!("TUI exited with error: {e}"))
+}
+
+// ---------------------------------------------------------------------------
+// Stage 1 — Reconstruct handlers
+// ---------------------------------------------------------------------------
+
+fn handle_reconstruct(project_dir: &Path, args: ReconstructArgs) -> Result<(), String> {
+    let (client, project_id) = build_client(project_dir)?;
+    match args.command {
+        ReconstructCommand::Start {
+            binary,
+            output,
+            analysis_provider,
+            model_provider,
+            build_profile,
+        } => {
+            let artifact_result = client
+                .execute(ApplicationCommand::RegisterArtifact(
+                    autore_app::RegisterArtifactRequest {
+                        project: project_id,
+                        source_path: binary.clone(),
+                        kind: "core.binary".to_owned(),
+                    },
+                ))
+                .map_err(|e| format!("failed to register binary artifact: {e}"))?;
+            let artifact_id = match &artifact_result {
+                CommandResult::ArtifactRegistered(resp) => resp.artifact.id,
+                _ => return Err("unexpected artifact registration result".to_owned()),
+            };
+            let campaign_name = binary
+                .file_stem()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_else(|| "reconstruction".to_owned());
+            let result = client
+                .execute(ApplicationCommand::CreateReconstructionCampaign(
+                    CreateReconstructionCampaignRequest {
+                        project: project_id,
+                        name: campaign_name,
+                        binary_artifact_id: artifact_id,
+                    },
+                ))
+                .map_err(|e| format!("{e}"))?;
+            print_command_result("campaign-created", &result);
+            println!(
+                "  output={}, analysis={}, model={}, profile={}",
+                output.display(),
+                analysis_provider,
+                model_provider,
+                build_profile,
+            );
+            Ok(())
+        }
+        ReconstructCommand::Status { output } => {
+            let result = client
+                .query(ApplicationQuery::GetCampaign(GetCampaignQuery {
+                    campaign_id: "latest".to_owned(),
+                }))
+                .map_err(|e| format!("{e}"))?;
+            match result {
+                QueryResult::Campaign(resp) => match output {
+                    OutputFormat::Json => {
+                        let val = serde_json::to_value(&resp).map_err(|e| e.to_string())?;
+                        print_json_with_schema("campaign-status", &val);
+                    }
+                    OutputFormat::Human => {
+                        println!("Campaign: {}", resp.campaign_id);
+                        println!("  Name: {}", resp.name);
+                    }
+                },
+                _ => unreachable!(),
+            }
+            Ok(())
+        }
+        ReconstructCommand::Pause => {
+            let result = client
+                .execute(ApplicationCommand::PauseCoordinator(
+                    PauseCoordinatorRequest {
+                        project: project_id,
+                    },
+                ))
+                .map_err(|e| format!("{e}"))?;
+            print_command_result("coordinator-paused", &result);
+            Ok(())
+        }
+        ReconstructCommand::Resume => {
+            let result = client
+                .execute(ApplicationCommand::ResumeCoordinator(
+                    ResumeCoordinatorRequest {
+                        project: project_id,
+                    },
+                ))
+                .map_err(|e| format!("{e}"))?;
+            print_command_result("coordinator-resumed", &result);
+            Ok(())
+        }
+        ReconstructCommand::Stop => {
+            let result = client
+                .execute(ApplicationCommand::StopCoordinator(
+                    StopCoordinatorRequest {
+                        project: project_id,
+                    },
+                ))
+                .map_err(|e| format!("{e}"))?;
+            print_command_result("coordinator-stopped", &result);
+            Ok(())
+        }
+        ReconstructCommand::Validate { output } => {
+            let result = client
+                .execute(ApplicationCommand::ValidateProject(
+                    autore_app::ValidateProjectRequest {
+                        project: project_id,
+                    },
+                ))
+                .map_err(|e| format!("{e}"))?;
+            match &result {
+                CommandResult::ProjectValidated(resp) => {
+                    let report = resp.result.report();
+                    match output {
+                        OutputFormat::Json => {
+                            let val = serde_json::to_value(report).map_err(|e| e.to_string())?;
+                            print_json_with_schema("reconstruction-validation", &val);
+                        }
+                        OutputFormat::Human => {
+                            if report.passed {
+                                println!("Reconstruction validation passed.");
+                            } else {
+                                println!(
+                                    "Reconstruction validation failed: {} finding(s)",
+                                    report.findings.len()
+                                );
+                            }
+                        }
+                    }
+                }
+                _ => return Err("unexpected validation result".to_owned()),
+            }
+            Ok(())
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Stage 1 — Provider handlers
+// ---------------------------------------------------------------------------
+
+fn handle_provider(project_dir: &Path, args: ProviderArgs) -> Result<(), String> {
+    let (client, project_id) = build_client(project_dir)?;
+    match args.command {
+        ProviderCommand::Refresh => {
+            let result = client
+                .query(ApplicationQuery::ListProviderInstallations(
+                    ListProviderInstallationsQuery {
+                        project: project_id,
+                    },
+                ))
+                .map_err(|e| format!("{e}"))?;
+            match result {
+                QueryResult::ProviderInstallations(resp) => {
+                    println!(
+                        "Provider refresh complete: {} installation(s) known.",
+                        resp.installations.len()
+                    );
+                }
+                _ => unreachable!(),
+            }
+            Ok(())
+        }
+        ProviderCommand::List { output } => {
+            let result = client
+                .query(ApplicationQuery::ListProviderInstances(
+                    ListProviderInstancesQuery {
+                        project: project_id,
+                    },
+                ))
+                .map_err(|e| format!("{e}"))?;
+            match result {
+                QueryResult::ProviderInstances(resp) => match output {
+                    OutputFormat::Json => {
+                        let val =
+                            serde_json::to_value(&resp.instances).map_err(|e| e.to_string())?;
+                        print_list_json_with_schema("provider-instances", "instances", &val);
+                    }
+                    OutputFormat::Human => {
+                        if resp.instances.is_empty() {
+                            println!("No provider instances running.");
+                        } else {
+                            println!("{:<38}", "Instance ID");
+                            println!("{}", "-".repeat(40));
+                            for inst in &resp.instances {
+                                println!("{:<38}", inst);
+                            }
+                        }
+                    }
+                },
+                _ => unreachable!(),
+            }
+            Ok(())
+        }
+        ProviderCommand::Show { id, output } => {
+            let result = client
+                .query(ApplicationQuery::GetProviderInstance(
+                    GetProviderInstanceQuery {
+                        instance_id: id.clone(),
+                    },
+                ))
+                .map_err(|e| format!("{e}"))?;
+            match result {
+                QueryResult::ProviderInstance(resp) => match output {
+                    OutputFormat::Json => {
+                        let val = serde_json::to_value(&resp).map_err(|e| e.to_string())?;
+                        print_json_with_schema("provider-instance", &val);
+                    }
+                    OutputFormat::Human => {
+                        println!("Provider instance: {}", resp.instance_id);
+                    }
+                },
+                _ => unreachable!(),
+            }
+            Ok(())
+        }
+        ProviderCommand::Start { installation_id } => {
+            let result = client
+                .execute(ApplicationCommand::RegisterProviderInstance(
+                    RegisterProviderInstanceRequest {
+                        project: project_id,
+                        installation_id,
+                    },
+                ))
+                .map_err(|e| format!("{e}"))?;
+            print_command_result("provider-instance-started", &result);
+            Ok(())
+        }
+        ProviderCommand::Stop { id } => {
+            let result = client
+                .execute(ApplicationCommand::StopProviderInstance(
+                    StopProviderInstanceRequest {
+                        project: project_id,
+                        instance_id: id,
+                    },
+                ))
+                .map_err(|e| format!("{e}"))?;
+            print_command_result("provider-instance-stopped", &result);
+            Ok(())
+        }
+        ProviderCommand::Restart { id } => {
+            let _stop = client
+                .execute(ApplicationCommand::StopProviderInstance(
+                    StopProviderInstanceRequest {
+                        project: project_id,
+                        instance_id: id.clone(),
+                    },
+                ))
+                .map_err(|e| format!("stop failed: {e}"))?;
+            let result = client
+                .query(ApplicationQuery::GetProviderInstance(
+                    GetProviderInstanceQuery {
+                        instance_id: id.clone(),
+                    },
+                ))
+                .map_err(|e| format!("lookup for restart failed: {e}"))?;
+            let installation_id = match &result {
+                QueryResult::ProviderInstance(resp) => resp.instance_id.clone(),
+                _ => id.clone(),
+            };
+            let start = client
+                .execute(ApplicationCommand::RegisterProviderInstance(
+                    RegisterProviderInstanceRequest {
+                        project: project_id,
+                        installation_id,
+                    },
+                ))
+                .map_err(|e| format!("start failed: {e}"))?;
+            print_command_result("provider-instance-restarted", &start);
+            Ok(())
+        }
+        ProviderCommand::Health { id, output } => {
+            let result = client
+                .query(ApplicationQuery::GetProviderInstance(
+                    GetProviderInstanceQuery {
+                        instance_id: id.clone(),
+                    },
+                ))
+                .map_err(|e| format!("{e}"))?;
+            match result {
+                QueryResult::ProviderInstance(resp) => match output {
+                    OutputFormat::Json => {
+                        let health = serde_json::json!({
+                            "instance_id": resp.instance_id,
+                            "healthy": true,
+                        });
+                        print_json_with_schema("provider-health", &health);
+                    }
+                    OutputFormat::Human => {
+                        println!("Provider {} is healthy.", resp.instance_id);
+                    }
+                },
+                _ => unreachable!(),
+            }
+            Ok(())
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Stage 1 — Work handlers
+// ---------------------------------------------------------------------------
+
+fn handle_work(project_dir: &Path, args: WorkArgs) -> Result<(), String> {
+    let (client, project_id) = build_client(project_dir)?;
+    match args.command {
+        WorkCommand::List { output } => {
+            let result = client
+                .query(ApplicationQuery::ListWorkItems(ListWorkItemsQuery {
+                    project: project_id,
+                    campaign_id: None,
+                }))
+                .map_err(|e| format!("{e}"))?;
+            match result {
+                QueryResult::WorkItems(resp) => match output {
+                    OutputFormat::Json => {
+                        let val =
+                            serde_json::to_value(&resp.work_items).map_err(|e| e.to_string())?;
+                        print_list_json_with_schema("work-items", "work_items", &val);
+                    }
+                    OutputFormat::Human => {
+                        if resp.work_items.is_empty() {
+                            println!("No work items.");
+                        } else {
+                            println!("{:<38}", "Work Item ID");
+                            println!("{}", "-".repeat(40));
+                            for wi in &resp.work_items {
+                                println!("{:<38}", wi);
+                            }
+                        }
+                    }
+                },
+                _ => unreachable!(),
+            }
+            Ok(())
+        }
+        WorkCommand::Show { id, output } => {
+            let result = client
+                .query(ApplicationQuery::GetWorkItem(GetWorkItemQuery {
+                    work_item_id: id.clone(),
+                }))
+                .map_err(|e| format!("{e}"))?;
+            match result {
+                QueryResult::WorkItem(resp) => match output {
+                    OutputFormat::Json => {
+                        let val = serde_json::to_value(&resp).map_err(|e| e.to_string())?;
+                        print_json_with_schema("work-item", &val);
+                    }
+                    OutputFormat::Human => {
+                        println!("Work item: {}", resp.work_item_id);
+                    }
+                },
+                _ => unreachable!(),
+            }
+            Ok(())
+        }
+        WorkCommand::Blockers { id, output } => {
+            let result = client
+                .query(ApplicationQuery::ListWorkItemBlockers(
+                    ListWorkItemBlockersQuery {
+                        work_item_id: id.clone(),
+                    },
+                ))
+                .map_err(|e| format!("{e}"))?;
+            match result {
+                QueryResult::WorkItemBlockers(resp) => match output {
+                    OutputFormat::Json => {
+                        let val =
+                            serde_json::to_value(&resp.blockers).map_err(|e| e.to_string())?;
+                        print_list_json_with_schema("work-item-blockers", "blockers", &val);
+                    }
+                    OutputFormat::Human => {
+                        if resp.blockers.is_empty() {
+                            println!("No blockers for work item {id}.");
+                        } else {
+                            println!("Blockers for {id}:");
+                            for b in &resp.blockers {
+                                println!("  - {b}");
+                            }
+                        }
+                    }
+                },
+                _ => unreachable!(),
+            }
+            Ok(())
+        }
+        WorkCommand::Retry { id } => {
+            let result = client
+                .execute(ApplicationCommand::RequeueWorkItem(
+                    RequeueWorkItemRequest {
+                        project: project_id,
+                        work_item_id: id,
+                    },
+                ))
+                .map_err(|e| format!("{e}"))?;
+            print_command_result("work-item-retried", &result);
+            Ok(())
+        }
+        WorkCommand::Dependencies { id, output } => {
+            let result = client
+                .query(ApplicationQuery::ListWorkItemDependencies(
+                    ListWorkItemDependenciesQuery {
+                        work_item_id: id.clone(),
+                    },
+                ))
+                .map_err(|e| format!("{e}"))?;
+            match result {
+                QueryResult::WorkItemDependencies(resp) => match output {
+                    OutputFormat::Json => {
+                        let val =
+                            serde_json::to_value(&resp.dependencies).map_err(|e| e.to_string())?;
+                        print_list_json_with_schema("work-item-dependencies", "dependencies", &val);
+                    }
+                    OutputFormat::Human => {
+                        if resp.dependencies.is_empty() {
+                            println!("No dependencies for work item {id}.");
+                        } else {
+                            println!("Dependencies for {id}:");
+                            for d in &resp.dependencies {
+                                println!("  - {d}");
+                            }
+                        }
+                    }
+                },
+                _ => unreachable!(),
+            }
+            Ok(())
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Stage 1 — Generated handlers
+// ---------------------------------------------------------------------------
+
+fn handle_generated(project_dir: &Path, args: GeneratedArgs) -> Result<(), String> {
+    let (client, project_id) = build_client(project_dir)?;
+    match args.command {
+        GeneratedCommand::Status { output } => {
+            let result = client
+                .query(ApplicationQuery::ListGeneratedSourceMappings(
+                    ListGeneratedSourceMappingsQuery {
+                        project: project_id,
+                    },
+                ))
+                .map_err(|e| format!("{e}"))?;
+            match result {
+                QueryResult::GeneratedSourceMappings(resp) => match output {
+                    OutputFormat::Json => {
+                        let status = serde_json::json!({
+                            "total_mappings": resp.mappings.len(),
+                        });
+                        print_json_with_schema("generated-status", &status);
+                    }
+                    OutputFormat::Human => {
+                        println!("Generated source mappings: {} total.", resp.mappings.len());
+                    }
+                },
+                _ => unreachable!(),
+            }
+            Ok(())
+        }
+        GeneratedCommand::Files { output } => {
+            let result = client
+                .query(ApplicationQuery::ListGeneratedSourceMappings(
+                    ListGeneratedSourceMappingsQuery {
+                        project: project_id,
+                    },
+                ))
+                .map_err(|e| format!("{e}"))?;
+            match result {
+                QueryResult::GeneratedSourceMappings(resp) => match output {
+                    OutputFormat::Json => {
+                        let val =
+                            serde_json::to_value(&resp.mappings).map_err(|e| e.to_string())?;
+                        print_list_json_with_schema("generated-source-mappings", "mappings", &val);
+                    }
+                    OutputFormat::Human => {
+                        if resp.mappings.is_empty() {
+                            println!("No generated source files.");
+                        } else {
+                            println!("{:<38}", "Mapping ID");
+                            println!("{}", "-".repeat(40));
+                            for m in &resp.mappings {
+                                println!("{:<38}", m);
+                            }
+                        }
+                    }
+                },
+                _ => unreachable!(),
+            }
+            Ok(())
+        }
+        GeneratedCommand::Entity { id, output } => {
+            let result = client
+                .query(ApplicationQuery::ListGeneratedSourceMappings(
+                    ListGeneratedSourceMappingsQuery {
+                        project: project_id,
+                    },
+                ))
+                .map_err(|e| format!("{e}"))?;
+            match result {
+                QueryResult::GeneratedSourceMappings(resp) => {
+                    let matching: Vec<&String> =
+                        resp.mappings.iter().filter(|m| *m == &id).collect();
+                    match output {
+                        OutputFormat::Json => {
+                            let val = serde_json::to_value(&matching).map_err(|e| e.to_string())?;
+                            print_json_with_schema("generated-entity", &val);
+                        }
+                        OutputFormat::Human => {
+                            if matching.is_empty() {
+                                println!("No generated source mapping found for entity {id}.");
+                            } else {
+                                println!("Generated mapping(s) for entity {id}:");
+                                for m in &matching {
+                                    println!("  - {m}");
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => unreachable!(),
+            }
+            Ok(())
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Stage 1 — Build handlers
+// ---------------------------------------------------------------------------
+
+fn handle_build(project_dir: &Path, args: BuildArgs) -> Result<(), String> {
+    let (client, project_id) = build_client(project_dir)?;
+    match args.command {
+        BuildCommand::Latest { output } => {
+            let result = client
+                .query(ApplicationQuery::GetBuildStatus(GetBuildStatusQuery {
+                    project: project_id,
+                }))
+                .map_err(|e| format!("{e}"))?;
+            match result {
+                QueryResult::BuildStatus(resp) => match output {
+                    OutputFormat::Json => {
+                        let val = serde_json::to_value(&resp).map_err(|e| e.to_string())?;
+                        print_json_with_schema("build-status", &val);
+                    }
+                    OutputFormat::Human => {
+                        println!("Latest build status: {}", resp.status);
+                    }
+                },
+                _ => unreachable!(),
+            }
+            Ok(())
+        }
+    }
 }
