@@ -19,6 +19,12 @@ const CAPABILITY_IDS: &[&str] = &[
     "llm.analysis.conflict",
     "llm.analysis.failure",
     "llm.experiment.design",
+    "llm.generation.declaration",
+    "llm.generation.type",
+    "llm.generation.function",
+    "llm.generation.cluster",
+    "llm.generation.test",
+    "llm.generation.repair",
 ];
 
 fn fallback(capability_id: &str) -> &'static str {
@@ -58,6 +64,42 @@ fn fallback(capability_id: &str) -> &'static str {
             "Return JSON conforming to the experiment-design response schema.\n",
             "Investigation bundle:\n{{{bundle}}}\n"
         ),
+        "llm.generation.declaration" => concat!(
+            "Generate header includes and forward declarations for subject {{subject_id}}.\n",
+            "Return JSON conforming to the generation.declaration response schema.\n",
+            "Investigation bundle:\n{{{bundle}}}\n",
+            "Generation context:\n{{{generation_context}}}\n"
+        ),
+        "llm.generation.type" => concat!(
+            "Generate a full struct or union declaration for subject {{subject_id}}.\n",
+            "Return JSON conforming to the generation.type response schema.\n",
+            "Investigation bundle:\n{{{bundle}}}\n",
+            "Generation context:\n{{{generation_context}}}\n"
+        ),
+        "llm.generation.function" => concat!(
+            "Generate a candidate function implementation for subject {{subject_id}}.\n",
+            "Return JSON conforming to the generation.function response schema.\n",
+            "Investigation bundle:\n{{{bundle}}}\n",
+            "Generation context:\n{{{generation_context}}}\n"
+        ),
+        "llm.generation.cluster" => concat!(
+            "Generate a candidate implementation for the function cluster containing subject {{subject_id}}.\n",
+            "Return JSON conforming to the generation.cluster response schema.\n",
+            "Investigation bundle:\n{{{bundle}}}\n",
+            "Generation context:\n{{{generation_context}}}\n"
+        ),
+        "llm.generation.test" => concat!(
+            "Generate a test or scenario for target unit {{subject_id}}.\n",
+            "Return JSON conforming to the generation.test response schema.\n",
+            "Investigation bundle:\n{{{bundle}}}\n",
+            "Generation context:\n{{{generation_context}}}\n"
+        ),
+        "llm.generation.repair" => concat!(
+            "Repair the prior generated candidate for subject {{subject_id}} using the supplied compiler diagnostics.\n",
+            "Return JSON conforming to the generation.repair response schema.\n",
+            "Investigation bundle:\n{{{bundle}}}\n",
+            "Generation context:\n{{{generation_context}}}\n"
+        ),
         _ => "Render the prompt for capability {{capability}}. Bundle:\n{{{bundle}}}\n",
     }
 }
@@ -87,11 +129,7 @@ impl PromptRegistry {
 
         for id in CAPABILITY_IDS {
             let slug = id.replace('.', "_");
-            let file = dir.join(format!("{slug}.handlebars"));
-            let (source, origin) = match std::fs::read_to_string(&file) {
-                Ok(s) => (s, "disk"),
-                Err(_) => (fallback(id).to_string(), "fallback"),
-            };
+            let (source, origin) = Self::load_template(dir, id, &slug);
             if handlebars.register_template_string(id, source).is_ok() {
                 capability_names.push((*id).to_string());
                 tracing::debug!(capability = %id, origin, "registered prompt template");
@@ -110,6 +148,19 @@ impl PromptRegistry {
         }
     }
 
+    fn load_template(dir: &Path, capability_id: &str, slug: &str) -> (String, &'static str) {
+        // Generation templates live under prompts/generation/ per spec §11.4.
+        let gen_path = dir.join("generation").join(format!("{slug}.handlebars"));
+        if let Ok(s) = std::fs::read_to_string(&gen_path) {
+            return (s, "disk");
+        }
+        let root_path = dir.join(format!("{slug}.handlebars"));
+        match std::fs::read_to_string(&root_path) {
+            Ok(s) => (s, "disk"),
+            Err(_) => (fallback(capability_id).to_string(), "fallback"),
+        }
+    }
+
     /// Capability IDs that have a registered template (disk or fallback).
     pub fn registered_capabilities(&self) -> &[String] {
         &self.capability_names
@@ -125,6 +176,26 @@ impl PromptRegistry {
         let subject_id = extract_subject_id(bundle_json).unwrap_or_else(|| "unknown".into());
         let mut ctx = HashMap::new();
         ctx.insert("bundle".to_string(), bundle_json.to_string());
+        ctx.insert("subject_id".to_string(), subject_id);
+        ctx.insert("capability".to_string(), capability_id.to_string());
+        self.handlebars.render(capability_id, &ctx)
+    }
+
+    /// Render the prompt for a generation capability using the investigation
+    /// bundle and the generation context.
+    pub fn render_generation(
+        &self,
+        capability_id: &str,
+        bundle_json: &str,
+        generation_context_json: &str,
+    ) -> Result<String, handlebars::RenderError> {
+        let subject_id = extract_subject_id(bundle_json).unwrap_or_else(|| "unknown".into());
+        let mut ctx = HashMap::new();
+        ctx.insert("bundle".to_string(), bundle_json.to_string());
+        ctx.insert(
+            "generation_context".to_string(),
+            generation_context_json.to_string(),
+        );
         ctx.insert("subject_id".to_string(), subject_id);
         ctx.insert("capability".to_string(), capability_id.to_string());
         self.handlebars.render(capability_id, &ctx)

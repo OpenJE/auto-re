@@ -76,14 +76,20 @@ fn valid_openai_body() -> String {
 }
 
 #[test]
-fn negotiate_advertises_seven_capabilities() {
+fn negotiate_advertises_thirteen_capabilities() {
     let tmp = TempDir::new().unwrap();
     write_minimal_templates(tmp.path());
     let prompts = PromptRegistry::load(tmp.path());
     let client = OpenAiClient::with_mock(MockResponder(|| async move {
         Err::<HttpResponse, LlmError>(LlmError::Timeout)
     }));
-    let provider = provider_for_tests("instance-1", prompts, client);
+    let staging_tmp = TempDir::new().unwrap();
+    let provider = provider_for_tests(
+        "instance-1",
+        prompts,
+        client,
+        staging_tmp.path().to_path_buf(),
+    );
 
     let rt = tokio::runtime::Runtime::new().unwrap();
     let resp = rt
@@ -96,7 +102,11 @@ fn negotiate_advertises_seven_capabilities() {
         .into_inner();
 
     assert_eq!(resp.accepted_version, 1);
-    assert_eq!(resp.capabilities.len(), 7, "must advertise 7 capabilities");
+    assert_eq!(
+        resp.capabilities.len(),
+        13,
+        "must advertise 13 capabilities"
+    );
     let mut cap_ids: Vec<&str> = resp
         .capabilities
         .iter()
@@ -184,7 +194,13 @@ fn provider_submits_with_response_format_json_schema() {
             0.0,
             256,
         );
-        let provider = provider_for_tests("instance-1", prompts, client);
+        let staging_tmp = TempDir::new().unwrap();
+        let provider = provider_for_tests(
+            "instance-1",
+            prompts,
+            client,
+            staging_tmp.path().to_path_buf(),
+        );
         let req = make_request("llm.analysis.function");
         let resp = provider
             .execute(Request::new(req))
@@ -242,7 +258,13 @@ fn provider_retries_once_on_malformed_output() {
         let prompts = PromptRegistry::load(tmp.path());
         let mut client = OpenAiClient::with_mock(mock);
         client.set_api_key_ref("test-key-for-retry".into());
-        let provider = provider_for_tests("instance-1", prompts, client);
+        let staging_tmp = TempDir::new().unwrap();
+        let provider = provider_for_tests(
+            "instance-1",
+            prompts,
+            client,
+            staging_tmp.path().to_path_buf(),
+        );
         let req = make_request("llm.analysis.function");
         let resp = provider
             .execute(Request::new(req))
@@ -289,7 +311,13 @@ fn provider_never_persists_plaintext_key() {
         let mut client = OpenAiClient::with_mock(mock);
         client.set_api_key_ref(PLAINTEXT_KEY.to_string());
 
-        let provider = provider_for_tests("instance-1", prompts, client);
+        let staging_tmp = TempDir::new().unwrap();
+        let provider = provider_for_tests(
+            "instance-1",
+            prompts,
+            client,
+            staging_tmp.path().to_path_buf(),
+        );
         let req = make_request("llm.analysis.function");
         let resp = provider
             .execute(Request::new(req))

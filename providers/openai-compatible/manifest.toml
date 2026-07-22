@@ -55,6 +55,48 @@ name = "LLM Experiment Design"
 request_schema = ""
 response_schema = ""
 
+[[capabilities]]
+capability_id = "llm.generation.declaration"
+version = "1.0.0"
+name = "LLM Declaration Generation"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "llm.generation.type"
+version = "1.0.0"
+name = "LLM Type Generation"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "llm.generation.function"
+version = "1.0.0"
+name = "LLM Function Generation"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "llm.generation.cluster"
+version = "1.0.0"
+name = "LLM Cluster Generation"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "llm.generation.test"
+version = "1.0.0"
+name = "LLM Test Generation"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "llm.generation.repair"
+version = "1.0.0"
+name = "LLM Repair Generation"
+request_schema = ""
+response_schema = ""
+
 [max_concurrency]
 "llm.analysis.function" = 2
 "llm.analysis.type" = 2
@@ -63,3 +105,9 @@ response_schema = ""
 "llm.analysis.conflict" = 2
 "llm.analysis.failure" = 2
 "llm.experiment.design" = 2
+"llm.generation.declaration" = 2
+"llm.generation.type" = 2
+"llm.generation.function" = 2
+"llm.generation.cluster" = 2
+"llm.generation.test" = 2
+"llm.generation.repair" = 2

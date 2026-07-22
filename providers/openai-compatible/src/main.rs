@@ -1,4 +1,5 @@
-//! External OpenAI-compatible LLM provider binary with 7 analysis capabilities.
+//! External OpenAI-compatible LLM provider binary with 7 analysis capabilities
+//! and 6 generation capabilities.
 //!
 //! Capabilities (spec §8.2):
 //! - `llm.analysis.function`
@@ -8,6 +9,14 @@
 //! - `llm.analysis.conflict`
 //! - `llm.analysis.failure`
 //! - `llm.experiment.design`
+//!
+//! Capabilities (spec §11.4):
+//! - `llm.generation.declaration`
+//! - `llm.generation.type`
+//! - `llm.generation.function`
+//! - `llm.generation.cluster`
+//! - `llm.generation.test`
+//! - `llm.generation.repair`
 
 use std::env;
 use std::pin::Pin;
@@ -120,6 +129,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config.max_tokens,
     );
 
+    let staging_root = std::env::var("AUTORE_LLM_STAGING_ROOT")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| std::env::temp_dir().join("openai-compatible-provider-staging"));
+
     let shutdown_signal = Arc::new(Notify::new());
     let provider = OpenAiCompatibleProvider::new(
         instance_id,
@@ -127,6 +140,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config,
         prompts,
         client,
+        staging_root,
     );
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
