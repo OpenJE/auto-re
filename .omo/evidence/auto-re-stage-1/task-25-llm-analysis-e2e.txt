@@ -1,0 +1,40 @@
+Wave 5 — Todo 25: End-to-end LLM analysis integration test
+Date: 2026-07-22
+File: autore-reconstruction/tests/llm_analysis_e2e.rs
+
+GATES PASSED:
+  ✅ PROTOC=... cargo test -p autore-reconstruction --test llm_analysis_e2e -- --ignored --nocapture
+     1 passed; 0 failed (0.19s)
+  ✅ PROTOC=... cargo build -p autore-reconstruction (clean)
+  ✅ PROTOC=... cargo clippy -p autore-reconstruction --all-targets -- -D warnings (clean)
+  ✅ cargo build (default members, clean)
+  ✅ cargo clippy --workspace --exclude ... --all-targets -- -D warnings (clean)
+  ✅ cargo fmt --all --check (clean)
+
+TEST OUTPUT:
+  mock-listening-on=127.0.0.1:36115
+  provider up: instance_id=019f880b-1740-7633-8629-ee84ccaf255d, caps=7
+  collected 5 events
+  raw=persisted; parsed=persisted; hypotheses=3; follow-up-work-items=1
+  PASSED
+
+PIPELINE:
+  1. Provider binary built via cargo build -p openai-compatible-provider
+  2. Mock HTTP server on random port serves canned OpenAI chat-completions response
+  3. ProviderRuntime::spawn boots real provider binary with mock endpoint
+  4. gRPC execute dispatches llm.analysis.function with InvestigationBundle payload
+  5. 5 events collected: Accepted, Progress, ObservationProduced(raw), ObservationProduced(parsed), Completed(Succeeded)
+  6. LlmImporter::import with attempt_count=0 produces:
+     - 1 AddEvidence (llm.raw-response)
+     - 3 AddHypothesis (function-name, behavior-claim, follow-up-work)
+     - 0 CreateWorkItems (follow-up work is AddHypothesis in current importer)
+  7. All commands are canonical ApplicationCommand variants
+
+OPT-IN REAL LLM:
+  Set AUTORE_TEST_REAL_LLM_ENDPOINT to skip mock server and use a real endpoint.
+
+FILES MODIFIED:
+  - autore-reconstruction/tests/llm_analysis_e2e.rs (new, 295 lines)
+  - .omo/evidence/auto-re-stage-1/task-25-llm-analysis-e2e.txt (this file)
+  - .omo/notepads/auto-re-stage-1/learnings.md (append)
+  - .omo/notepads/auto-re-stage-1/issues.md (append)
