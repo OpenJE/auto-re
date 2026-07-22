@@ -367,3 +367,10 @@
 - **`/bin/kill` is not portable**: the initial implementation used `Command::new("/bin/kill")`, which fails in this environment because `kill` lives on `PATH` rather than `/bin`. Switched to `Command::new("kill")` for portability.
 - **Fixture provider binary must exist before test**: the harness builds `fixture-provider` on first run via `cargo build -p fixture-provider --no-default-features` with `PROTOC=/tmp/opencode/protoc/bin/protoc`. Subsequent runs reuse the cached binary.
 - **`RecordingAutoReClient` now implements provider lifecycle commands**: `RegisterProviderInstance` and `StopProviderInstance` were missing from the recording client and were added in `autore-reconstruction/src/tests_support.rs`.
+
+## 2026-07-22 Wave 12 Todo 54 (LLM Fault Test Suite)
+- **No blocking issues encountered**. All 4 tests pass and the build/lint gates are clean.
+- **`BlockWorkWithReasonRequest.reason` is a plain `String`**: the request struct stores the reason as a string (`"InvalidOutput: ..."`), not as a typed `BlockedReason` record. Tests match on the string prefix. Future todos could introduce a typed `BlockedReason` command payload once the app service persists blocked-reason records.
+- **`LlmImporter` raw response is evidence, not artifact**: the import boundary stores the raw LLM text via `AddEvidence`. This is the intended design, but it surprised the initial test assertion which expected `RegisterArtifact`.
+- **`PatchPipeline` path validation is strict**: generated-source paths must start with `src/generated/`, `include/recovered/`, or `generated/openvb/` and be scoped to the subject entity's source directory. Tests need a helper to construct valid paths from `EntityId`.
+- **`BuildFailureKind::GeneratedCodeDefect` is the only classifier route to LLM repair**: to exercise the repeated-failure block, the mock diagnostic must use code `C1010` (or another kind mapped to `RequestLlmAnalysis`). Other codes route to `CreateWorkItems` and exit with `RepairDeferred`.

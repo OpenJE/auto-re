@@ -1,0 +1,48 @@
+Wave 12 Todo 54 — fault test suite for invalid LLM output, repeated repair failures, and corrupted artifact import.
+
+File: autore-reconstruction/tests/faults-llm.rs
+Commit: test(reconstruction/faults-llm): invalid-llm/repeated-failure/corrupted-artifact fault coverage
+
+Verification commands:
+  cargo test -p autore-reconstruction --test faults-llm -- --nocapture --ignored
+  cargo clippy -p autore-reconstruction --all-targets -- -D warnings
+  cargo fmt --all --check
+
+Test output:
+running 4 tests
+test corrupted_artifact_rejected_by_import ... ok
+test repeated_identical_compiler_failure_within_bounded_retry_limit_triggers_blocked_work ... ok
+test llm_response_garbage_bytes_after_json_starts ... ok
+test llm_timeout_on_first_attempt_then_succeeds_second_attempt ... ok
+
+Result:
+  cargo test: PASS (4/4 ignored integration tests)
+  cargo clippy: clean (no warnings)
+  cargo fmt --check: clean
+
+Implementation notes:
+  - Added `TestClient` wrapper around `RecordingAutoReClient` with lifecycle command handlers
+    (`RecordBuildAttempt`, `RecordRepairAttempt`, `CompleteWorkItem`, `BlockWorkItem`,
+    `BlockWorkWithReason`, `FailWorkItem`, `CreateWorkItems`, `RegisterArtifact`) required by
+    the reconstruction orchestrator and importer tests.
+  - `llm_response_garbage_bytes_after_json_starts`: Uses `LlmImporter` with an out-of-range
+    `confidence` value (1.5). On attempt 1 the importer issues `FailWorkItem` followed by
+    `BlockWorkWithReason("InvalidOutput: ...")` and persists the raw response as evidence via
+    `AddEvidence`.
+  - `llm_timeout_on_first_attempt_then_succeeds_second_attempt`: Wraps a mock generation model
+    in `TimeoutRetryingModel`, which enforces a 50 ms deadline. The inner model sleeps 200 ms
+    on the first call (triggering a timeout diagnostic with `Warning` severity and code
+    `TIMEOUT`) and returns valid source on the second call, driving the orchestrator to
+    `CompleteWorkItem`.
+  - `repeated_identical_compiler_failure_within_bounded_retry_limit_triggers_blocked_work`:
+    A mock build provider returns the same `C1010` diagnostic on every compile, which is routed
+    to LLM repair. With `repeated_equivalent_failure_threshold: 2`, the orchestrator blocks the
+    work item via `BlockWorkItem` with reason `"RepeatedEquivalentFailure"` instead of
+    completing it.
+  - `corrupted_artifact_rejected_by_import`: Uses `LocalStagingTransport` to stage bytes,
+    corrupts the staged data file, and calls `commit_inbound` with the original BLAKE3 hash.
+    The transport returns `ArtifactError::HashMismatch`, discards the staged data, and the
+    application client records no `RegisterArtifact` or `ImportProviderRunResult` commands.
+  - All tests use deterministic mocks; no real LLM or external provider is invoked.
+  - Generated source paths are scoped to `src/generated/<entity-dir>/generated.cpp` to satisfy
+    `PatchPipeline` validation rules.

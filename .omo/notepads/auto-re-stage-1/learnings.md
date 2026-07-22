@@ -1366,3 +1366,25 @@
 - `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean.
 - `cargo fmt --all --check`: clean.
 - Evidence: `.omo/evidence/auto-re-stage-1/task-53-fault-provider-crash.txt`.
+
+## 2026-07-22 Wave 12 Todo 54 (LLM Fault Test Suite)
+
+### What was done
+- Created `autore-reconstruction/tests/faults-llm.rs` with four `#[ignore]` integration tests covering deterministic LLM-level failures:
+  1. **Invalid parsed LLM output**: `LlmImporter` receives JSON that starts valid but violates the `function-analysis-response` schema (`confidence: 1.5`). On attempt 1 it issues `FailWorkItem` followed by `BlockWorkWithReason("InvalidOutput: ...")` and persists the raw response as evidence via `AddEvidence`.
+  2. **Provider timeout then retry success**: a `TimeoutRetryingModel` wrapper enforces a 50 ms deadline around a mock that sleeps 200 ms on the first call. The first attempt records a `Warning` diagnostic with code `TIMEOUT`; the second attempt returns valid source and the orchestrator completes the work item.
+  3. **Repeated identical compiler failure**: a mock build provider returns the same `C1010` diagnostic on every compile. The diagnostic is routed to LLM repair; after two occurrences the orchestrator blocks the work item via `BlockWorkItem` with reason `"RepeatedEquivalentFailure"`.
+  4. **Corrupted artifact import rejected**: `LocalStagingTransport` stages bytes, the staged data file is corrupted, and `commit_inbound` with the original BLAKE3 hash returns `ArtifactError::HashMismatch` and discards the staging directory. No `RegisterArtifact` or `ImportProviderRunResult` command is issued.
+- Added a `TestClient` wrapper around `RecordingAutoReClient` with the lifecycle command handlers needed by the importer and orchestrator tests.
+
+### Decisions
+- **Deterministic mocks only**: no real LLM, external provider, or network call is used.
+- **Reused existing command-path verification**: assertions inspect recorded `ApplicationCommand` variants rather than storage state.
+- **Generated source paths must match `PatchPipeline` validation**: helper `generated_source_path(entity_id)` builds `src/generated/<entity-dir>/generated.cpp` to satisfy `is_under_generated_tree` and `allowed_source_prefixes`.
+- **`LlmImporter` persists raw response as evidence, not artifact**: the first test asserts `AddEvidence` rather than `RegisterArtifact` because Level 1 of the import boundary stores the raw text as an evidence record.
+
+### Verification
+- `cargo test -p autore-reconstruction --test faults-llm -- --nocapture --ignored`: 4/4 passed.
+- `cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean.
+- `cargo fmt --all --check`: clean.
+- Evidence: `.omo/evidence/auto-re-stage-1/task-54-faults-llm.txt`.
