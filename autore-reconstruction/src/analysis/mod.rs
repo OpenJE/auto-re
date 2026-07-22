@@ -9,6 +9,7 @@
 
 pub mod builder;
 pub mod bundle;
+pub mod import;
 pub mod schemas;
 
 #[cfg(test)]
@@ -18,6 +19,7 @@ pub use builder::{BundleBuilder, BundleStore, StaticArtifactSet};
 pub use bundle::{
     BUNDLE_MAX_BYTES, BuildDiagnosticSummary, CallSiteSummary, InvestigationBundle, StringSnippet,
 };
+pub use import::{LlmImportError, LlmImportResult, LlmImporter};
 pub use schemas::{
     CAPABILITIES, request_payload_for, request_schema, response_schema_for,
     validate_request_payload, validate_response_payload,

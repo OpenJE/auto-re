@@ -146,3 +146,8 @@
 ## Task 22 — Analysis Module Issues (2026-07-21)
 
 - Pre-existing `lib.rs` had incorrect re-export name `entity_kind_for_observation` (should be `entity_kind_for_observation_kind`). Fixed in this task.
+
+## Task 23 — Import Boundary Issues (2026-07-21)
+
+- `EvidenceValue::Json` does not exist in the current enum. The spec/task description references it, but the actual variants are: Null, Boolean, SignedInteger, UnsignedInteger, Float, String, Bytes, Entity, Artifact, BinaryLocation, List, Map, Extension. Used `EvidenceValue::String` with serialized JSON as a workaround. A future task could add a `Json(Value)` variant if structured JSON access is needed by hypothesis consumers.
+- `EvidenceRecord.native_artifacts` expects `Vec<NativeArtifactId>` (provider-produced artifacts), but the raw response artifact is a plain `ArtifactId`. The artifact ID is stored in the importer struct for provenance reference but not embedded in the evidence record's `native_artifacts` field.

@@ -17,7 +17,8 @@ mod tests_support;
 
 pub use analysis::{
     BUNDLE_MAX_BYTES, BuildDiagnosticSummary, BundleBuilder, BundleStore, CallSiteSummary,
-    InvestigationBundle, StaticArtifactSet, StringSnippet,
+    InvestigationBundle, LlmImportError, LlmImportResult, LlmImporter, StaticArtifactSet,
+    StringSnippet,
 };
 pub use fingerprint::{
     FingerprintComparison, FingerprintInput, FingerprintSnapshot, InMemorySnapshot,

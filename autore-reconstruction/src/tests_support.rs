@@ -7,7 +7,8 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use autore_app::application_service::requests::{
-    BlockWorkItemResponse, CreateWorkItemsResponse, EntitiesResponse,
+    AddEvidenceResponse, AddHypothesisResponse, BlockWorkItemResponse, BlockWorkWithReasonResponse,
+    CreateWorkItemsResponse, EntitiesResponse, FailWorkItemResponse,
     ImportProviderRunResultResponse, InvalidateWorkItemResponse, RecordWorkDependencyResponse,
     RegisterEntityResponse,
 };
@@ -107,6 +108,24 @@ impl AutoReClient for RecordingAutoReClient {
                 CommandResult::WorkItemInvalidated(InvalidateWorkItemResponse {
                     work_item_id: req.work_item_id.clone(),
                 })
+            }
+            ApplicationCommand::AddEvidence(_) => {
+                CommandResult::EvidenceAdded(AddEvidenceResponse {
+                    id: autore_schema::ids::EvidenceRecordId::new(),
+                })
+            }
+            ApplicationCommand::AddHypothesis(_) => {
+                CommandResult::HypothesisAdded(AddHypothesisResponse {
+                    id: autore_schema::ids::HypothesisId::new(),
+                })
+            }
+            ApplicationCommand::FailWorkItem(req) => {
+                CommandResult::WorkItemFailed(FailWorkItemResponse {
+                    work_item_id: req.work_item_id.clone(),
+                })
+            }
+            ApplicationCommand::BlockWorkWithReason(_) => {
+                CommandResult::WorkBlocked(BlockWorkWithReasonResponse { blocked_count: 1 })
             }
             _ => {
                 return Err(Error::Unsupported(format!(

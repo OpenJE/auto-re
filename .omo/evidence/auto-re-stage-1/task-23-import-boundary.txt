@@ -1,0 +1,58 @@
+Task 23: 3-level import boundary + bounded schema-repair + provenance
+======================================================================
+
+Date: 2026-07-21
+
+## Gates passed
+
+1. PROTOC=... cargo build -p autore-reconstruction: PASS (clean, 0 warnings)
+2. PROTOC=... cargo test -p autore-reconstruction analysis::import:: -- --nocapture: PASS (8/8)
+3. PROTOC=... cargo clippy -p autore-reconstruction --all-targets -- -D warnings: PASS
+4. cargo build (default members): PASS
+5. cargo clippy --workspace --exclude ... --exclude autore-reconstruction ... -- -D warnings: PASS
+6. cargo fmt --all -- --check: PASS
+
+## Test results
+
+  raw_response_always_persisted_irrespective_of_validation ... ok
+  parsed_result_validated_against_schema ... ok
+  referenced_entities_must_exist_in_original_bundle ... ok
+  confidence_outside_0_to_1_rejected ... ok
+  arbitrary_text_in_experiment_proposal_rejected ... ok
+  no_partial_import_on_second_failure ... ok
+  bounded_retry_attempt_count_one ... ok
+  provenance_records_no_plaintext_secrets ... ok
+
+## Files created/modified
+
+NEW:
+  - autore-reconstruction/prompts/schema-repair.handlebars
+  - autore-reconstruction/src/analysis/import/mod.rs
+  - autore-reconstruction/src/analysis/import/validate.rs
+  - autore-reconstruction/src/analysis/import/repair.rs
+  - autore-reconstruction/src/analysis/import/tests.rs
+
+MODIFIED:
+  - autore-reconstruction/Cargo.toml (added handlebars dep)
+  - autore-reconstruction/src/analysis/mod.rs (exposed import module + re-exports)
+  - autore-reconstruction/src/lib.rs (re-exports LlmImportError/Result/Importer)
+  - autore-reconstruction/src/tests_support.rs (added AddEvidence/AddHypothesis/FailWorkItem/BlockWorkWithReason handlers)
+
+## Implementation summary
+
+3-level import boundary:
+  Level 1: Always persist raw response as AddEvidence (predicate=llm.raw-response)
+  Level 2: Validate parsed JSON against schema + §8.6 invariants
+  Level 3: On success → AddHypothesis per claim; on 1st failure → RepairRequested;
+           on 2nd+ failure → FailWorkItem + BlockWorkWithReason → InvalidOutput
+
+Validation invariants checked:
+  - Schema conformance (jsonschema::validator_for + iter_errors)
+  - Entity existence (evidence_references must reference bundle IDs)
+  - Confidence in [0.0, 1.0]
+  - Type analysis: sizes/offsets within 1..4096
+  - Experiment design: only debug.* capability names
+  - Parsed result JSON size ≤ 1 MiB
+
+Repair prompt uses embedded Handlebars template with validation errors,
+expected schema, and original bundle context.

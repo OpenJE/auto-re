@@ -1,0 +1,32 @@
+# Schema Repair Prompt
+
+Your previous response for capability **{{capability_id}}** failed validation.
+
+## Validation Errors
+
+{{#each validation_errors}}
+- {{this}}
+{{/each}}
+
+## Expected Response Schema
+
+```json
+{{{response_schema}}}
+```
+
+## Original Investigation Bundle (for reference)
+
+```json
+{{{bundle_json}}}
+```
+
+## Instructions
+
+Please produce a corrected response that:
+1. Conforms to the JSON Schema above.
+2. References only entities present in the investigation bundle.
+3. Keeps all confidence values in [0.0, 1.0].
+4. For type analysis: struct sizes and offsets within 1..4096.
+5. For experiment design: uses only `debug.*` capability names.
+
+Return the corrected JSON response only, with no additional commentary.

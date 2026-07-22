@@ -586,3 +586,12 @@
 - `jsonschema` 0.33 `validator_for()` returns `Result<(), ValidationError>` (single error), not an iterator.
 - Schemas embedded via `include_str!` from `schemas/analysis/*.schema.json` — compile-time inclusion, zero runtime I/O.
 - Fixed pre-existing lib.rs re-export typo: `entity_kind_for_observation` → `entity_kind_for_observation_kind`.
+
+## 2026-07-21 Wave 5 Todo 23 (Import Boundary)
+- `EvidenceRecord.native_artifacts` is `Vec<NativeArtifactId>`, not `Vec<ArtifactId>`. The raw response artifact (type `ArtifactId`) cannot be placed there — it's a different ID type. The raw response text is stored in `EvidenceRecord.value` instead.
+- `EvidenceValue` has no `Json` variant (spec mentions it aspirationally). Used `EvidenceValue::String` with JSON-serialized data for hypothesis candidates.
+- `EntityId` implements `Default` (generates random UUID via `new()`), so `unwrap_or_default()` works for optional entity IDs.
+- `jsonschema` 0.33 `validator.iter_errors()` returns an iterator of ALL validation errors (not just the first), which is needed for repair prompts that list all issues.
+- `RecordingAutoReClient` must be extended for each new command variant the import module issues. Added handlers for `AddEvidence`, `AddHypothesis`, `FailWorkItem`, and `BlockWorkWithReason`.
+- Handlebars v6 workspace dependency already present (from openai-compatible provider); added to autore-reconstruction without workspace version bump.
+- The `let` chain syntax (`if let Some(x) = ... && condition`) is stable in edition 2024 — clippy `collapsible_if` suggests it.
