@@ -44,7 +44,7 @@ pub async fn status(db: Arc<Database>, id: Option<String>) -> crate::Result<()> 
 
         match result {
             Ok((cid, name, state)) => {
-                println!("{:<38} {:<20} {}", "ID", "Name", "State");
+                println!("{:<38} {:<20} State", "ID", "Name");
                 println!("{}", "-".repeat(70));
                 println!("{:<38} {:<20} {}", cid, name, state);
             }
@@ -79,7 +79,7 @@ pub async fn status(db: Arc<Database>, id: Option<String>) -> crate::Result<()> 
         if campaigns.is_empty() {
             println!("No campaigns found.");
         } else {
-            println!("{:<38} {:<20} {}", "ID", "Name", "State");
+            println!("{:<38} {:<20} State", "ID", "Name");
             println!("{}", "-".repeat(70));
             for (cid, name, state) in &campaigns {
                 println!("{:<38} {:<20} {}", cid, name, state);

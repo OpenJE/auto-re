@@ -56,8 +56,8 @@ pub async fn list(db: Arc<Database>) -> crate::Result<()> {
         println!("No tasks found.");
     } else {
         println!(
-            "{:<38} {:<38} {:<22} {:<12} {}",
-            "ID", "Campaign", "Kind", "State", "Priority"
+            "{:<38} {:<38} {:<22} {:<12} Priority",
+            "ID", "Campaign", "Kind", "State"
         );
         println!("{}", "-".repeat(120));
         for (id, campaign_id, kind, state, priority) in &tasks {
