@@ -355,3 +355,9 @@
 - **`GetCampaign` query has no `project` field**: It's keyed by `campaign_id`. `dispatch_query` falls back to the current navigation project as the result-routing target. If no project is open, the result is routed to a synthetic `ProjectId::default()` and silently dropped (no view to update). This is acceptable for now; a future todo could store the campaign_id on the TUI state and route results by campaign instead of project.
 - **PauseCoordinator/ResumeCoordinator/StopCoordinator handlers are stubs**: The app service returns `Err(Error::Validation("not yet implemented: ..."))`. The TUI correctly dispatches the commands; errors surface as notifications. When the coordinator service is wired, these will work.
 - **Selection-based inspection keys (e/H/y/g/D/V)**: Currently just switch to the relevant pane. A future todo could add cursor/selection tracking within each pane so these keys actually focus a specific item for inspection.
+
+## 2026-07-22 Wave 11 Todo 52 (Autonomous Coordinator End-to-End + Restart Recovery)
+- **No blocking issues encountered**. All tests, builds, and lint checks pass.
+- The test uses a fresh `TestClient` on restart; the "durable command log" is simulated by inspecting the first run's recorded commands rather than serializing them to disk. A future production implementation would persist the command log to the event store and replay it into a fresh coordinator state.
+- `RegisterProviderInstanceRequest` carries `installation_id` (not `instance_id`); the response carries the `instance_id`. The test maps installation IDs to deterministic instance IDs for restart assertions.
+- `RecordBuildAttemptRequest`, `RecordRepairAttemptRequest`, and `RecordVerificationComparisonRequest` only carry `project` + `work_item_id` in the current Stage 1 schema; the mock handlers use these minimal requests.

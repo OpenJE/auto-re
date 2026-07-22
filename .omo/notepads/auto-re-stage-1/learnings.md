@@ -1266,6 +1266,40 @@
 - `cargo test -p autore-cli`: 38/38 passed (18 new unit + 20 existing integration).
 - Evidence: `.omo/evidence/auto-re-stage-1/task-50-cli.txt`.
 
+## 2026-07-22 Wave 11 Todo 52 (Autonomous Coordinator End-to-End + Restart Recovery)
+
+### What was done
+- Created `autore-reconstruction/tests/coordinator_autonomous_run.rs` as a `#[ignore]` integration test.
+- Registered the existing `tests/fixtures/hello` binary as a `core.binary` artifact (no Van Buren binary committed).
+- Created a `ReconstructionCampaign` via `CreateReconstructionCampaign` and seeded a work graph with 8 function work items + `ProgramSkeleton` / `Global` / `ExternalDependency` / `BuildFailure` / `VerificationFailure` / `Investigation` / explicitly-excluded items.
+- Instantiated `Coordinator` with deterministic mock `WorkKindHandlers`:
+  - `StaticInvestigation` registers a small set of function entities and completes the item.
+  - `Generation` writes a candidate source file and issues `RegisterArtifact` + `CompleteWorkItem`; one function (`f_2`) is intentionally blocked on first attempt to create a `BuildFailure` repair item.
+  - `BuildFailure` / `RecordRepairAttempt` resolves on the first repair attempt by promoting the blocked function back to `Ready` and completing the repair item.
+  - `Verification` issues `RecordVerificationComparison` + `CompleteWorkItem`.
+  - `SemanticAnalysis` returns a fixed raw-response hash so the coordinator's no-progress detector blocks the investigation after 3 identical outputs.
+- Ran the coordinator loop synchronously on a manually created `tokio::runtime::Runtime` with a 1000-tick budget.
+- Simulated interruption by dropping the in-memory coordinator, then constructed a fresh coordinator from a state snapshot:
+  - Old local provider instances were marked `Unavailable` in `provider_health` and `StopProviderInstance` was issued through the fresh client.
+  - Leased/Running items were requeued via the coordinator's `reconcile_interrupted_operations` phase.
+  - A synthetic stale staging item was invalidated.
+  - Asserted `CreateReconstructionCampaign` and `CreateWorkItems` were NOT re-issued on resume.
+- Resumed coordinator ran to terminal state in 3 ticks.
+- Every canonical mutation was asserted to be an `ApplicationCommand` variant.
+
+### Key decisions
+- Used `BlockWorkItem` (not `FailWorkItem`) for the initial synthetic build failure because `Blocked` is terminal in the coordinator's `is_terminal` definition, allowing the dependent `BuildFailure` work item to be promoted and dispatched.
+- The test applies recorded commands back to the in-memory `CoordinatorState` after each tick, simulating the durable command log being applied to the coordinator's snapshot.
+- Restart recovery uses a fresh `TestClient` + fresh `Coordinator`; the old command log is only inspected to extract provider installation IDs and to prove non-idempotent commands are not replayed.
+
+### Verification
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction --test coordinator_autonomous_run -- --nocapture --ignored`: 1/1 passed.
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean.
+- `cargo fmt --all --check`: clean.
+- `cargo test -p autore-reconstruction -- --nocapture`: 177 passed.
+- Stage 0 regression: `cargo test --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction`: passed.
+- Evidence: `.omo/evidence/auto-re-stage-1/task-52-autonomous-run.txt`.
+
 ## 2026-07-22 Wave 11 Todo 51 (Stage 1 TUI Panes and Actions)
 
 ### What was done

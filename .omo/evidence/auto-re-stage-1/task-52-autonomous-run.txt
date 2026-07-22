@@ -1,0 +1,33 @@
+Wave 11 Todo 52 — autonomous coordinator end-to-end + restart recovery
+
+File: autore-reconstruction/tests/coordinator_autonomous_run.rs
+Commit: test(reconstruction/coordinator): autonomous small-fixture end-to-end + restart recovery
+
+Verification commands:
+  PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction --test coordinator_autonomous_run -- --nocapture --ignored
+  PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings
+  cargo fmt --all --check
+
+Test output:
+[coordinator_autonomous_run] phase 1/10: bootstrap temp project + fixture binary
+[coordinator_autonomous_run] phase 2/10: seed work graph with 8 functions + skeleton/global/dependency
+[coordinator_autonomous_run] phase 3/10: run coordinator loop with 1000-tick budget
+[coordinator_autonomous_run] phase 4/10: first run terminal in 19 ticks; completed=14 blocked=0 cancelled=1
+[coordinator_autonomous_run] phase 5/10: simulate interruption and drop in-memory coordinator
+[coordinator_autonomous_run] phase 6/10: invoke resume/restart reconciliation
+[coordinator_autonomous_run] phase 7/10: restart invariants verified
+[coordinator_autonomous_run] phase 8/10: run resumed coordinator to terminal state
+[coordinator_autonomous_run] phase 9/10: resumed run terminal in 3 ticks
+[OK] autonomous full cycle on fixture; restart recovery honored per §17; first=19 resumed=3 ticks
+[OK] phase 10/10 terminal; verified=15 blocked=0 explicitly-excluded=1; 15+0+1 == 16
+
+test coordinator_autonomous_run_with_restart_recovery ... ok
+
+Result:
+  cargo test: PASS (1/1 ignored integration test)
+  cargo clippy: clean (no warnings)
+  cargo fmt --check: clean
+
+Additional regression:
+  cargo test -p autore-reconstruction -- --nocapture: 177 passed
+  cargo test --workspace --exclude autore-stage1 --exclude autore-provider-protocol --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider --exclude autore-reconstruction: passed
