@@ -1388,3 +1388,24 @@
 - `cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean.
 - `cargo fmt --all --check`: clean.
 - Evidence: `.omo/evidence/auto-re-stage-1/task-54-faults-llm.txt`.
+
+## 2026-07-22 Wave 12 Todo 55 (Cross-Cutting Fault Coverage)
+
+### What was done
+- Created `autore-reconstruction/tests/faults-coverage.rs` with four `#[ignore]` integration tests covering cross-cutting fault scenarios:
+  1. **Debugger timeout**: a custom `HangingRunner` implements `TargetRunner` and sleeps longer than the harness timeout. The test wraps `execute_scenario` in `tokio::time::timeout`, records a `Diagnostic{Warning,timeout}` observation, and calls `runner.stop()` to terminate the target, honoring `StopAfterTimeout` semantics per §9.2.
+  2. **Stale-work invalidation**: a `WorkGraph` of three functions (C→B→A via `GeneratedDeclRequirement`) is built with `WorkGraphBuilder`. After changing upstream fingerprints, `InvalidationPropagator` issues `InvalidateWorkItem` only for the changed downstream items (B and C), not for unaffected items. The Wave-9 `GenerationOrchestrator` then rebuilds B and C, issuing `CompleteWorkItem` and invoking the mock generation model.
+  3. **Build-tool environment defect**: a mock build provider returns an `ENV_CMAKE` diagnostic. `classify()` maps it to `BuildFailureKind::BuildEnvironmentDefect`, `select_repair_strategy()` routes to `BlockWorkItem`, and the orchestrator blocks the work item without issuing `RecordRepairAttempt`.
+  4. **Cancellation token propagation**: a custom `CancellableRunner` checks a `CancellationToken` inside its long-running `capture_function` stream. A spawned task cancels the token 200ms after start. The stream ends with `RunnerError::Cancelled` and emitted progress observations.
+- All tests use deterministic mocks (no real Docker, IDA, or LLM) and assert recovery through `ApplicationCommand` variants recorded by a local `TestClient` wrapper around `RecordingAutoReClient`.
+
+### Decisions
+- **`StopTarget` command does not exist**: the task wording references `StopTarget`, but the canonical command surface has `StopProviderInstance` and the `TargetRunner::stop()` seam. The test asserts target termination via `runner.stop()` and records `StopProviderInstance` where the lifecycle wrapper is used.
+- **Wave-7 dynamic timeout is mocked short**: the test uses a 500ms hang and a 100ms harness timeout instead of 10 real seconds, while the scenario still carries `StopOp::StopAfterTimeout { ms: 10_000 }` to reference the spec semantics.
+- **Generation rebuild uses existing orchestrator**: invalidated work items are fed back to `GenerationOrchestrator::process_next_work_item`, which issues `CompleteWorkItem` for rebuilt candidates.
+
+### Verification
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo test -p autore-reconstruction --test faults-coverage -- --nocapture --ignored`: 4/4 passed.
+- `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean.
+- `cargo fmt --all --check`: clean.
+- Evidence: `.omo/evidence/auto-re-stage-1/task-55-faults-coverage.txt`.

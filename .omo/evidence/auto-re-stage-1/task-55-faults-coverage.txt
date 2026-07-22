@@ -1,0 +1,17 @@
+   Compiling autore-reconstruction v0.1.0 (/mnt/shanes-ssd-1tb/code/shane/auto-re/autore-reconstruction)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.51s
+     Running tests/faults-coverage.rs (target/debug/deps/faults_coverage-51ca001b5921e15b)
+
+running 4 tests
+[OK] build-tool environment defect: classified, blocked, no LLM repair
+test build_tool_failure_creates_build_environment_defect_work ... ok
+[OK] stale-work invalidation: deltas only, downstream invalidated, generation rebuilt
+test stale_work_invalidation_rebuilds_on_refresh ... ok
+[OK] debugger timeout: StopAfterTimeout honored, diagnostic emitted, target stopped
+test debugger_timeout_returns_diagnostic_and_terminates_target ... ok
+[OK] cancellation token propagated: provider stream ended after cancellation
+[OK] 4 additional fault cases covered (debugger timeout / stale-work / build-tool-fail / cancellation)
+test cancellation_token_propagates_to_provider_streams ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+

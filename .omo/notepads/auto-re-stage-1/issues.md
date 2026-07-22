@@ -374,3 +374,9 @@
 - **`LlmImporter` raw response is evidence, not artifact**: the import boundary stores the raw LLM text via `AddEvidence`. This is the intended design, but it surprised the initial test assertion which expected `RegisterArtifact`.
 - **`PatchPipeline` path validation is strict**: generated-source paths must start with `src/generated/`, `include/recovered/`, or `generated/openvb/` and be scoped to the subject entity's source directory. Tests need a helper to construct valid paths from `EntityId`.
 - **`BuildFailureKind::GeneratedCodeDefect` is the only classifier route to LLM repair**: to exercise the repeated-failure block, the mock diagnostic must use code `C1010` (or another kind mapped to `RequestLlmAnalysis`). Other codes route to `CreateWorkItems` and exit with `RepairDeferred`.
+
+## 2026-07-22 Wave 12 Todo 55 (Cross-Cutting Fault Coverage)
+- **No blocking issues encountered**. All 4 tests pass and the build/lint gates are clean.
+- **`StopTarget` is not a canonical command**: the task text references `StopTarget`, but the existing command enum only has `StopProviderInstance`. Target termination is asserted through the `TargetRunner::stop()` seam, which is the backend-agnostic equivalent of stopping the debug target process.
+- **`Diagnostic{Warning,timeout}` is an observation, not a structured event**: the reconstruction crate surfaces diagnostics as `DebugObservation` entries with `kind="diagnostic"` in the `CaptureContext`. A future protocol revision could add a dedicated `ExecutionEvent::Diagnostic` variant to stream these from external providers.
+- **`GenerationOrchestrator` rebuilds invalidated items directly**: the orchestrator itself does not inspect `InvalidateWorkItem` state; the test drives rebuild by passing the invalidated work-item contexts back into `process_next_work_item`. A future coordinator integration would perform this scheduling automatically.
