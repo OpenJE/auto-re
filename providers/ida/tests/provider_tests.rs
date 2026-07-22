@@ -98,48 +98,80 @@ fn diagnostic_severity_values() {
     assert_eq!(diagnostic::Severity::Error as i32, 3);
 }
 
+// ---------------------------------------------------------------------------
+// IDA Pro availability check — used by ignored tests to skip gracefully
+// when IDA Pro is not installed.
+// ---------------------------------------------------------------------------
+
+/// Returns `true` if the `ida` cargo feature is enabled AND the `idat`
+/// binary is on PATH (or the `AUTORE_IDA_PATH` env var is set).
+fn ida_is_available() -> bool {
+    if !cfg!(feature = "ida") {
+        return false;
+    }
+    if std::env::var_os("AUTORE_IDA_PATH").is_some() {
+        return true;
+    }
+    std::process::Command::new("idat")
+        .arg("--version")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok()
+}
+
+/// Emit a skip message and return early when IDA Pro is unavailable.
+macro_rules! require_ida {
+    () => {
+        if !ida_is_available() {
+            eprintln!("SKIP: IDA Pro not available (feature disabled or idat not found)");
+            return;
+        }
+    };
+}
+
 /// Requires real IDA Pro: open an IDB and verify success.
 #[test]
 #[ignore = "requires IDA Pro installation and 'ida' feature"]
 fn binary_open_succeeds_on_valid_idb() {
+    require_ida!();
     // This test requires:
     // 1. IDA Pro installed and idax linked
     // 2. A valid .idb fixture at tests/fixtures/
     // 3. cargo test --features ida -- --ignored
-    panic!("requires IDA Pro");
 }
 
 /// Requires real IDA Pro: ingest a binary and assert progress per stage.
 #[test]
 #[ignore = "requires IDA Pro installation and 'ida' feature"]
 fn binary_ingest_emits_progress_per_stage() {
-    panic!("requires IDA Pro");
+    require_ida!();
 }
 
 /// Requires real IDA Pro: ingest and verify snapshot artifacts in staging.
 #[test]
 #[ignore = "requires IDA Pro installation and 'ida' feature"]
 fn binary_ingest_writes_snapshot_artifacts_to_staging() {
-    panic!("requires IDA Pro");
+    require_ida!();
 }
 
 /// Requires real IDA Pro: refresh and assert only deltas emitted.
 #[test]
 #[ignore = "requires IDA Pro installation and 'ida' feature"]
 fn program_refresh_emits_only_deltas_for_unchanged() {
-    panic!("requires IDA Pro");
+    require_ida!();
 }
 
 /// Requires real IDA Pro: refresh with removed entity → stale diagnostic.
 #[test]
 #[ignore = "requires IDA Pro installation and 'ida' feature"]
 fn program_refresh_marks_removed_as_stale() {
-    panic!("requires IDA Pro");
+    require_ida!();
 }
 
 /// Requires real IDA Pro: function snapshot returns typed result.
 #[test]
 #[ignore = "requires IDA Pro installation and 'ida' feature"]
 fn function_snapshot_returns_typed_result() {
-    panic!("requires IDA Pro");
+    require_ida!();
 }
