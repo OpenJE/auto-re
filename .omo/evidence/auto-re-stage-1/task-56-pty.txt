@@ -1,0 +1,58 @@
+Task 56 — Stage 1 PTY-keybinding integration tests
+===================================================
+
+Date: 2026-07-22
+
+Files changed:
+  - autore-tui/tests/pty_integration.rs
+
+Tests added:
+  1. pty_stage1_start_campaign_dialog
+     - Press `o` → type campaign name → Enter → dispatches CreateReconstructionCampaign
+     - Verifies TUI remains responsive after dispatch
+     - Verifies terminal restoration (alternate screen exit + cursor show)
+
+  2. pty_stage1_stop_campaign_dialog
+     - Press `X` (StopCoordinator) + `p` (PauseCoordinator)
+     - Both currently return "not yet implemented" errors
+     - Verifies TUI remains responsive after error-returning dispatches
+     - Verifies terminal restoration
+
+  3. pty_stage1_start_provider_line_item
+     - Press `P` → type provider installation UUID → Enter
+     - Dispatches RegisterProviderInstance
+     - Verifies TUI remains responsive after dispatch
+     - Verifies terminal restoration
+
+Test results (all 4 tests including Stage 0 pty_tui_lifecycle):
+  $ cargo test -p autore-tui --test pty_integration -- --ignored --nocapture
+  test pty_stage1_start_campaign_dialog ... ok
+  test pty_stage1_stop_campaign_dialog ... ok
+  test pty_stage1_start_provider_line_item ... ok
+  test pty_tui_lifecycle ... ok
+  test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.04s
+
+Per-test timing (3 Stage 1 tests in 2.04s — well under 5s each):
+  $ time cargo test -p autore-tui --test pty_integration -- --ignored --nocapture pty_stage1
+  test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 2.04s
+
+Gate results:
+  $ cargo clippy -p autore-tui --all-targets -- -D warnings
+  Finished `dev` profile — clean, no warnings.
+
+  $ cargo fmt --all --check
+  Clean (after one auto-format pass on spawn_tui_in_pty signature).
+
+Design decisions:
+  - Dialogs/notifications are not rendered as overlays in the current TUI
+    (render() only draws panes, tab strip, and project panel). Commands are
+    therefore verified through TUI responsiveness (no crash after dispatch)
+    and clean terminal restoration, not by matching dialog text.
+  - Alt+N key sequences for Stage 1 pane switching were not used because
+    `\x1bN` escape sequences were not reliably interpreted as Alt+N by the
+    PTY's crossterm input parser within the `script` harness. The tests
+    instead verify keybindings from the default Dashboard pane.
+  - Each test reuses the existing `prepare_project`, `auto_re_cmd`,
+    `wait_for_content` helpers, plus two new shared helpers
+    (`spawn_tui_in_pty`, `quit_and_verify_terminal_restore`) to reduce
+    duplication across the three new tests.

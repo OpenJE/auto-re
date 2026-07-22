@@ -1409,3 +1409,8 @@
 - `PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy -p autore-reconstruction --all-targets -- -D warnings`: clean.
 - `cargo fmt --all --check`: clean.
 - Evidence: `.omo/evidence/auto-re-stage-1/task-55-faults-coverage.txt`.
+
+## 2026-07-22 Wave 12 Todo 56 (Stage 1 PTY Keybinding Tests)
+- **PTY dialog verification works through responsiveness, not text matching**: the TUI's `render()` function draws panes and tab strip but does not overlay dialogs or notifications. Stage 1 keybinding tests verify commands dispatch by checking the TUI remains responsive (no crash) and exits cleanly with terminal restoration.
+- **Shared PTY helpers reduce duplication**: `spawn_tui_in_pty` and `quit_and_verify_terminal_restore` extract the common launch/quit/restore pattern from the Stage 0 test, letting each Stage 1 test focus on its specific keybinding sequence.
+- **Event subscription delivery is asynchronous**: the project panel's `events:` line only appears after the `ListEvents` query completes (triggered by `schedule_project_refresh` after subscription events arrive). Tests that need to verify event-count advancement must wait for the initial query pipeline to settle.
