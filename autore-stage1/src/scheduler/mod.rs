@@ -2,8 +2,9 @@
 
 mod lease;
 mod repos;
+#[allow(clippy::module_inception)]
 mod scheduler;
 
 pub use lease::TaskLease;
 pub use repos::{RepositorySet, SchedulerQueries};
-pub use scheduler::{CampaignEvaluation, PriorityFactors, Scheduler};
+pub use scheduler::{CampaignEvaluation, PriorityContext, PriorityFactors, Scheduler};

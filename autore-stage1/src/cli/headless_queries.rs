@@ -153,6 +153,7 @@ impl SchedulerQueries for SqliteQueries {
     }
 }
 
+#[allow(dead_code)]
 pub(super) struct NoopCampaignRepo;
 
 #[async_trait]
@@ -172,6 +173,7 @@ impl CampaignRepository for NoopCampaignRepo {
     }
 }
 
+#[allow(dead_code)]
 pub(super) struct NoopEvidenceRepo;
 
 #[async_trait]

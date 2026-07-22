@@ -23,7 +23,7 @@ use crate::storage::repositories::*;
 use crate::worker::output::*;
 use crate::worker::*;
 
-use crate::cli::headless_queries::{NoopCampaignRepo, NoopEvidenceRepo, SqliteQueries};
+use crate::cli::headless_queries::SqliteQueries;
 
 use autore_app::application_service::requests::{
     ApplicationCommand, ApplicationQuery, AutoReClient, CommandResult, QueryResult,
@@ -40,10 +40,17 @@ impl AutoReClient for NoopAutoReClient {
             },
         ))
     }
-    fn query(&self, _query: ApplicationQuery) -> autore_core::Result<QueryResult> {
-        Ok(QueryResult::WorkItems(
-            autore_app::application_service::requests::WorkItemsResponse { work_items: vec![] },
-        ))
+    fn query(&self, query: ApplicationQuery) -> autore_core::Result<QueryResult> {
+        match query {
+            ApplicationQuery::ListExpiredLeases(_) => Ok(QueryResult::ExpiredLeases(
+                autore_app::application_service::requests::ExpiredLeasesResponse {
+                    expired: vec![],
+                },
+            )),
+            _ => Ok(QueryResult::WorkItems(
+                autore_app::application_service::requests::WorkItemsResponse { work_items: vec![] },
+            )),
+        }
     }
     fn events_after(
         &self,
@@ -133,20 +140,11 @@ pub async fn run_headless(db: Arc<Database>) -> crate::Result<()> {
         }
     }
 
-    let claim_repo = Arc::new(SqliteClaimRepository::new(Arc::clone(&db)));
     let queries = Arc::new(SqliteQueries {
         database: Arc::clone(&db),
     });
 
     recover_stale_leases(&db)?;
-
-    let repos = RepositorySet {
-        tasks: Arc::clone(&task_repo) as Arc<dyn TaskRepository>,
-        queries: Arc::clone(&queries) as Arc<dyn SchedulerQueries>,
-        campaigns: Arc::new(NoopCampaignRepo) as Arc<dyn CampaignRepository>,
-        claims: Arc::clone(&claim_repo) as Arc<dyn ClaimRepository>,
-        evidence: Arc::new(NoopEvidenceRepo) as Arc<dyn EvidenceRepository>,
-    };
 
     let desc = ModelDescriptor {
         id: "headless-analyzer".into(),
@@ -171,11 +169,18 @@ pub async fn run_headless(db: Arc<Database>) -> crate::Result<()> {
     let packet_builder = MockPacketBuilder::new(MockAnalysisBackend::new());
 
     let mut evaluation = CampaignEvaluation::Idle;
+    let client: Arc<dyn AutoReClient> = Arc::new(NoopAutoReClient);
     loop {
         let now = OffsetDateTime::now_utc();
-        scheduler
-            .run_campaign(campaign_id, &mut evaluation, &repos, now)
-            .await?;
+        let tasks = queries.find_tasks_by_campaign(campaign_id).await?;
+        scheduler.run_campaign(
+            campaign_id,
+            &mut evaluation,
+            Arc::clone(&client),
+            ProjectId::new(),
+            &tasks,
+            now,
+        )?;
 
         if evaluation == CampaignEvaluation::Complete {
             break;
@@ -216,10 +221,10 @@ pub async fn run_headless(db: Arc<Database>) -> crate::Result<()> {
 
         tokio::time::sleep(Duration::from_millis(10)).await;
 
-        if let Ok(delay_ms) = std::env::var("AUTO_RE_HEADLESS_DELAY_MS") {
-            if let Ok(ms) = delay_ms.parse::<u64>() {
-                tokio::time::sleep(Duration::from_millis(ms)).await;
-            }
+        if let Ok(delay_ms) = std::env::var("AUTO_RE_HEADLESS_DELAY_MS")
+            && let Ok(ms) = delay_ms.parse::<u64>()
+        {
+            tokio::time::sleep(Duration::from_millis(ms)).await;
         }
     }
 

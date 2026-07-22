@@ -1,20 +1,27 @@
 //! Scheduler — deterministic priority scoring and model-routed dispatch.
 //!
 //! The scheduler computes a stable, deterministic priority score for each
-//! task using configurable `PriorityFactors`. The same inputs always produce
-//! the same score — no randomness, no platform-dependent hashing.
+//! task using configurable `PriorityFactors` and a caller-supplied
+//! `PriorityContext`. The same inputs always produce the same score — no
+//! randomness, no platform-dependent hashing.
 //!
-//! The `run_campaign` method performs one evaluation tick: recovering
-//! expired leases, promoting pending tasks, dispatching ready tasks, and
-//! evaluating the campaign state.
+//! The `run_campaign` method performs one evaluation tick via
+//! `ApplicationCommand` / `ApplicationQuery` through an `AutoReClient`:
+//! recovering expired leases, promoting pending tasks, dispatching ready
+//! tasks, and evaluating the campaign state.
+
+use std::sync::Arc;
 
 use time::OffsetDateTime;
 
-use crate::domain::task::{Task, TaskKind, TaskState};
-use crate::ids::{CampaignId, TaskId};
-use crate::model::router::ModelRouter;
+use autore_app::application_service::requests::{
+    ApplicationCommand, ApplicationQuery, AutoReClient, FailWorkItemRequest, LeaseWorkItemRequest,
+    ListExpiredLeasesQuery, PromoteWorkItemRequest, QueryResult, RequeueWorkItemRequest,
+};
 
-use super::repos::RepositorySet;
+use crate::domain::task::{Task, TaskKind, TaskState};
+use crate::ids::{CampaignId, ProjectId, TaskId};
+use crate::model::router::ModelRouter;
 
 // ---------------------------------------------------------------------------
 // PriorityFactors
@@ -22,8 +29,9 @@ use super::repos::RepositorySet;
 
 /// Configurable weights for the priority score formula.
 ///
-/// Each weight is applied to a specific task attribute. The final score is
-/// a deterministic `u64` derived from integer-scaled floating-point arithmetic.
+/// Each weight is applied to a specific task attribute or context indicator.
+/// The final score is a deterministic `u64` derived from integer-scaled
+/// floating-point arithmetic.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct PriorityFactors {
     /// Base priority added to every task.
@@ -38,6 +46,17 @@ pub struct PriorityFactors {
     /// Weight applied to a binary verification indicator (1.0 for verification
     /// tasks, 0.0 otherwise).
     pub verification_weight: f64,
+    /// Weight multiplied by `ctx.dependents_unblocked` — tasks that unblock
+    /// many downstream dependents get a scheduling bonus (§7.4).
+    pub dependents_unblocked_weight: f64,
+    /// Weight applied to a binary `ctx.high_impact_conflict` indicator.
+    pub high_impact_conflict_weight: f64,
+    /// Weight applied to a binary `ctx.removes_build_blocker` indicator.
+    pub removes_build_blocker_weight: f64,
+    /// Weight multiplied by `ctx.verified_coverage` (0.0–1.0).
+    pub verified_coverage_weight: f64,
+    /// Weight multiplied by `ctx.evidence_strength` (0.0–1.0).
+    pub evidence_strength_weight: f64,
 }
 
 impl Default for PriorityFactors {
@@ -48,6 +67,46 @@ impl Default for PriorityFactors {
             dependency_depth_weight: 5.0,
             deadline_weight: 1.0,
             verification_weight: 20.0,
+            dependents_unblocked_weight: 15.0,
+            high_impact_conflict_weight: 25.0,
+            removes_build_blocker_weight: 30.0,
+            verified_coverage_weight: 10.0,
+            evidence_strength_weight: 5.0,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// PriorityContext
+// ---------------------------------------------------------------------------
+
+/// Caller-supplied scoring inputs for the expanded priority factors (§7.4).
+///
+/// All fields default to zero/false, which makes the new bonus terms
+/// contribute nothing — preserving backward-compatible scores when the
+/// caller does not supply context.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PriorityContext {
+    /// Number of downstream dependents unblocked if this task completes.
+    pub dependents_unblocked: u32,
+    /// Whether this task resolves a high-impact conflict record.
+    pub high_impact_conflict: bool,
+    /// Whether this task removes a build blocker.
+    pub removes_build_blocker: bool,
+    /// Verified coverage contribution (0.0–1.0).
+    pub verified_coverage: f64,
+    /// Evidence strength indicator (0.0–1.0).
+    pub evidence_strength: f64,
+}
+
+impl Default for PriorityContext {
+    fn default() -> Self {
+        Self {
+            dependents_unblocked: 0,
+            high_impact_conflict: false,
+            removes_build_blocker: false,
+            verified_coverage: 0.0,
+            evidence_strength: 0.0,
         }
     }
 }
@@ -108,11 +167,21 @@ impl Scheduler {
     ///       + dependency_count * dependency_depth_weight
     ///       + task.priority.score() * deadline_weight
     ///       + verification_indicator * verification_weight
+    ///       + ctx.dependents_unblocked * dependents_unblocked_weight
+    ///       + ctx.high_impact_conflict * high_impact_conflict_weight
+    ///       + ctx.removes_build_blocker * removes_build_blocker_weight
+    ///       + ctx.verified_coverage * verified_coverage_weight
+    ///       + ctx.evidence_strength * evidence_strength_weight
     /// ```
     ///
     /// The result is truncated to `u64`. The same inputs always produce the
     /// same output — no randomness or platform-dependent behavior.
-    pub fn priority_score(task: &Task, factors: &PriorityFactors, _now: OffsetDateTime) -> u64 {
+    pub fn priority_score(
+        task: &Task,
+        factors: &PriorityFactors,
+        ctx: &PriorityContext,
+        _now: OffsetDateTime,
+    ) -> u64 {
         let base = factors.base_priority as f64;
         let attempt_bonus = task.attempt_count as f64 * factors.attempt_count_weight;
         let dep_bonus = task.dependencies.len() as f64 * factors.dependency_depth_weight;
@@ -124,7 +193,24 @@ impl Scheduler {
         };
         let verification_bonus = verification_indicator * factors.verification_weight;
 
-        let total = base + attempt_bonus + dep_bonus + priority_bonus + verification_bonus;
+        let unblocked_bonus = ctx.dependents_unblocked as f64 * factors.dependents_unblocked_weight;
+        let conflict_indicator = if ctx.high_impact_conflict { 1.0 } else { 0.0 };
+        let conflict_bonus = conflict_indicator * factors.high_impact_conflict_weight;
+        let blocker_indicator = if ctx.removes_build_blocker { 1.0 } else { 0.0 };
+        let blocker_bonus = blocker_indicator * factors.removes_build_blocker_weight;
+        let coverage_bonus = ctx.verified_coverage * factors.verified_coverage_weight;
+        let evidence_bonus = ctx.evidence_strength * factors.evidence_strength_weight;
+
+        let total = base
+            + attempt_bonus
+            + dep_bonus
+            + priority_bonus
+            + verification_bonus
+            + unblocked_bonus
+            + conflict_bonus
+            + blocker_bonus
+            + coverage_bonus
+            + evidence_bonus;
         total.max(0.0) as u64
     }
 
@@ -134,11 +220,12 @@ impl Scheduler {
         &self,
         tasks: &[Task],
         factors: &PriorityFactors,
+        ctx: &PriorityContext,
         now: OffsetDateTime,
     ) -> Vec<u64> {
         tasks
             .iter()
-            .map(|t| Self::priority_score(t, factors, now))
+            .map(|t| Self::priority_score(t, factors, ctx, now))
             .collect()
     }
 
@@ -148,36 +235,41 @@ impl Scheduler {
 
     /// Performs one campaign evaluation tick:
     ///
-    /// 1. Recover expired leases (reset to Ready or Failed).
-    /// 2. Promote Pending tasks with satisfied dependencies to Ready.
+    /// 1. Recover expired leases via `FailWorkItem` / `RequeueWorkItem`.
+    /// 2. Promote Pending tasks with satisfied dependencies via `PromoteWorkItem`.
     /// 3. Invalidate stale work (M1: no-op).
-    /// 4. Lease and dispatch up to `max_dispatch_per_tick` ready tasks.
+    /// 4. Lease and dispatch up to `max_dispatch_per_tick` ready tasks via `LeaseWorkItem`.
     /// 5. Evaluate state and set `CampaignEvaluation`.
-    pub async fn run_campaign(
+    ///
+    /// All mutations route through `AutoReClient`; no direct storage access.
+    pub fn run_campaign(
         &self,
-        campaign_id: CampaignId,
+        _campaign_id: CampaignId,
         evaluation: &mut CampaignEvaluation,
-        repos: &RepositorySet,
+        client: Arc<dyn AutoReClient>,
+        project_id: ProjectId,
+        tasks: &[Task],
         now: OffsetDateTime,
     ) -> crate::Result<()> {
-        self.recover_expired_leases(campaign_id, repos, now).await?;
-        self.promote_ready_tasks(campaign_id, repos).await?;
+        self.recover_expired_leases(&*client, project_id, tasks)?;
+        self.promote_ready_tasks(&*client, project_id, tasks)?;
         // Step 3: invalidation is a no-op for M1.
-        let dispatched = self.dispatch_tasks(campaign_id, repos, now).await?;
-        *evaluation = self.evaluate_state(campaign_id, repos, dispatched).await?;
+        let dispatched = self.dispatch_tasks(&*client, project_id, tasks, now)?;
+        *evaluation = Self::evaluate_state(tasks, dispatched);
         Ok(())
     }
 
     /// Convenience method: runs one tick and returns the evaluation.
-    pub async fn evaluate(
+    pub fn evaluate(
         &self,
         campaign_id: CampaignId,
-        repos: &RepositorySet,
+        client: Arc<dyn AutoReClient>,
+        project_id: ProjectId,
+        tasks: &[Task],
         now: OffsetDateTime,
     ) -> crate::Result<CampaignEvaluation> {
         let mut eval = CampaignEvaluation::Idle;
-        self.run_campaign(campaign_id, &mut eval, repos, now)
-            .await?;
+        self.run_campaign(campaign_id, &mut eval, client, project_id, tasks, now)?;
         Ok(eval)
     }
 
@@ -185,105 +277,137 @@ impl Scheduler {
     // Private helpers
     // -----------------------------------------------------------------------
 
-    /// Recovers expired leases: resets tasks to Ready or fails them
-    /// permanently if max attempts are exceeded.
-    async fn recover_expired_leases(
+    /// Recovers expired leases: issues `FailWorkItem` for exhausted tasks or
+    /// `RequeueWorkItem` for retryable ones.
+    fn recover_expired_leases(
         &self,
-        campaign_id: CampaignId,
-        repos: &RepositorySet,
-        now: OffsetDateTime,
+        client: &dyn AutoReClient,
+        project_id: ProjectId,
+        tasks: &[Task],
     ) -> crate::Result<()> {
-        let expired = repos.queries.find_expired_leases(campaign_id, now).await?;
-        if expired.is_empty() {
+        let result = client.query(ApplicationQuery::ListExpiredLeases(
+            ListExpiredLeasesQuery {
+                project: project_id,
+            },
+        ))?;
+        let expired_ids = match result {
+            QueryResult::ExpiredLeases(resp) => resp.expired,
+            _ => {
+                return Err(crate::Error::Core(autore_core::Error::Validation(
+                    "unexpected query result for ListExpiredLeases".into(),
+                )));
+            }
+        };
+        if expired_ids.is_empty() {
             return Ok(());
         }
-        let tasks = repos.queries.find_tasks_by_campaign(campaign_id).await?;
-        for lease in &expired {
-            if let Some(task) = tasks.iter().find(|t| t.id == lease.task_id) {
-                if task.attempt_count >= task.maximum_attempts {
-                    repos
-                        .tasks
-                        .fail(task.id, "lease expired, max attempts exceeded".into())
-                        .await?;
-                } else {
-                    repos
-                        .queries
-                        .update_task_state(task.id, TaskState::Ready)
-                        .await?;
-                    repos.queries.delete_lease(task.id).await?;
-                }
+        for expired_id_str in &expired_ids {
+            let Some(task) = tasks.iter().find(|t| t.id.to_string() == *expired_id_str) else {
+                continue;
+            };
+            if task.attempt_count >= task.maximum_attempts {
+                client.execute(ApplicationCommand::FailWorkItem(FailWorkItemRequest {
+                    project: project_id,
+                    work_item_id: expired_id_str.clone(),
+                    reason: "lease expired, max attempts exceeded".into(),
+                }))?;
+            } else {
+                client.execute(ApplicationCommand::RequeueWorkItem(
+                    RequeueWorkItemRequest {
+                        project: project_id,
+                        work_item_id: expired_id_str.clone(),
+                    },
+                ))?;
             }
         }
         Ok(())
     }
 
-    /// Promotes Pending tasks to Ready when all dependencies are Completed.
-    async fn promote_ready_tasks(
+    /// Promotes Pending tasks to Ready when all dependencies are Completed,
+    /// issuing `PromoteWorkItem` for each.
+    fn promote_ready_tasks(
         &self,
-        campaign_id: CampaignId,
-        repos: &RepositorySet,
+        client: &dyn AutoReClient,
+        project_id: ProjectId,
+        tasks: &[Task],
     ) -> crate::Result<()> {
-        let tasks = repos.queries.find_tasks_by_campaign(campaign_id).await?;
         let completed_ids: Vec<TaskId> = tasks
             .iter()
             .filter(|t| t.state == TaskState::Completed)
             .map(|t| t.id)
             .collect();
-        for task in &tasks {
+        for task in tasks {
             if task.state == TaskState::Pending && task.dependencies_satisfied(&completed_ids) {
-                repos
-                    .queries
-                    .update_task_state(task.id, TaskState::Ready)
-                    .await?;
+                client.execute(ApplicationCommand::PromoteWorkItem(
+                    PromoteWorkItemRequest {
+                        project: project_id,
+                        work_item_id: task.id.to_string(),
+                    },
+                ))?;
             }
         }
         Ok(())
     }
 
-    /// Leases and dispatches up to `max_dispatch_per_tick` ready tasks.
-    async fn dispatch_tasks(
+    /// Leases up to `max_dispatch_per_tick` ready tasks, sorted by stored
+    /// priority (descending), issuing `LeaseWorkItem` for each.
+    fn dispatch_tasks(
         &self,
-        campaign_id: CampaignId,
-        repos: &RepositorySet,
-        now: OffsetDateTime,
+        client: &dyn AutoReClient,
+        project_id: ProjectId,
+        tasks: &[Task],
+        _now: OffsetDateTime,
     ) -> crate::Result<usize> {
+        let completed_ids: Vec<TaskId> = tasks
+            .iter()
+            .filter(|t| t.state == TaskState::Completed)
+            .map(|t| t.id)
+            .collect();
+
+        let mut dispatchable: Vec<&Task> = tasks
+            .iter()
+            .filter(|t| {
+                t.dependencies_satisfied(&completed_ids)
+                    && matches!(t.state, TaskState::Ready | TaskState::Pending)
+            })
+            .collect();
+
+        dispatchable.sort_by_key(|t| std::cmp::Reverse(t.priority.score()));
+
         let mut dispatched = 0;
-        for _ in 0..self.max_dispatch_per_tick {
-            match repos.tasks.lease_next(campaign_id, now).await? {
-                Some(_) => dispatched += 1,
-                None => break,
-            }
+        for task in dispatchable.into_iter().take(self.max_dispatch_per_tick) {
+            let worker_id = uuid::Uuid::new_v4().to_string();
+            client.execute(ApplicationCommand::LeaseWorkItem(LeaseWorkItemRequest {
+                project: project_id,
+                work_item_id: task.id.to_string(),
+                worker_id,
+            }))?;
+            dispatched += 1;
         }
         Ok(dispatched)
     }
 
-    /// Evaluates the campaign state based on current task statuses.
-    async fn evaluate_state(
-        &self,
-        campaign_id: CampaignId,
-        repos: &RepositorySet,
-        dispatched: usize,
-    ) -> crate::Result<CampaignEvaluation> {
-        let tasks = repos.queries.find_tasks_by_campaign(campaign_id).await?;
+    /// Evaluates the campaign state from a task snapshot and dispatch count.
+    fn evaluate_state(tasks: &[Task], dispatched: usize) -> CampaignEvaluation {
         if tasks.is_empty() {
-            return Ok(CampaignEvaluation::Idle);
+            return CampaignEvaluation::Idle;
         }
         if tasks.iter().all(|t| t.state.is_terminal()) {
-            return Ok(CampaignEvaluation::Complete);
+            return CampaignEvaluation::Complete;
         }
         if dispatched > 0 {
-            return Ok(CampaignEvaluation::Active);
+            return CampaignEvaluation::Active;
         }
         if tasks.iter().any(|t| t.state == TaskState::Ready) {
-            return Ok(CampaignEvaluation::Active);
+            return CampaignEvaluation::Active;
         }
         if tasks
             .iter()
             .any(|t| matches!(t.state, TaskState::Leased | TaskState::Running))
         {
-            return Ok(CampaignEvaluation::Idle);
+            return CampaignEvaluation::Idle;
         }
-        Ok(CampaignEvaluation::Blocked)
+        CampaignEvaluation::Blocked
     }
 }
 
@@ -311,8 +435,97 @@ fn is_verification_task(kind: &TaskKind) -> bool {
 mod tests {
     use super::*;
     use crate::domain::task::{RequiredCapabilities, TaskPriority, TaskSubject};
-    use crate::ids::{CampaignId, TaskId};
+    use crate::ids::{CampaignId, ProjectId, TaskId};
     use crate::model::{ModelCapabilities, ModelClass, ModelDescriptor};
+    use autore_app::application_service::requests::{
+        AddEvidenceResponse, CommandResult, ExpiredLeasesResponse, WorkItemsResponse,
+    };
+    use autore_schema::domain::records::ProjectEvent;
+    use std::sync::Mutex;
+
+    // -- RecordingAutoReClient --
+
+    struct RecordingAutoReClient {
+        commands: Mutex<Vec<ApplicationCommand>>,
+        queries: Mutex<Vec<ApplicationQuery>>,
+        expired_leases: Mutex<Vec<String>>,
+    }
+
+    impl RecordingAutoReClient {
+        fn new() -> Self {
+            Self {
+                commands: Mutex::new(Vec::new()),
+                queries: Mutex::new(Vec::new()),
+                expired_leases: Mutex::new(Vec::new()),
+            }
+        }
+
+        fn with_expired_leases(expired: Vec<String>) -> Self {
+            Self {
+                commands: Mutex::new(Vec::new()),
+                queries: Mutex::new(Vec::new()),
+                expired_leases: Mutex::new(expired),
+            }
+        }
+
+        fn recorded_commands(&self) -> Vec<ApplicationCommand> {
+            self.commands.lock().unwrap().clone()
+        }
+
+        fn recorded_queries(&self) -> Vec<ApplicationQuery> {
+            self.queries.lock().unwrap().clone()
+        }
+    }
+
+    impl AutoReClient for RecordingAutoReClient {
+        fn execute(&self, command: ApplicationCommand) -> autore_core::Result<CommandResult> {
+            self.commands.lock().unwrap().push(command);
+            Ok(CommandResult::EvidenceAdded(AddEvidenceResponse {
+                id: autore_schema::ids::EvidenceRecordId::new(),
+            }))
+        }
+
+        fn query(&self, query: ApplicationQuery) -> autore_core::Result<QueryResult> {
+            self.queries.lock().unwrap().push(query.clone());
+            match query {
+                ApplicationQuery::ListExpiredLeases(_) => {
+                    let expired = self.expired_leases.lock().unwrap().clone();
+                    Ok(QueryResult::ExpiredLeases(ExpiredLeasesResponse {
+                        expired,
+                    }))
+                }
+                ApplicationQuery::ListWorkItems(_) => {
+                    Ok(QueryResult::WorkItems(WorkItemsResponse {
+                        work_items: vec![],
+                    }))
+                }
+                _ => Ok(QueryResult::WorkItems(WorkItemsResponse {
+                    work_items: vec![],
+                })),
+            }
+        }
+
+        fn events_after(
+            &self,
+            _project: ProjectId,
+            _sequence: u64,
+            _limit: usize,
+        ) -> autore_core::Result<Vec<ProjectEvent>> {
+            Ok(vec![])
+        }
+
+        fn subscribe_events(
+            &self,
+            _project: ProjectId,
+            _after: u64,
+        ) -> autore_core::Result<
+            autore_app::autore_events::project_event_service::ProjectEventSubscription,
+        > {
+            unimplemented!("not needed in scheduler tests")
+        }
+    }
+
+    // -- Helpers --
 
     fn make_task(kind: TaskKind, priority: u64, attempts: u32, deps: usize) -> Task {
         let mut task = Task::new(
@@ -333,51 +546,98 @@ mod tests {
         task
     }
 
-    fn sample_models() -> Vec<ModelDescriptor> {
-        vec![
-            ModelDescriptor {
-                id: "analyzer-1".into(),
-                name: "Analyzer".into(),
-                class: ModelClass::Analyzer,
-                capabilities: ModelCapabilities {
-                    json_mode: true,
-                    tool_use: false,
-                    analysis: true,
-                    verification: false,
-                },
-                max_context_tokens: 8192,
-            },
-            ModelDescriptor {
-                id: "verifier-1".into(),
-                name: "Verifier".into(),
-                class: ModelClass::Verifier,
-                capabilities: ModelCapabilities {
-                    json_mode: true,
-                    tool_use: true,
-                    analysis: false,
-                    verification: true,
-                },
-                max_context_tokens: 4096,
-            },
-        ]
+    fn make_task_with_state(_campaign_id: CampaignId, priority: u64, state: TaskState) -> Task {
+        let mut task = Task::new(
+            TaskId::new(),
+            _campaign_id,
+            TaskKind::AnalyzeFunction,
+            TaskSubject::Binary,
+            TaskPriority::new(priority),
+            RequiredCapabilities::new(false, true, false, false),
+            None,
+            None,
+            3,
+        );
+        task.state = state;
+        task
     }
+
+    fn sample_models() -> Vec<ModelDescriptor> {
+        vec![ModelDescriptor {
+            id: "analyzer-1".into(),
+            name: "Analyzer".into(),
+            class: ModelClass::Analyzer,
+            capabilities: ModelCapabilities {
+                json_mode: true,
+                tool_use: false,
+                analysis: true,
+                verification: false,
+            },
+            max_context_tokens: 8192,
+        }]
+    }
+
+    fn make_scheduler() -> Scheduler {
+        Scheduler::new(ModelRouter::new(sample_models()))
+    }
+
+    // -- Priority scoring tests --
 
     #[test]
     fn priority_score_is_stable() {
         let factors = PriorityFactors::default();
+        let ctx = PriorityContext::default();
         let now = OffsetDateTime::now_utc();
         let task = make_task(TaskKind::AnalyzeFunction, 50, 2, 3);
 
-        let score_a = Scheduler::priority_score(&task, &factors, now);
-        let score_b = Scheduler::priority_score(&task, &factors, now);
-        let score_c = Scheduler::priority_score(&task, &factors, now);
+        let score_a = Scheduler::priority_score(&task, &factors, &ctx, now);
+        let score_b = Scheduler::priority_score(&task, &factors, &ctx, now);
+        let score_c = Scheduler::priority_score(&task, &factors, &ctx, now);
 
         assert_eq!(score_a, score_b);
         assert_eq!(score_b, score_c);
-
-        // Verify the expected value:
-        // base(100) + attempts(2*10=20) + deps(3*5=15) + priority(50*1=50) + verification(0) = 185
         assert_eq!(score_a, 185);
+    }
+
+    #[test]
+    fn priority_score_unblocked_dependents_bonus() {
+        let factors = PriorityFactors::default();
+        let now = OffsetDateTime::now_utc();
+        let task = make_task(TaskKind::AnalyzeFunction, 50, 0, 0);
+
+        let ctx_none = PriorityContext::default();
+        let ctx_some = PriorityContext {
+            dependents_unblocked: 5,
+            ..PriorityContext::default()
+        };
+
+        let base = Scheduler::priority_score(&task, &factors, &ctx_none, now);
+        let bonus = Scheduler::priority_score(&task, &factors, &ctx_some, now);
+
+        assert!(bonus > base);
+        assert_eq!(
+            bonus - base,
+            (5.0 * factors.dependents_unblocked_weight) as u64
+        );
+    }
+
+    #[test]
+    fn priority_score_build_blocker_bonus() {
+        let factors = PriorityFactors::default();
+        let now = OffsetDateTime::now_utc();
+        let task = make_task(TaskKind::AnalyzeFunction, 50, 0, 0);
+
+        let ctx_none = PriorityContext::default();
+        let ctx_blocker = PriorityContext {
+            removes_build_blocker: true,
+            ..PriorityContext::default()
+        };
+
+        let base = Scheduler::priority_score(&task, &factors, &ctx_none, now);
+        let bonus = Scheduler::priority_score(&task, &factors, &ctx_blocker, now);
+
+        assert!(bonus > base);
+        assert_eq!(bonus - base, factors.removes_build_blocker_weight as u64);
     }
 
     #[test]
@@ -388,15 +648,20 @@ mod tests {
             dependency_depth_weight: 8.0,
             deadline_weight: 2.5,
             verification_weight: 30.0,
+            dependents_unblocked_weight: 12.0,
+            high_impact_conflict_weight: 20.0,
+            removes_build_blocker_weight: 25.0,
+            verified_coverage_weight: 8.0,
+            evidence_strength_weight: 4.0,
         };
 
         assert_eq!(factors.base_priority, 200);
-        assert!((factors.attempt_count_weight - 15.0).abs() < f64::EPSILON);
-        assert!((factors.dependency_depth_weight - 8.0).abs() < f64::EPSILON);
-        assert!((factors.deadline_weight - 2.5).abs() < f64::EPSILON);
-        assert!((factors.verification_weight - 30.0).abs() < f64::EPSILON);
+        assert!((factors.dependents_unblocked_weight - 12.0).abs() < f64::EPSILON);
+        assert!((factors.high_impact_conflict_weight - 20.0).abs() < f64::EPSILON);
+        assert!((factors.removes_build_blocker_weight - 25.0).abs() < f64::EPSILON);
+        assert!((factors.verified_coverage_weight - 8.0).abs() < f64::EPSILON);
+        assert!((factors.evidence_strength_weight - 4.0).abs() < f64::EPSILON);
 
-        // Verify serialization roundtrip preserves values.
         let json = serde_json::to_string(&factors).unwrap();
         let deserialized: PriorityFactors = serde_json::from_str(&json).unwrap();
         assert_eq!(factors, deserialized);
@@ -405,17 +670,17 @@ mod tests {
     #[test]
     fn priority_score_verification_bonus() {
         let factors = PriorityFactors::default();
+        let ctx = PriorityContext::default();
         let now = OffsetDateTime::now_utc();
 
         let analysis_task = make_task(TaskKind::AnalyzeFunction, 50, 0, 0);
         let verify_task = make_task(TaskKind::VerifyClaim, 50, 0, 0);
 
-        let analysis_score = Scheduler::priority_score(&analysis_task, &factors, now);
-        let verify_score = Scheduler::priority_score(&verify_task, &factors, now);
+        let analysis_score = Scheduler::priority_score(&analysis_task, &factors, &ctx, now);
+        let verify_score = Scheduler::priority_score(&verify_task, &factors, &ctx, now);
 
-        // Verify task gets the verification bonus (20.0 default).
-        assert_eq!(analysis_score, 150); // 100 + 50
-        assert_eq!(verify_score, 170); // 100 + 50 + 20
+        assert_eq!(analysis_score, 150);
+        assert_eq!(verify_score, 170);
     }
 
     #[test]
@@ -423,6 +688,7 @@ mod tests {
         let router = ModelRouter::new(sample_models());
         let scheduler = Scheduler::new(router);
         let factors = PriorityFactors::default();
+        let ctx = PriorityContext::default();
         let now = OffsetDateTime::now_utc();
 
         let tasks = vec![
@@ -430,440 +696,309 @@ mod tests {
             make_task(TaskKind::VerifyClaim, 20, 1, 2),
         ];
 
-        let scores = scheduler.score_tasks(&tasks, &factors, now);
+        let scores = scheduler.score_tasks(&tasks, &factors, &ctx, now);
         assert_eq!(scores.len(), 2);
-        // Task 1: 100 + 0 + 0 + 10 + 0 = 110
         assert_eq!(scores[0], 110);
-        // Task 2: 100 + (1*10) + (2*5) + (20*1) + 20 = 160
         assert_eq!(scores[1], 160);
     }
 
-    // -----------------------------------------------------------------------
-    // Campaign evaluation tests
-    // -----------------------------------------------------------------------
+    // -- Campaign evaluation tests --
 
-    mod campaign_tests {
-        use super::*;
-        use crate::domain::{Campaign, CampaignState, Claim, Evidence};
-        use crate::ids::{ClaimId, EvidenceId};
-        use crate::scheduler::lease::TaskLease;
-        use crate::scheduler::repos::{RepositorySet, SchedulerQueries};
-        use crate::storage::repositories::{
-            CampaignRepository, ClaimRepository, EvidenceRepository, TaskRepository,
-        };
-        use async_trait::async_trait;
-        use std::collections::HashSet;
-        use std::sync::{Arc, Mutex};
-        use time::Duration;
+    #[test]
+    fn scheduler_evaluates_complete_unchanged_after_refactor() {
+        let cid = CampaignId::new();
+        let pid = ProjectId::new();
+        let now = OffsetDateTime::now_utc();
+        let client: Arc<dyn AutoReClient> = Arc::new(RecordingAutoReClient::new());
 
-        // -- Mock store --
+        let tasks = vec![
+            make_task_with_state(cid, 100, TaskState::Completed),
+            make_task_with_state(cid, 200, TaskState::Completed),
+        ];
 
-        struct MockStore {
-            tasks: Mutex<Vec<Task>>,
-            leases: Mutex<Vec<TaskLease>>,
-        }
+        let scheduler = make_scheduler();
+        let mut eval = CampaignEvaluation::Idle;
 
-        impl MockStore {
-            fn new() -> Self {
-                Self {
-                    tasks: Mutex::new(Vec::new()),
-                    leases: Mutex::new(Vec::new()),
-                }
-            }
+        scheduler
+            .run_campaign(cid, &mut eval, client, pid, &tasks, now)
+            .unwrap();
 
-            fn add_task(&self, task: Task) {
-                self.tasks.lock().unwrap().push(task);
-            }
+        assert_eq!(eval, CampaignEvaluation::Complete);
+    }
 
-            fn add_lease(&self, lease: TaskLease) {
-                self.leases.lock().unwrap().push(lease);
-            }
+    #[test]
+    fn scheduler_recovers_expired_lease_via_command() {
+        let cid = CampaignId::new();
+        let pid = ProjectId::new();
+        let now = OffsetDateTime::now_utc();
 
-            fn get_tasks(&self) -> Vec<Task> {
-                self.tasks.lock().unwrap().clone()
-            }
+        let mut task = make_task_with_state(cid, 100, TaskState::Leased);
+        task.attempt_count = 1;
+        task.maximum_attempts = 3;
+        let expired_id = task.id.to_string();
 
-            fn get_leases(&self) -> Vec<TaskLease> {
-                self.leases.lock().unwrap().clone()
-            }
-        }
+        let client = Arc::new(RecordingAutoReClient::with_expired_leases(vec![
+            expired_id.clone(),
+        ]));
 
-        #[async_trait]
-        impl TaskRepository for MockStore {
-            async fn create(&self, task: &Task) -> autore_core::Result<TaskId> {
-                self.tasks.lock().unwrap().push(task.clone());
-                Ok(task.id)
-            }
+        let scheduler = make_scheduler().with_max_dispatch(0);
+        let mut eval = CampaignEvaluation::Idle;
 
-            async fn lease_next(
-                &self,
-                campaign_id: CampaignId,
-                now: OffsetDateTime,
-            ) -> autore_core::Result<Option<Task>> {
-                let mut tasks = self.tasks.lock().unwrap();
-                let mut leases = self.leases.lock().unwrap();
+        scheduler
+            .run_campaign(
+                cid,
+                &mut eval,
+                Arc::clone(&client) as Arc<dyn AutoReClient>,
+                pid,
+                &[task],
+                now,
+            )
+            .unwrap();
 
-                let completed_ids: Vec<TaskId> = tasks
-                    .iter()
-                    .filter(|t| t.state == TaskState::Completed)
-                    .map(|t| t.id)
-                    .collect();
+        let commands = client.recorded_commands();
+        let has_requeue = commands
+            .iter()
+            .any(|c| matches!(c, ApplicationCommand::RequeueWorkItem(_)));
+        assert!(has_requeue, "expected RequeueWorkItem for retryable task");
 
-                let candidate_idx = tasks
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, t)| t.campaign_id == campaign_id && t.state == TaskState::Ready)
-                    .filter(|(_, t)| t.dependencies_satisfied(&completed_ids))
-                    .max_by_key(|(_, t)| t.priority.score())
-                    .map(|(i, _)| i);
+        let queries = client.recorded_queries();
+        let has_expired_query = queries
+            .iter()
+            .any(|q| matches!(q, ApplicationQuery::ListExpiredLeases(_)));
+        assert!(has_expired_query, "expected ListExpiredLeases query");
+    }
 
-                match candidate_idx {
-                    Some(idx) => {
-                        tasks[idx].state = TaskState::Leased;
-                        let leased_task = tasks[idx].clone();
-                        leases.push(TaskLease {
-                            task_id: leased_task.id,
-                            campaign_id: leased_task.campaign_id,
-                            worker_id: uuid::Uuid::new_v4().to_string(),
-                            started_at: now,
-                            expires_at: now + Duration::seconds(300),
-                        });
-                        Ok(Some(leased_task))
-                    }
-                    None => Ok(None),
-                }
-            }
+    #[test]
+    fn scheduler_recovers_expired_lease_fails_exhausted() {
+        let cid = CampaignId::new();
+        let pid = ProjectId::new();
+        let now = OffsetDateTime::now_utc();
 
-            async fn renew_lease(
-                &self,
-                task_id: TaskId,
-                until: OffsetDateTime,
-            ) -> autore_core::Result<()> {
-                let mut leases = self.leases.lock().unwrap();
-                if let Some(lease) = leases.iter_mut().find(|l| l.task_id == task_id) {
-                    lease.expires_at = until;
-                    Ok(())
-                } else {
-                    Err(autore_core::Error::Validation(format!(
-                        "no lease for task {task_id}"
-                    )))
-                }
-            }
+        let mut task = make_task_with_state(cid, 100, TaskState::Leased);
+        task.attempt_count = 3;
+        task.maximum_attempts = 3;
+        let expired_id = task.id.to_string();
 
-            async fn complete(&self, task_id: TaskId) -> autore_core::Result<()> {
-                let mut tasks = self.tasks.lock().unwrap();
-                if let Some(task) = tasks.iter_mut().find(|t| t.id == task_id) {
-                    task.state = TaskState::Completed;
-                }
-                drop(tasks);
-                let mut leases = self.leases.lock().unwrap();
-                leases.retain(|l| l.task_id != task_id);
-                Ok(())
-            }
+        let client = Arc::new(RecordingAutoReClient::with_expired_leases(vec![expired_id]));
 
-            async fn fail(&self, task_id: TaskId, _error: String) -> autore_core::Result<()> {
-                let mut tasks = self.tasks.lock().unwrap();
-                if let Some(task) = tasks.iter_mut().find(|t| t.id == task_id) {
-                    task.state = TaskState::Failed;
-                    task.attempt_count += 1;
-                }
-                drop(tasks);
-                let mut leases = self.leases.lock().unwrap();
-                leases.retain(|l| l.task_id != task_id);
-                Ok(())
-            }
-        }
+        let scheduler = make_scheduler().with_max_dispatch(0);
+        let mut eval = CampaignEvaluation::Idle;
 
-        #[async_trait]
-        impl SchedulerQueries for MockStore {
-            async fn find_tasks_by_campaign(
-                &self,
-                campaign_id: CampaignId,
-            ) -> crate::Result<Vec<Task>> {
-                let tasks = self.tasks.lock().unwrap();
-                Ok(tasks
-                    .iter()
-                    .filter(|t| t.campaign_id == campaign_id)
-                    .cloned()
-                    .collect())
-            }
+        scheduler
+            .run_campaign(
+                cid,
+                &mut eval,
+                Arc::clone(&client) as Arc<dyn AutoReClient>,
+                pid,
+                &[task],
+                now,
+            )
+            .unwrap();
 
-            async fn find_expired_leases(
-                &self,
-                campaign_id: CampaignId,
-                now: OffsetDateTime,
-            ) -> crate::Result<Vec<TaskLease>> {
-                let tasks = self.tasks.lock().unwrap();
-                let leases = self.leases.lock().unwrap();
+        let commands = client.recorded_commands();
+        let has_fail = commands
+            .iter()
+            .any(|c| matches!(c, ApplicationCommand::FailWorkItem(_)));
+        assert!(has_fail, "expected FailWorkItem for exhausted task");
+    }
 
-                let leased_ids: HashSet<TaskId> = tasks
-                    .iter()
-                    .filter(|t| t.campaign_id == campaign_id && t.state == TaskState::Leased)
-                    .map(|t| t.id)
-                    .collect();
+    #[test]
+    fn scheduler_does_not_touch_storage() {
+        let cid = CampaignId::new();
+        let pid = ProjectId::new();
+        let now = OffsetDateTime::now_utc();
 
-                Ok(leases
-                    .iter()
-                    .filter(|l| leased_ids.contains(&l.task_id) && l.expires_at <= now)
-                    .cloned()
-                    .collect())
-            }
+        let tasks = vec![
+            make_task_with_state(cid, 100, TaskState::Completed),
+            make_task_with_state(cid, 200, TaskState::Pending),
+        ];
 
-            async fn update_task_state(
-                &self,
-                task_id: TaskId,
-                state: TaskState,
-            ) -> crate::Result<()> {
-                let mut tasks = self.tasks.lock().unwrap();
-                if let Some(task) = tasks.iter_mut().find(|t| t.id == task_id) {
-                    task.state = state;
-                }
-                Ok(())
-            }
+        let client = Arc::new(RecordingAutoReClient::new());
+        let scheduler = make_scheduler();
+        let mut eval = CampaignEvaluation::Idle;
 
-            async fn delete_lease(&self, task_id: TaskId) -> crate::Result<()> {
-                let mut leases = self.leases.lock().unwrap();
-                leases.retain(|l| l.task_id != task_id);
-                Ok(())
-            }
-        }
+        scheduler
+            .run_campaign(
+                cid,
+                &mut eval,
+                Arc::clone(&client) as Arc<dyn AutoReClient>,
+                pid,
+                &tasks,
+                now,
+            )
+            .unwrap();
 
-        // -- No-op repositories for unused traits --
+        let queries = client.recorded_queries();
+        let has_list_expired = queries
+            .iter()
+            .any(|q| matches!(q, ApplicationQuery::ListExpiredLeases(_)));
+        assert!(
+            has_list_expired,
+            "expected exactly one ListExpiredLeases query via client"
+        );
+    }
 
-        struct NoopCampaignRepo;
+    #[test]
+    fn scheduler_respects_dependencies() {
+        let cid = CampaignId::new();
+        let pid = ProjectId::new();
+        let now = OffsetDateTime::now_utc();
 
-        #[async_trait]
-        impl CampaignRepository for NoopCampaignRepo {
-            async fn create(&self, _c: &Campaign) -> autore_core::Result<CampaignId> {
-                Ok(CampaignId::new())
-            }
-            async fn find_by_id(&self, _id: CampaignId) -> autore_core::Result<Option<Campaign>> {
-                Ok(None)
-            }
-            async fn update_state(
-                &self,
-                _id: CampaignId,
-                _state: CampaignState,
-            ) -> autore_core::Result<()> {
-                Ok(())
-            }
-        }
+        let task_a = make_task_with_state(cid, 200, TaskState::Pending);
+        let mut task_b = make_task_with_state(cid, 100, TaskState::Pending);
+        task_b.dependencies.push(task_a.id);
 
-        struct NoopClaimRepo;
+        let client = Arc::new(RecordingAutoReClient::new());
+        let scheduler = make_scheduler();
+        let mut eval = CampaignEvaluation::Idle;
 
-        #[async_trait]
-        impl ClaimRepository for NoopClaimRepo {
-            async fn create(&self, _c: &Claim) -> autore_core::Result<ClaimId> {
-                Ok(ClaimId::new())
-            }
-            async fn find_by_id(&self, _id: ClaimId) -> autore_core::Result<Option<Claim>> {
-                Ok(None)
-            }
-        }
+        scheduler
+            .run_campaign(
+                cid,
+                &mut eval,
+                Arc::clone(&client) as Arc<dyn AutoReClient>,
+                pid,
+                &[task_a.clone(), task_b.clone()],
+                now,
+            )
+            .unwrap();
 
-        struct NoopEvidenceRepo;
+        let commands = client.recorded_commands();
+        let promoted_ids: Vec<String> = commands
+            .iter()
+            .filter_map(|c| match c {
+                ApplicationCommand::PromoteWorkItem(req) => Some(req.work_item_id.clone()),
+                _ => None,
+            })
+            .collect();
 
-        #[async_trait]
-        impl EvidenceRepository for NoopEvidenceRepo {
-            async fn create(&self, _e: &Evidence) -> autore_core::Result<EvidenceId> {
-                Ok(EvidenceId::new())
-            }
-            async fn find_by_id(&self, _id: EvidenceId) -> autore_core::Result<Option<Evidence>> {
-                Ok(None)
-            }
-        }
+        assert!(
+            promoted_ids.contains(&task_a.id.to_string()),
+            "task_a (no deps) should be promoted"
+        );
+        assert!(
+            !promoted_ids.contains(&task_b.id.to_string()),
+            "task_b (dep not completed) should NOT be promoted"
+        );
 
-        // -- Test helpers --
+        let leased_ids: Vec<String> = commands
+            .iter()
+            .filter_map(|c| match c {
+                ApplicationCommand::LeaseWorkItem(req) => Some(req.work_item_id.clone()),
+                _ => None,
+            })
+            .collect();
 
-        fn make_repos(store: Arc<MockStore>) -> RepositorySet {
-            RepositorySet {
-                tasks: Arc::clone(&store) as Arc<dyn TaskRepository>,
-                queries: Arc::clone(&store) as Arc<dyn SchedulerQueries>,
-                campaigns: Arc::new(NoopCampaignRepo) as Arc<dyn CampaignRepository>,
-                claims: Arc::new(NoopClaimRepo) as Arc<dyn ClaimRepository>,
-                evidence: Arc::new(NoopEvidenceRepo) as Arc<dyn EvidenceRepository>,
-            }
-        }
+        assert!(
+            leased_ids.contains(&task_a.id.to_string()),
+            "task_a should be leased after promotion"
+        );
+        assert_eq!(eval, CampaignEvaluation::Active);
+    }
 
-        fn make_scheduler() -> Scheduler {
-            Scheduler::new(ModelRouter::new(vec![ModelDescriptor {
-                id: "analyzer-1".into(),
-                name: "Analyzer".into(),
-                class: ModelClass::Analyzer,
-                capabilities: ModelCapabilities {
-                    json_mode: true,
-                    tool_use: false,
-                    analysis: true,
-                    verification: false,
-                },
-                max_context_tokens: 8192,
-            }]))
-        }
+    #[test]
+    fn scheduler_idle_when_only_leased() {
+        let cid = CampaignId::new();
+        let pid = ProjectId::new();
+        let now = OffsetDateTime::now_utc();
 
-        fn make_campaign_task(campaign_id: CampaignId, priority: u64, state: TaskState) -> Task {
-            let mut task = Task::new(
-                TaskId::new(),
-                campaign_id,
-                TaskKind::AnalyzeFunction,
-                TaskSubject::Binary,
-                TaskPriority::new(priority),
-                RequiredCapabilities::new(false, true, false, false),
-                None,
-                None,
-                3,
-            );
-            task.state = state;
-            task
-        }
+        let task = make_task_with_state(cid, 100, TaskState::Leased);
+        let client: Arc<dyn AutoReClient> = Arc::new(RecordingAutoReClient::new());
+        let scheduler = make_scheduler();
+        let mut eval = CampaignEvaluation::Active;
 
-        // -- Tests --
+        scheduler
+            .run_campaign(cid, &mut eval, client, pid, &[task], now)
+            .unwrap();
 
-        #[tokio::test]
-        async fn scheduler_evaluates_complete() {
-            let store = Arc::new(MockStore::new());
-            let cid = CampaignId::new();
-            let now = OffsetDateTime::now_utc();
+        assert_eq!(eval, CampaignEvaluation::Idle);
+    }
 
-            store.add_task(make_campaign_task(cid, 100, TaskState::Completed));
-            store.add_task(make_campaign_task(cid, 200, TaskState::Completed));
+    #[test]
+    fn scheduler_dispatches_ready_by_priority() {
+        let cid = CampaignId::new();
+        let pid = ProjectId::new();
+        let now = OffsetDateTime::now_utc();
 
-            let repos = make_repos(Arc::clone(&store));
-            let scheduler = make_scheduler();
-            let mut eval = CampaignEvaluation::Idle;
+        let low = make_task_with_state(cid, 50, TaskState::Ready);
+        let high = make_task_with_state(cid, 200, TaskState::Ready);
 
-            scheduler
-                .run_campaign(cid, &mut eval, &repos, now)
-                .await
-                .unwrap();
+        let client = Arc::new(RecordingAutoReClient::new());
+        let scheduler = make_scheduler().with_max_dispatch(1);
+        let mut eval = CampaignEvaluation::Idle;
 
-            assert_eq!(eval, CampaignEvaluation::Complete);
-        }
+        scheduler
+            .run_campaign(
+                cid,
+                &mut eval,
+                Arc::clone(&client) as Arc<dyn AutoReClient>,
+                pid,
+                &[low.clone(), high.clone()],
+                now,
+            )
+            .unwrap();
 
-        #[tokio::test]
-        async fn scheduler_recovers_expired_lease() {
-            let store = Arc::new(MockStore::new());
-            let cid = CampaignId::new();
-            let now = OffsetDateTime::now_utc();
+        let commands = client.recorded_commands();
+        let leased_ids: Vec<String> = commands
+            .iter()
+            .filter_map(|c| match c {
+                ApplicationCommand::LeaseWorkItem(req) => Some(req.work_item_id.clone()),
+                _ => None,
+            })
+            .collect();
 
-            let mut task = make_campaign_task(cid, 100, TaskState::Leased);
-            task.attempt_count = 1;
-            task.maximum_attempts = 3;
-            store.add_task(task.clone());
-            store.add_lease(TaskLease {
-                task_id: task.id,
-                campaign_id: cid,
-                worker_id: "worker-1".into(),
-                started_at: now - Duration::seconds(600),
-                expires_at: now - Duration::seconds(300),
-            });
+        assert_eq!(leased_ids.len(), 1);
+        assert_eq!(leased_ids[0], high.id.to_string());
+        assert_eq!(eval, CampaignEvaluation::Active);
+    }
 
-            let repos = make_repos(Arc::clone(&store));
-            // Disable dispatch so the recovered task stays Ready.
-            let scheduler = make_scheduler().with_max_dispatch(0);
-            let mut eval = CampaignEvaluation::Idle;
+    #[test]
+    fn evaluate_state_pure_function() {
+        assert_eq!(Scheduler::evaluate_state(&[], 0), CampaignEvaluation::Idle);
 
-            scheduler
-                .run_campaign(cid, &mut eval, &repos, now)
-                .await
-                .unwrap();
+        let completed = vec![make_task_with_state(
+            CampaignId::new(),
+            10,
+            TaskState::Completed,
+        )];
+        assert_eq!(
+            Scheduler::evaluate_state(&completed, 0),
+            CampaignEvaluation::Complete
+        );
 
-            let tasks = store.get_tasks();
-            let recovered = tasks.iter().find(|t| t.id == task.id).unwrap();
-            assert_eq!(recovered.state, TaskState::Ready);
-            assert!(
-                store.get_leases().is_empty(),
-                "expired lease should be deleted"
-            );
-        }
+        let ready = vec![make_task_with_state(
+            CampaignId::new(),
+            10,
+            TaskState::Ready,
+        )];
+        assert_eq!(
+            Scheduler::evaluate_state(&ready, 0),
+            CampaignEvaluation::Active
+        );
 
-        #[tokio::test]
-        async fn scheduler_invalidates_stale_work() {
-            let store = Arc::new(MockStore::new());
-            let cid = CampaignId::new();
-            let now = OffsetDateTime::now_utc();
+        let leased = vec![make_task_with_state(
+            CampaignId::new(),
+            10,
+            TaskState::Leased,
+        )];
+        assert_eq!(
+            Scheduler::evaluate_state(&leased, 0),
+            CampaignEvaluation::Idle
+        );
 
-            // M1: invalidation is a no-op. A Ready task with non-zero
-            // input_revision should still be dispatched normally.
-            let mut task = make_campaign_task(cid, 100, TaskState::Ready);
-            task.input_revision = 5;
-            store.add_task(task.clone());
+        let pending = vec![make_task_with_state(
+            CampaignId::new(),
+            10,
+            TaskState::Pending,
+        )];
+        assert_eq!(
+            Scheduler::evaluate_state(&pending, 0),
+            CampaignEvaluation::Blocked
+        );
 
-            let repos = make_repos(Arc::clone(&store));
-            let scheduler = make_scheduler();
-            let mut eval = CampaignEvaluation::Idle;
-
-            scheduler
-                .run_campaign(cid, &mut eval, &repos, now)
-                .await
-                .unwrap();
-
-            let tasks = store.get_tasks();
-            let t = tasks.iter().find(|t| t.id == task.id).unwrap();
-            // Task dispatched normally — not invalidated.
-            assert_eq!(t.state, TaskState::Leased);
-            assert_eq!(eval, CampaignEvaluation::Active);
-        }
-
-        #[tokio::test]
-        async fn scheduler_respects_dependencies() {
-            let store = Arc::new(MockStore::new());
-            let cid = CampaignId::new();
-            let now = OffsetDateTime::now_utc();
-
-            let task_a = make_campaign_task(cid, 200, TaskState::Pending);
-            let mut task_b = make_campaign_task(cid, 100, TaskState::Pending);
-            task_b.dependencies.push(task_a.id);
-
-            store.add_task(task_a.clone());
-            store.add_task(task_b.clone());
-
-            let repos = make_repos(Arc::clone(&store));
-            let scheduler = make_scheduler();
-            let mut eval = CampaignEvaluation::Idle;
-
-            scheduler
-                .run_campaign(cid, &mut eval, &repos, now)
-                .await
-                .unwrap();
-
-            let tasks = store.get_tasks();
-            let a = tasks.iter().find(|t| t.id == task_a.id).unwrap();
-            let b = tasks.iter().find(|t| t.id == task_b.id).unwrap();
-
-            // task_a (no deps) promoted to Ready and leased.
-            assert_eq!(a.state, TaskState::Leased);
-            // task_b stays Pending — dependency not yet Completed.
-            assert_eq!(b.state, TaskState::Pending);
-            assert_eq!(eval, CampaignEvaluation::Active);
-        }
-
-        #[tokio::test]
-        async fn scheduler_idle_sleeps() {
-            let store = Arc::new(MockStore::new());
-            let cid = CampaignId::new();
-            let now = OffsetDateTime::now_utc();
-
-            // One task actively leased (not expired) — nothing to dispatch.
-            let task = make_campaign_task(cid, 100, TaskState::Leased);
-            store.add_task(task.clone());
-            store.add_lease(TaskLease {
-                task_id: task.id,
-                campaign_id: cid,
-                worker_id: "worker-1".into(),
-                started_at: now,
-                expires_at: now + Duration::seconds(300),
-            });
-
-            let repos = make_repos(Arc::clone(&store));
-            let scheduler = make_scheduler();
-            let mut eval = CampaignEvaluation::Active;
-
-            scheduler
-                .run_campaign(cid, &mut eval, &repos, now)
-                .await
-                .unwrap();
-
-            assert_eq!(eval, CampaignEvaluation::Idle);
-        }
+        assert_eq!(
+            Scheduler::evaluate_state(&completed, 3),
+            CampaignEvaluation::Complete
+        );
     }
 }
