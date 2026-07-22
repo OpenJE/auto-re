@@ -2,13 +2,17 @@
 
 `auto-re` is a reverse-engineering project manager. It tracks binary artifacts, semantic entities, evidence, hypotheses, contradictions, and verifications across a project's lifetime, with an append-only event log as the source of truth.
 
-Stage 0 delivers the domain ontology, SQLite storage, application service, CLI, and TUI. Operational code (IDA integration, model providers, scheduler, worker runner) lives in `autore-stage1` and is excluded from the default workspace build.
+Stage 0 delivers the domain ontology, SQLite storage, application service, CLI, and TUI. Stage 1 adds the reconstruction pipeline: provider substrate (gRPC protocol, runtime, coordinator), pluggable analysis/model/build providers, work graph scheduling, managed C++ generation, and differential verification.
 
 ## Quick start
 
 ```bash
-# Build the default workspace (excludes autore-stage1)
+# Build the default workspace (Stage 0 crates)
 cargo build
+
+# Build the full workspace including Stage 1 crates
+# Stage 1 crates require protoc for gRPC codegen:
+PROTOC=/tmp/opencode/protoc/bin/protoc cargo build --workspace
 
 # Create a new project in the current directory
 cargo run -p autore-cli -- project create --name my-binary
@@ -25,7 +29,15 @@ cargo run -p autore-cli -- entity add --kind core.function --display-name main
 # Run project-wide validation
 cargo run -p autore-cli -- project validate
 
-# Launch the TUI
+# Start a reconstruction campaign (Stage 1)
+PROTOC=/tmp/opencode/protoc/bin/protoc cargo run -p autore-cli -- reconstruct start \
+  --binary ./target/debug/my-binary \
+  --output ./generated \
+  --analysis-provider ida:latest \
+  --model-provider gpt-4o \
+  --build-profile release
+
+# Launch the TUI (12-pane dashboard with Stage 1 panes)
 cargo run -p autore-cli -- tui
 ```
 
@@ -48,7 +60,9 @@ The current schema version is `2.0`. Manifests with any other version are reject
 
 ## Architecture
 
-The workspace is split into eight crates:
+The workspace is split into fifteen crates:
+
+### Stage 0 crates (default members)
 
 | Crate | Role |
 |---|---|
@@ -58,8 +72,20 @@ The workspace is split into eight crates:
 | `autore-events` | Project event subscription and broadcast |
 | `autore-app` | `ApplicationService`, commands, queries, validation service, lifecycle |
 | `autore-cli` | Clap-based CLI binary (`auto-re`) |
-| `autore-tui` | Ratatui TUI with 7-pane dashboard |
-| `autore-stage1` | Deferred operational code (IDA, model providers, scheduler, workers) |
+| `autore-tui` | Ratatui TUI with 12-pane dashboard |
+| `autore-stage1` | Legacy operational code (retained for reference) |
+
+### Stage 1 crates (off `default-members`; require `PROTOC` for gRPC codegen)
+
+| Crate | Role |
+|---|---|
+| `autore-provider-protocol` | Versioned gRPC schema (`autore.provider.v1`) and codegen |
+| `autore-provider-runtime` | Provider bootstrap, lifecycle, auth, cancellation, limits |
+| `autore-reconstruction` | Coordinator, IDA ingestion, work graph, LLM analysis, generation, build, verification |
+| `fixture-provider` | Fixture provider binary for testing (5 capabilities) |
+| `ida-provider` | External IDA provider over idax (16 capabilities: 9 static + 7 debug) |
+| `openai-compatible-provider` | OpenAI-compatible LLM provider (13 capabilities: 7 analysis + 6 generation) |
+| `build-provider` | cmkr/CMake/Docker-MSVC2002 build provider |
 
 All mutations route through `ApplicationCommand`; all reads through `ApplicationQuery`. Each command and its resulting `ProjectEvent` commit atomically in a single SQLite transaction.
 
@@ -74,24 +100,27 @@ All mutations route through `ApplicationCommand`; all reads through `Application
 ## Building and testing
 
 ```bash
-# Build default members (excludes autore-stage1)
+# Build default members (Stage 0 crates)
 cargo build
 
-# Build everything including stage1
-cargo build --workspace
+# Build everything including Stage 1 crates (requires protoc)
+PROTOC=/tmp/opencode/protoc/bin/protoc cargo build --workspace
 
-# Run default-members tests (614 tests)
+# Run default-members tests (~800+ tests)
 cargo test --workspace --exclude autore-stage1
+
+# Run the full workspace test gate including ignored tests (~800+ tests)
+PROTOC=/tmp/opencode/protoc/bin/protoc cargo test --workspace -- --include-ignored
 
 # Run the PTY integration test separately
 cargo test -p autore-tui --test pty_integration -- --ignored --nocapture
 
 # Format and lint
 cargo fmt --all --check
-cargo clippy --workspace --exclude autore-stage1 --all-targets -- -D warnings
+PROTOC=/tmp/opencode/protoc/bin/protoc cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-`autore-stage1` is excluded from `default-members` because it depends on external SDKs. Build it explicitly with `cargo build -p autore-stage1`.
+Stage 1 crates are excluded from `default-members` because they depend on external SDKs and require `protoc` for gRPC codegen. Set `PROTOC=/tmp/opencode/protoc/bin/protoc` (or your system protoc path) when building or testing the full workspace.
 
 ## CLI usage
 
@@ -185,9 +214,62 @@ auto-re events list [--after <SEQ>] [--limit <N>] [--output json]
 auto-re tui
 ```
 
+### reconstruct (Stage 1)
+
+```bash
+auto-re reconstruct start --binary <PATH> --output <DIR> --analysis-provider <SPEC> --model-provider <SPEC> --build-profile <PROFILE>
+auto-re reconstruct status [--output json]
+auto-re reconstruct pause
+auto-re reconstruct resume
+auto-re reconstruct stop
+auto-re reconstruct validate [--output json]
+```
+
+### provider (Stage 1)
+
+```bash
+auto-re provider refresh
+auto-re provider list [--output json]
+auto-re provider show --id <ID> [--output json]
+auto-re provider start --installation-id <ID>
+auto-re provider stop --id <ID>
+auto-re provider restart --id <ID>
+auto-re provider health --id <ID> [--output json]
+```
+
+### work (Stage 1)
+
+```bash
+auto-re work list [--output json]
+auto-re work show --id <ID> [--output json]
+auto-re work blockers --id <ID> [--output json]
+auto-re work retry --id <ID>
+auto-re work dependencies --id <ID> [--output json]
+```
+
+### generated (Stage 1)
+
+```bash
+auto-re generated status [--output json]
+auto-re generated files [--output json]
+auto-re generated entity --id <ID> [--output json]
+```
+
+### build (Stage 1)
+
+```bash
+auto-re build latest [--output json]
+```
+
+### verification coverage (Stage 1)
+
+```bash
+auto-re verification coverage [--output json]
+```
+
 ## TUI usage
 
-The TUI is a 7-pane dashboard rendered with ratatui.
+The TUI is a 12-pane dashboard rendered with ratatui.
 
 ### Panes
 
@@ -200,6 +282,11 @@ The TUI is a 7-pane dashboard rendered with ratatui.
 | 5 | EventsLog | Project event stream |
 | 6 | MigrationHistory | Schema migration records |
 | 7 | ExternalArtifactIntegrity | External artifact verification status |
+| 8 | Campaign | Reconstruction campaign state, coverage, work items |
+| 9 | WorkQueue | Current work items, blocked items, stagnation reasons |
+| 10 | ActiveProviders | Running provider instances and health |
+| 11 | CompilerFailures | Recent build diagnostics and failures |
+| 12 | VerificationDiffs | Verification comparisons and generated source mappings |
 
 ### Keybindings
 
@@ -209,11 +296,21 @@ The TUI is a 7-pane dashboard rendered with ratatui.
 | `j` / `Down` | Select next item |
 | `k` / `Up` | Select previous item |
 | `Tab` | Cycle focus |
-| `Alt+1` .. `Alt+7` | Switch active pane |
-| `o` | Open selected project |
+| `Alt+1` .. `Alt+7` | Switch to pane 1-7 |
+| `Alt+8` | Switch to Campaign pane |
+| `Alt+9` | Switch to WorkQueue pane |
+| `Alt+0` | Switch to ActiveProviders pane |
+| `Alt+-` | Switch to CompilerFailures pane |
+| `Alt+=` | Switch to VerificationDiffs pane |
+| `o` | Open selected project / start campaign dialog |
 | `a` | Open artifact import dialog |
 | `A` | Accept selected hypothesis |
-| `c` | Cancel selected operation |
+| `c` / `n` | Cancel selected operation |
+| `p` | Pause reconstruction coordinator |
+| `r` | Resume reconstruction coordinator |
+| `X` | Stop reconstruction coordinator |
+| `R` | Requeue selected work item |
+| `P` | Open provider start/stop dialog |
 | `Enter` | Confirm dialog |
 | `Esc` | Cancel dialog |
 
@@ -232,23 +329,27 @@ The TUI is a 7-pane dashboard rendered with ratatui.
 - SQLite storage with refinery migrations and derived tables
 - Application service with atomic command + event transactions
 - CLI with all Stage 0 subcommands
-- TUI with 7-pane dashboard and live event subscription
+- TUI with 12-pane dashboard and live event subscription
 - V1 → V2 migration service
 
-**Stage 1** (`autore-stage1`, excluded from `default-members`) adds:
+**Stage 1** (implemented across 7 new crates, off `default-members`) adds:
 
-- IDA integration and analysis backends
-- Model providers and LLM routing
-- Lease-based scheduler
-- Worker runner
-- RE engine / IDAGraph
-- Headless CLI and campaign/task subcommands
+- Provider substrate: gRPC protocol (`autore-provider-protocol`), runtime with bootstrap/auth/lifecycle (`autore-provider-runtime`)
+- Pluggable providers: fixture (testing), IDA (16 capabilities over idax), OpenAI-compatible LLM (13 capabilities), cmkr/CMake/Docker-MSVC2002 build
+- Reconstruction coordinator (`autore-reconstruction`): IDA ingestion, work graph with SCC scheduling, LLM analysis, managed C++ generation, build orchestration, differential verification
+- CLI subcommands: `reconstruct`, `provider`, `work`, `generated`, `build`, `verification coverage`
+- TUI panes: Campaign, WorkQueue, ActiveProviders, CompilerFailures, VerificationDiffs
 
-Build stage 1 explicitly: `cargo build -p autore-stage1`.
+Stage 1 implementation details: `docs/stage1-report.md`, `docs/stage1-architectural-test.md`, `docs/stage1-completion-gate.md`.
 
 ## Further documentation
 
 - Stage 0 implementation report: `docs/stage0-report.md`
 - Stage 0 audit: `docs/stage0-audit.md`
+- Stage 1 implementation report (§22): `docs/stage1-report.md`
+- Stage 1 architectural test / pluggability proof (§23): `docs/stage1-architectural-test.md`
+- Stage 1 completion gate cross-check (§19): `docs/stage1-completion-gate.md`
+- Stage 1 retain/adapt/defer/remove audit: `docs/stage1-audit.md`
 - Notepad: `.omo/notepads/auto-re-stage-0/learnings.md`, `.omo/notepads/auto-re-stage-0/issues.md`
+- Stage 1 notepad: `.omo/notepads/auto-re-stage-1/learnings.md`, `.omo/notepads/auto-re-stage-1/issues.md`
 - Evidence: `.omo/evidence/task-39-auto-re-stage-0-gates.log` and sibling files
