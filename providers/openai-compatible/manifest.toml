@@ -1,0 +1,65 @@
+schema_version = 1
+package_id = "openai-compatible"
+version = "0.1.0"
+content_hash = "0000000000000000000000000000000000000000000000000000000000000000"
+entrypoint = "bin/openai-compatible-provider"
+protocol_range = [1, 1]
+configuration_schema = '{"type":"object","properties":{"endpoint_url":{"type":"string"},"api_key_ref":{"type":"string"},"model_name":{"type":"string"},"temperature":{"type":"number"},"max_tokens":{"type":"integer"}},"required":["api_key_ref"]}'
+
+[[capabilities]]
+capability_id = "llm.analysis.function"
+version = "1.0.0"
+name = "LLM Function Analysis"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "llm.analysis.type"
+version = "1.0.0"
+name = "LLM Type Analysis"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "llm.analysis.class"
+version = "1.0.0"
+name = "LLM Class Analysis"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "llm.analysis.subsystem"
+version = "1.0.0"
+name = "LLM Subsystem Analysis"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "llm.analysis.conflict"
+version = "1.0.0"
+name = "LLM Conflict Analysis"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "llm.analysis.failure"
+version = "1.0.0"
+name = "LLM Failure Analysis"
+request_schema = ""
+response_schema = ""
+
+[[capabilities]]
+capability_id = "llm.experiment.design"
+version = "1.0.0"
+name = "LLM Experiment Design"
+request_schema = ""
+response_schema = ""
+
+[max_concurrency]
+"llm.analysis.function" = 2
+"llm.analysis.type" = 2
+"llm.analysis.class" = 2
+"llm.analysis.subsystem" = 2
+"llm.analysis.conflict" = 2
+"llm.analysis.failure" = 2
+"llm.experiment.design" = 2

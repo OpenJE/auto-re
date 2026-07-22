@@ -112,3 +112,33 @@
 - **Scheduler types in `autore-stage1` not accessible from `autore-reconstruction`**: The `Scheduler`, `Task`, `TaskKind`, and `TaskState` types live in `autore-stage1` which is not a dependency of `autore-reconstruction`. The integration test simulates scheduler priority ordering using an inline priority function that mirrors the spec §7.4 ordering. A future cross-crate test (or moving scheduler to a shared crate) could use the real `Scheduler::priority_score`.
 - **`downstream_input_old` computed but not stored**: The fingerprint test computes `downstream_fp_old` for the `assert_ne!` comparison but the corresponding input is not inserted into the snapshot — only the NEW input is stored (simulating a generation event that changes the downstream's inputs). This is intentional: the snapshot represents the post-generation state.
 - **No blocking issues encountered**.
+
+## 2026-07-21 Wave 5 Todo 21 (OpenAI-compatible LLM provider)
+- **Pre-existing `autore-tui` clippy warning**: `clippy::large_enum_variant`
+  fires on `autore-tui/src/tui.rs:51` (`TuiEvent::Internal` is ≥416 bytes).
+  The workspace-wide clippy command from task F3
+  (`cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol
+  --exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider
+  --exclude autore-reconstruction --all-targets -- -D warnings`) fails on this
+  pre-existing issue. The new `openai-compatible-provider` crate itself is
+  clippy-clean. Fix: box `InternalTuiEvent` or move large payload behind a
+  `Box<_>`. Out of scope for Todo 21.
+- **`AUTORE_LLM_API_KEY_REF` must be set for real-world runs**: the
+  `ProviderConfig::from_env` default `env:AUTORE_LLM_API_KEY` causes
+  `resolve_key()` to fail at submit time unless the operator sets that
+  variable. Tests bypass this via `set_api_key_ref(...)`; production must
+  set the env var or switch the default to a file reference.
+- **No file-based key reference yet**: `resolve_key()` only handles
+  `env:VAR_NAME` references. Adding `file:/path/to/secret` is trivial
+  (read to string, trim newline) and should be done before a real
+  deployment but was deferred to keep this todo scoped.
+- **Schema-repair prompt is currently the same capability**: per spec §8.7
+  the retry may route to `llm.analysis.failure` with a `repair-context`
+  extension, but this implementation retries against the SAME capability
+  using the `schema-repair.handlebars` template — simpler and still
+  bounded-1. Could revisit if repair routing becomes a concern.
+- **Token usage metrics are zero**: `completed_succeeded` emits
+  `token_usage: {prompt_tokens: 0, completion_tokens: 0, total_tokens: 0}`
+  because the mock and most OpenAI-compatible servers (llama.cpp, Ollama)
+  return usage in different shapes. Parsing the real `usage` object from
+  the response root is a follow-up (likely Todo 25).

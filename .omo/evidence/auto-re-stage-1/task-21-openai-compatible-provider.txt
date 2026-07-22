@@ -1,0 +1,94 @@
+Task 21 — External OpenAI-compatible provider binary with 7 capabilities + bounded retry
+=========================================================================================
+
+Scope
+-----
+- New workspace member `providers/openai-compatible/` (NOT in default-members).
+- Binary + library crate: `openai-compatible-provider`.
+- 7 analysis capabilities per spec §8.2, JSON-Schema descriptors, prompt
+  templates, OpenAI-compatible REST client, bounded-1 retry with
+  schema-repair prompt, no plaintext secret persistence.
+
+Files added
+-----------
+- Cargo.toml (crate)
+- manifest.toml (package metadata + 7 capabilities + content-hash placeholder)
+- src/main.rs  — bootstrap protocol (UDS/TCP auth → negotiate → gRPC address)
+- src/lib.rs   — library target exposing modules for integration tests
+- src/provider.rs — gRPC Provider impl with 7 capabilities, Accepted/Progress/
+  Diagnostic/ObservationProduced/Completed event orchestration
+- src/llm.rs   — Responder trait (dyn-compatible via BoxFuture), RealResponder
+  (reqwest+rustls-tls), MockResponder, jsonschema-based validation
+- src/prompts.rs — Handlebars PromptRegistry with per-capability + schema-repair
+  fallbacks and optional on-disk override
+- src/schemas.rs — embedded JSON Schema constants for request + 7 responses,
+  descriptor_for() helper
+- prompts/*.handlebars — 8 template files (one per capability + schema_repair)
+- tests/provider_tests.rs — 5 integration tests (see below)
+
+Workspace changes
+-----------------
+- Cargo.toml (workspace root): added `providers/openai-compatible` to
+  workspace.members (NOT default-members), added `reqwest = "0.12"` with
+  json + rustls-tls and `handlebars = "6"` to workspace.dependencies.
+
+Tests (7 total, all pass)
+--------------------------
+schemas::tests::all_schemas_compile_as_valid_json_schema         ok
+schemas::tests::descriptor_has_request_and_response_bytes        ok
+provider_tests::negotiate_advertises_seven_capabilities          ok
+provider_tests::provider_renders_capability_specific_prompt      ok
+provider_tests::provider_submits_with_response_format_json_schema ok
+provider_tests::provider_retries_once_on_malformed_output        ok
+provider_tests::provider_never_persists_plaintext_key            ok
+
+- `provider_submits_with_response_format_json_schema` spawns a real
+  std::net::TcpListener mock, captures the raw HTTP request, and asserts
+  the body contains `"response_format"`, `"json_schema"`, and the
+  capability schema name `llm_analysis_function`.
+- `provider_retries_once_on_malformed_output` uses MockResponder backed
+  by `Arc<AtomicUsize>` to assert the mock is invoked exactly 2 times
+  (primary + 1 retry) when every response body is malformed `"{"`,
+  and that the terminal event is `Completed{Failed}`.
+- `provider_never_persists_plaintext_key` injects a known plaintext key
+  via `client.set_api_key_ref(...)` and scans every emitted observation,
+  diagnostic, and completion summary to confirm the key does not appear.
+
+Verification
+------------
+- `PROTOC=... cargo build -p openai-compatible-provider --no-default-features` : OK
+- `PROTOC=... cargo test  -p openai-compatible-provider -- --nocapture`        : 7/7 passed
+- `PROTOC=... cargo clippy -p openai-compatible-provider --all-targets -- -D warnings` : clean
+- `cargo build` (default members)                                             : clean
+- `cargo fmt --all`                                                            : no changes
+
+Known pre-existing issue
+------------------------
+`cargo clippy --workspace --exclude autore-stage1 --exclude autore-provider-protocol
+--exclude autore-provider-runtime --exclude fixture-provider --exclude ida-provider
+--exclude autore-reconstruction --all-targets -- -D warnings` reports one
+pre-existing warning in `autore-tui/src/tui.rs:51` (`clippy::large_enum_variant`
+on `TuiEvent::Internal`). Not caused by this task; not fixed here.
+
+Design decisions
+----------------
+1. Used `reqwest = 0.12` with `rustls-tls` (default-features=false) rather
+   than `ureq` — async-first matches the tokio runtime already used by the
+   bootstrap binary, and rustls avoids the system OpenSSL dependency.
+2. Used `handlebars = 6` over `tinytemplate` — richer error reporting and
+   `register_template_string` for runtime fallback.
+3. Introduced a `lib.rs` in addition to `main.rs` so that integration tests
+   under `tests/` can import the crate's modules directly (main.rs alone
+   would not expose a library target).
+4. The `Responder` trait returns `BoxFuture<'a, _>` (dyn-compatible)
+   instead of `impl Future` so the client can hold `Arc<dyn Responder>`
+   and tests can inject a deterministic mock without generics at the
+   client site.
+5. Plaintext key is resolved lazily inside `submit()` via `env:VAR` lookup;
+   `OpenAiClient` never stores the plaintext value, only the reference.
+6. Prompt templates load from `$AUTORE_LLM_PROMPT_DIR` or
+   `$CARGO_MANIFEST_DIR/prompts` at startup; fallbacks are embedded so the
+   provider boots even with no on-disk templates.
+7. Schemas are embedded as `serde_json::Value` constants and serialized to
+   bytes for the `CapabilityDescriptor` — avoids file-IO at Negotiate time
+   and keeps the binary self-contained.

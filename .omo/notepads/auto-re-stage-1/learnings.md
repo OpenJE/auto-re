@@ -536,3 +536,44 @@
 - `cargo build` (default members): clean
 - `cargo clippy --workspace --exclude ... --all-targets -- -D warnings`: clean
 - Evidence: `.omo/evidence/auto-re-stage-1/task-20-whole-program-work-graph.txt`
+
+## 2026-07-21 Wave 5 Todo 21 (OpenAI-compatible LLM provider)
+- **Provider crate with both binary and library target**: adding a `src/lib.rs`
+  alongside `src/main.rs` in a Cargo binary crate lets integration tests under
+  `tests/` import modules via `use crate_name::module;`. The `main.rs` then
+  imports from the crate (e.g. `use openai_compatible_provider::prompts`) instead
+  of declaring `mod prompts;` — declaring modules in both `main.rs` and `lib.rs`
+  would conflict.
+- **Dyn-compatible async trait for testability**: a trait method returning
+  `impl Future<Output = T> + Send` is NOT dyn-compatible (E0038). Use
+  `type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;` and
+  return `Box::pin(async move { ... })` from each impl. The client can then
+  hold `Arc<dyn Responder>` and tests can inject a closure-backed
+  `MockResponder`.
+- **`assert_eq!` macro parses braces in the message string**: a literal
+  `"Completed{Failed}"` in the message position of `assert_eq!(a, b, "...")`
+  is parsed as a format argument; escape with doubled braces
+  `"Completed{{Failed}}"`.
+- **`jsonschema = 0.33` API**: `jsonschema::validator_for(&schema)` returns
+  `Result<ValidatorNode, _>`; `validator.iter_errors(&value)` yields
+  `ValidationError` with `Display` and `instance_path` properties.
+- **Handlebars 6**: `Handlebars::new()` constructor, `register_template_string`
+  returns `Result<(), TemplateError>`, `render(name, &data)` takes a
+  `&impl Serialize` context. `set_strict_mode(false)` lets placeholders be
+  missing without failing.
+- **Mock HTTP via std TcpListener**: for integration tests, bind a
+  `std::net::TcpListener` on `127.0.0.1:0`, read its local port, spawn a
+  thread that accepts one connection, reads raw HTTP bytes into a shared
+  `Arc<Mutex<Vec<u8>>>`, and writes a canned `HTTP/1.1 200` response. The
+  client (reqwest in tokio) then hits `http://<addr>/...`. Reliable and
+  exercises the real HTTP path.
+- **Pre-existing clippy warning in `autore-tui`**: `TuiEvent::Internal` is
+  ≥416 bytes — `clippy::large_enum_variant` fires. Not introduced by this
+  task; flagged in issues.md.
+
+### Verification
+- `PROTOC=... cargo build -p openai-compatible-provider --no-default-features`: clean
+- `PROTOC=... cargo test  -p openai-compatible-provider`: 7/7 passed
+- `PROTOC=... cargo clippy -p openai-compatible-provider --all-targets -- -D warnings`: clean
+- `cargo build` (default members): clean
+- Evidence: `.omo/evidence/auto-re-stage-1/task-21-openai-compatible-provider.txt`
