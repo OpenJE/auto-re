@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "generation-repair-response",
+  "title": "GenerationRepairResponse",
+  "description": "Parsed LLM output for llm.generation.repair: repaired candidate source from a prior candidate and compiler diagnostics.",
+  "type": "object",
+  "required": [
+    "prior_candidate_bytes",
+    "diagnostics",
+    "recommended_repair_bytes",
+    "new_candidate_source_bytes",
+    "handoff_followups"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "prior_candidate_bytes": {
+      "type": "string",
+      "description": "Base64-encoded bytes of the prior candidate being repaired."
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": { "type": "object" },
+      "description": "Compiler diagnostics that triggered the repair."
+    },
+    "recommended_repair_bytes": {
+      "type": "string",
+      "description": "Base64-encoded bytes of the recommended repair snippet."
+    },
+    "new_candidate_source_bytes": {
+      "type": "string",
+      "description": "Base64-encoded source bytes for the new repaired candidate."
+    },
+    "handoff_followups": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Follow-up work items or capability IDs to hand off after repair."
+    }
+  }
+}

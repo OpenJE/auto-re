@@ -18,6 +18,8 @@
 //! [`EntityId`]: autore_schema::ids::EntityId
 
 pub mod mapping;
+pub mod orchestrator;
+pub mod patch;
 pub mod skeleton;
 pub mod stub;
 
@@ -25,5 +27,9 @@ pub mod stub;
 mod tests;
 
 pub use mapping::GeneratedSourceMappingIntent;
+pub use orchestrator::{
+    GenerationModel, GenerationOrchestrator, OrchestratorConfig, WorkItemContext, WorkItemOutcome,
+};
+pub use patch::{CandidatePatch, PatchError, PatchOutcome, PatchPipeline};
 pub use skeleton::{FileRole, GeneratedFile, ProjectSkeletonBuilder, SkeletonManifest};
 pub use stub::StubPolicy;

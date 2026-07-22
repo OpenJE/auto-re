@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "generation-declaration-response",
+  "title": "GenerationDeclarationResponse",
+  "description": "Parsed LLM output for llm.generation.declaration: header includes and forward declarations side.",
+  "type": "object",
+  "required": [
+    "headers",
+    "declarations",
+    "candidate_source_bytes"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "headers": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Required header file paths or include lines."
+    },
+    "declarations": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Forward declarations and type pre-declarations."
+    },
+    "candidate_source_bytes": {
+      "type": "string",
+      "description": "Base64-encoded source bytes for the declaration-side candidate."
+    },
+    "source_evidence_references": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Evidence references backing the declarations."
+    }
+  }
+}

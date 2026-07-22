@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "generation-cluster-response",
+  "title": "GenerationClusterResponse",
+  "description": "Parsed LLM output for llm.generation.cluster: candidate implementation for a function cluster, extending llm.generation.function with cluster coordinates.",
+  "type": "object",
+  "required": [
+    "entity_target_id",
+    "candidate_source_bytes",
+    "cluster_member_order",
+    "initialization_order",
+    "declarations_required",
+    "assumptions",
+    "dependencies",
+    "unsupported_behavior",
+    "proposed_tests",
+    "source_evidence_references"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "entity_target_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "EntityId or cluster handle of the cluster being generated."
+    },
+    "candidate_source_bytes": {
+      "type": "string",
+      "description": "Base64-encoded source bytes for the cluster candidate."
+    },
+    "cluster_member_order": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Ordered member entity IDs within the cluster."
+    },
+    "initialization_order": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Initialization order for cluster members and their dependencies."
+    },
+    "declarations_required": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Declaration entity IDs or artifact references required to compile this cluster."
+    },
+    "assumptions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Assumptions made while generating the cluster."
+    },
+    "dependencies": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "EntityIds or artifact references this cluster depends on."
+    },
+    "unsupported_behavior": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Behavior the cluster implementation explicitly does not handle."
+    },
+    "proposed_tests": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Test IDs proposed for this cluster."
+    },
+    "source_evidence_references": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Evidence references used to derive the cluster."
+    }
+  }
+}

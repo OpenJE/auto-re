@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "generation-type-response",
+  "title": "GenerationTypeResponse",
+  "description": "Parsed LLM output for llm.generation.type: full struct or union declaration.",
+  "type": "object",
+  "required": [
+    "entity_target_id",
+    "candidate_source_bytes",
+    "assumptions",
+    "dependencies",
+    "source_evidence_references"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "entity_target_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "EntityId of the type being generated."
+    },
+    "candidate_source_bytes": {
+      "type": "string",
+      "description": "Base64-encoded source bytes for the full type declaration."
+    },
+    "assumptions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Assumptions made while generating the type."
+    },
+    "dependencies": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "EntityIds or artifact references this type depends on."
+    },
+    "source_evidence_references": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Evidence references used to derive the type."
+    }
+  }
+}

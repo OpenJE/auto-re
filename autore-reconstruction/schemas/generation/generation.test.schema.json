@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "generation-test-response",
+  "title": "GenerationTestResponse",
+  "description": "Parsed LLM output for llm.generation.test: generated test or scenario candidate.",
+  "type": "object",
+  "required": [
+    "target_unit",
+    "test_kind",
+    "naive_expected_observations",
+    "candidate_source_bytes"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "target_unit": {
+      "type": "string",
+      "minLength": 1,
+      "description": "EntityId or work item ID of the unit under test."
+    },
+    "test_kind": {
+      "type": "string",
+      "enum": ["unit", "differential", "scenario"],
+      "description": "Kind of test generated."
+    },
+    "naive_expected_observations": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Expected observations for the test, before normalization."
+    },
+    "candidate_source_bytes": {
+      "type": "string",
+      "description": "Base64-encoded source bytes for the generated test candidate."
+    },
+    "source_evidence_references": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Evidence references used to derive the test."
+    }
+  }
+}

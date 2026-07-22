@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "generation-function-response",
+  "title": "GenerationFunctionResponse",
+  "description": "Parsed LLM output for llm.generation.function: candidate function implementation.",
+  "type": "object",
+  "required": [
+    "entity_target_id",
+    "candidate_source_bytes",
+    "declarations_required",
+    "assumptions",
+    "dependencies",
+    "unsupported_behavior",
+    "proposed_tests",
+    "source_evidence_references"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "entity_target_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "EntityId of the function being generated."
+    },
+    "candidate_source_bytes": {
+      "type": "string",
+      "description": "Base64-encoded source bytes for the function implementation candidate."
+    },
+    "declarations_required": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Declaration entity IDs or artifact references required to compile this candidate."
+    },
+    "assumptions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Assumptions made while generating the function."
+    },
+    "dependencies": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "EntityIds or artifact references this function depends on."
+    },
+    "unsupported_behavior": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Behavior the implementation explicitly does not handle."
+    },
+    "proposed_tests": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Test IDs proposed for this function."
+    },
+    "source_evidence_references": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Evidence references used to derive the function."
+    }
+  }
+}
