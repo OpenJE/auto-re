@@ -13,6 +13,17 @@ in {
 
   packages = [
     cargo-mcp
-    pkgs.cmake
-  ];
+  ] ++ (with pkgs; [
+    protobuf
+    buf
+    cmake
+    ninja
+    pkg-config
+    clang
+    llvm
+    docker
+    cargo-nextest
+    jq
+    sqlite
+  ]);
 }
